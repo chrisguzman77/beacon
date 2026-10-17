@@ -33,4 +33,9 @@ async def explain_index(site_id: int):
 
 @router.post('/briefings/{site_id}/run')
 async def run_briefing_now(site_id: int):
-    return await run_briefing(site_id)
+    # Through core's 6 PM job (contracts/intel-interface.md), so it reaches the dashboard and the beacon too.
+    from app.core.scheduler import briefing_job
+    result = await briefing_job(site_id)
+    if result is None:
+        raise HTTPException(502, 'briefing failed, see the backend log')
+    return result
