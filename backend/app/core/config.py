@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     beacon_site_id: int = 1
     upload_dir: str = "./uploads"
     public_url: str = ""
+    auth0_domain: str = ""
+    auth0_audience: str = "https://planit-beacon/api"
+    supervisor_pin: str = "1234"
 
 
 settings = Settings()
