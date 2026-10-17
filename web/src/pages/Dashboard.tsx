@@ -7,6 +7,7 @@ import { rank, useDash } from '@/dashboard/store'
 import RankedList from '@/dashboard/RankedList'
 import UsMap from '@/dashboard/UsMap'
 import QuickView from '@/dashboard/QuickView'
+import StatusBar from '@/dashboard/StatusBar'
 import { miles, nearest, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { alertHazard, color, hazard, hazardLabel, indexColor, indexStops } from '@/tokens'
 import type { HazardKey } from '@/tokens'
@@ -105,6 +106,7 @@ export default function Dashboard() {
             {sites.length} SITES &nbsp;/&nbsp; {date} &nbsp;/&nbsp; {time}
           </p>
         </div>
+        <StatusBar sites={sites} />
 
         <div className="grid min-h-0 flex-1 grid-cols-[360px_1fr_420px] grid-rows-[minmax(0,1fr)] gap-4">
           {/* Left: the selected site, quick view */}
