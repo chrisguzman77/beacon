@@ -7,6 +7,7 @@ import fakeSites from '@/dashboard/fake-sites.json'
 import { allClear, drift, steps, STEP_MS } from '@/sweet-treats/showcase'
 import type { Snapshot } from './types'
 import { formatCountdown } from './store'
+import { buildFactors, isHazard } from './factors'
 
 // The beacon LCD1602's two 16 character lines, as the firmware would show them.
 const pad = (t: string) => t.slice(0, 16).padEnd(16)
@@ -16,7 +17,13 @@ function lcdFor(s: Snapshot): string[] {
   if (s.interlock === 'locked' || s.alert_type === 'stopwork') return [pad('STOP WORK'), pad(s.reason || 'LOCKED OUT')]
   return [pad(`ALL CLEAR IDX ${s.index}`), pad(`CREW ${s.crew.filter((c) => c.in).length}   ${s.next_briefing}`)]
 }
-const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s) })
+// The model's three reasons, faked from the readings: hazards first, then the usual drivers.
+function reasonsFor(s: Snapshot): string[] {
+  const hz = buildFactors(s).filter(isHazard).map((f) => f.note ?? f.label)
+  const usual = [`Heat index ${Math.round(s.heat_index_f)}°F`, `Gusts ${Math.round((s.wind_gust_mph ?? 0) * 1.609)} km/h`, `Soil moisture ${((s.soil_pct ?? 0) / 100).toFixed(2)}`]
+  return [...new Set([...hz, ...usual])].slice(0, 3)
+}
+const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s) })
 
 type Frame = { at: number; patch: Partial<Snapshot> }
 const base = script.base as Snapshot

@@ -10,13 +10,14 @@ export type Snapshot = {
   led: 'green' | 'yellow' | 'red' | 'strobe'
   countdown: number
   reason: string
-  alert_type: 'stopwork' | 'heat_danger' | 'flood_confirmed' | 'beacon_unsafe' | 'estop' | ''
+  alert_type: 'stopwork' | 'heat_danger' | 'flood_confirmed' | 'beacon_unsafe' | 'estop' | 'flood_warning' | 'heat_warning' | ''
   interlock: 'running' | 'locked'
   awaiting_clear: boolean
   presence: boolean
   zone_clear: boolean
   index: number
-  index_reason: string
+  index_reason: string // one sentence on why the index is what it is
+  index_reasons?: string[] // the model's top features as short labels, e.g. "Gusts 49 km/h" (up to three)
   heat_index_f: number
   temp_c: number
   humidity: number
