@@ -1,5 +1,6 @@
 import { Check, KeyRound, OctagonX } from 'lucide-react'
 import { takeover } from '@/tokens'
+import KioskButton from './KioskButton'
 import { formatCountdown } from './store'
 import type { Snapshot } from './types'
 
@@ -22,12 +23,7 @@ export default function StopWorkScreen({ s, onSupervisor }: Props) {
           </p>
           <p className="mt-2 text-heading leading-none font-semibold text-white/90">{s.reason || 'EQUIPMENT LOCKED'}</p>
         </div>
-        <button
-          onClick={onSupervisor}
-          className="flex h-tap items-center gap-2 rounded-xl border-2 border-white/40 bg-black/20 px-5 text-label font-semibold tracking-wide active:bg-black/40"
-        >
-          <KeyRound className="size-5" /> SUPERVISOR
-        </button>
+        <KioskButton tone="alarm" className="h-tap w-56" icon={KeyRound} label="Supervisor" detail="PIN release" onClick={onSupervisor} />
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center">

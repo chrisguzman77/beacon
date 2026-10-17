@@ -31,3 +31,4 @@ Run: scripts/dev.sh web. Kiosk in dev: `npm run dev:beacon` opens the kiosk agai
 - Countdown size: the guide's 80 mm digits cannot fit (the whole 480 px screen is about 86 mm tall); the countdown is 240 px, the largest thing on the device.
 - Beacon mode: VITE_MODE=beacon or `vite --mode beacon` renders only the kiosk; `?fake=1` swaps the gateway socket for the fake replay. Root .gitignore ignores .env.*, so no committed .env.beacon.
 - Palette (Cam): dark navy #0A1A3A background with bright saturated accents for visibility in all weather; flood is cyan #00D4FF because blue vanishes on navy; cards carry a 2 px border for definition in glare.
+- Kiosk controls (Cam): one KioskButton for every kiosk tap target, industrial/HUD style: chamfered corners, 2 px edge, safety yellow hazard stripe foot, mono panel code tag, instant 2 px press. Safety yellow #FFD600 is for controls only, never a hazard meaning.

@@ -1,6 +1,6 @@
 import { BookOpen, Camera, KeyRound, Users } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { alertHazard, hazard, indexColor, indexStops } from '@/tokens'
+import KioskButton from './KioskButton'
 import type { Screen } from './Kiosk'
 import type { Snapshot } from './types'
 
@@ -52,10 +52,10 @@ export default function StatusScreen({ s, gateway, go }: Props) {
       </main>
 
       <nav className="grid grid-cols-4 gap-3">
-        <NavButton icon={Users} label="Crew" detail={`${crewIn} of ${s.crew.length} in`} onClick={() => go('crew')} />
-        <NavButton icon={KeyRound} label="Supervisor" onClick={() => go('supervisor')} />
-        <NavButton icon={BookOpen} label="Briefing" onClick={() => go('briefing')} />
-        <NavButton icon={Camera} label="Report" onClick={() => go('report')} />
+        <KioskButton stack className="h-[88px]" code="01" icon={Users} label="Crew" detail={`${crewIn}/${s.crew.length}`} onClick={() => go('crew')} />
+        <KioskButton stack className="h-[88px]" code="02" icon={KeyRound} label="Supervisor" onClick={() => go('supervisor')} />
+        <KioskButton stack className="h-[88px]" code="03" icon={BookOpen} label="Briefing" onClick={() => go('briefing')} />
+        <KioskButton stack className="h-[88px]" code="04" icon={Camera} label="Report" onClick={() => go('report')} />
       </nav>
     </div>
   )
@@ -91,19 +91,5 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
       <span className="text-label font-medium uppercase tracking-[0.18em] text-dim">{label}</span>
       <span className="text-[40px] leading-none font-semibold" style={{ color }}>{value}</span>
     </div>
-  )
-}
-
-function NavButton({ icon: Icon, label, detail, onClick }: { icon: LucideIcon; label: string; detail?: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex h-[84px] flex-col items-center justify-center gap-1 rounded-2xl border-2 border-line bg-raised text-body font-semibold uppercase tracking-wide active:bg-line"
-    >
-      <span className="flex items-center gap-2">
-        <Icon className="size-6" /> {label}
-      </span>
-      {detail && <span className="text-label font-medium normal-case tracking-normal text-dim">{detail}</span>}
-    </button>
   )
 }

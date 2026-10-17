@@ -19,6 +19,7 @@
     --color-dim: var(--t-muted);
     --color-online: var(--t-online);
     --color-offline: var(--t-offline);
+    --color-safety: var(--t-safety);
     --color-hz-stopwork: var(--hz-stopwork);
     --color-hz-heat: var(--hz-heat);
     --color-hz-flood: var(--hz-flood);

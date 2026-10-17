@@ -12,6 +12,7 @@ export const color = {
   muted: '#B4C6E6',
   online: '#00E676',
   offline: '#FFB300',
+  safety: '#FFD600', // safety yellow for hazard stripes on controls, never a hazard meaning
 }
 
 // One color per hazard type, used identically on every screen.
