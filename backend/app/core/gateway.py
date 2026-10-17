@@ -121,6 +121,13 @@ async def gateway_ws(ws: WebSocket, site_id: int, token: str = ""):
     await ws.accept()
     _conns[site_id] = ws
     log.info("gateway %s connected", site_id)
+    # Scoring sends INDEX once a day; a Pi that connects later still needs the needle set
+    idx = await db.fetchrow("SELECT index, top_features FROM hazard_index WHERE site_id=$1 ORDER BY for_date DESC LIMIT 1",
+                            site_id)
+    if idx:
+        tf = idx["top_features"] or []
+        await send(site_id, {"cmd": "INDEX", "value": idx["index"],
+                             "reason": tf[0]["label"] if tf else "No weather risk stands out"})
     try:
         while True:
             m = await ws.receive_json()
