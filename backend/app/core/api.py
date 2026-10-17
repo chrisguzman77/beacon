@@ -1,7 +1,16 @@
 """REST and the site websocket. contracts/api.md."""
-from fastapi import APIRouter, HTTPException, WebSocket
+import secrets
+import uuid
+from pathlib import Path
 
-from . import db, fetchers, gateway, hub, muster
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket
+from pydantic import BaseModel
+
+from app import intel
+
+from . import db, fetchers, gateway, hub, muster, rules
+from .auth import get_user, require_supervisor
+from .config import settings
 from .rules import alert_json
 from .sites import SITES
 
@@ -58,6 +67,81 @@ async def site_device(site_id: int):
 @router.get("/sites/{site_id}/muster")
 async def site_muster(site_id: int):
     return await muster.roster(site_id)
+
+
+@router.get("/me")
+async def me(user=Depends(get_user)):
+    return user
+
+
+async def _crew_for(site_id, user, name=None):
+    """The crew row for this Auth0 user at this site, created on first use."""
+    cid = await db.fetchval("SELECT crew_id FROM crew WHERE site_id=$1 AND auth0_sub=$2", site_id, user["sub"])
+    if cid is None:
+        cid = await db.fetchval("INSERT INTO crew (site_id, name, auth0_sub) VALUES ($1,$2,$3) RETURNING crew_id",
+                                site_id, name or user["sub"].split("|")[-1], user["sub"])
+    return cid
+
+
+class CheckinIn(BaseModel):
+    site_id: int
+    action: str
+    lat: float | None = None
+    lon: float | None = None
+    via: str = "phone"
+    name: str | None = None
+
+
+@router.post("/checkin")
+async def post_checkin(body: CheckinIn, user=Depends(get_user)):
+    if body.site_id not in SITES or body.action not in ("in", "out"):
+        raise HTTPException(422, "unknown site or action")
+    cid = await _crew_for(body.site_id, user, body.name)
+    await muster.checkin(body.site_id, cid, body.action, body.via, extra={"lat": body.lat, "lon": body.lon})
+    return await muster.push(body.site_id)
+
+
+@router.post("/reports")
+async def post_report(photo: UploadFile = File(...), site_id: int = Form(...), lat: float | None = Form(None),
+                      lon: float | None = Form(None), note: str = Form(""), user=Depends(get_user)):
+    site = SITES.get(site_id)
+    if not site:
+        raise HTTPException(404, "unknown site")
+    data = await photo.read()
+    mime = photo.content_type or "image/jpeg"
+    name = f"{uuid.uuid4().hex}{Path(photo.filename or '').suffix or '.jpg'}"
+    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    (Path(settings.upload_dir) / name).write_bytes(data)
+    tag = await intel.tag_photo(data, mime, site["name"])
+    cid = await _crew_for(site_id, user)
+    r = await db.fetchrow(
+        "INSERT INTO reports (site_id,ts,crew_id,lat,lon,photo_path,tag,description,confidence,note)"
+        " VALUES ($1,now(),$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+        site_id, cid, lat, lon, f"/uploads/{name}", tag["tag"], tag["description"], tag["confidence"], note)
+    payload = {"report_id": r["report_id"], "tag": tag["tag"], "description": tag["description"], "lat": lat, "lon": lon}
+    await db.execute("INSERT INTO events VALUES ($1,$2,'crew','hazard_report',$3)", r["ts"], site_id, payload)
+    await hub.publish(site_id, {"type": "report", **payload, "photo_path": r["photo_path"], "ts": r["ts"].isoformat()})
+    return {"report_id": r["report_id"], **tag, "photo_path": r["photo_path"]}
+
+
+class ClearIn(BaseModel):
+    pin: str
+    by: str | None = None
+
+
+@router.post("/alerts/{alert_id}/clear")
+async def clear_alert(alert_id: int, body: ClearIn, user=Depends(require_supervisor)):
+    if not secrets.compare_digest(body.pin, settings.supervisor_pin):
+        raise HTTPException(403, "wrong PIN")
+    by = body.by or "Supervisor"
+    r = await db.fetchrow("UPDATE alerts SET cleared=now(), cleared_by=$2 WHERE alert_id=$1 AND cleared IS NULL RETURNING *",
+                          alert_id, by)
+    if not r:
+        raise HTTPException(404, "no open alert with that id")
+    await hub.publish(r["site_id"], {"type": "alert", "alert": alert_json(r)})
+    if r["type"] == "stopwork" and SITES[r["site_id"]]["beacon"]:
+        await gateway.send(r["site_id"], {"cmd": "CLEAR", "by": by})
+    return alert_json(r)
 
 
 @router.websocket("/ws/site/{site_id}")
