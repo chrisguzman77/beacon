@@ -1,407 +1,133 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import { Camera, Check, ChevronDown, LoaderCircle, LogIn, LogOut, MapPin, OctagonAlert, Scan, ShieldCheck, TriangleAlert, X } from 'lucide-react'
-import { post } from '@/api'
-import type { SiteRow } from '@/api'
+import { useEffect, useState } from 'react'
+import { LoaderCircle, Lock, LogIn, LogOut, MoreVertical, Repeat, Scan } from 'lucide-react'
 import { useDash } from '@/dashboard/store'
-import { formatCountdown, useSite } from '@/site/store'
-import { isTakeover } from '@/site/types'
-import { authOn, useAuth } from '@/lib/auth'
-import { useSlow } from '@/lib/useSlow'
+import { useAuth } from '@/lib/auth'
 import { useTitle } from '@/lib/useTitle'
-import { crewText, reasonIn, useCrewLang } from '@/sweet-treats/crewText'
-import type { CrewText, Lang } from '@/sweet-treats/crewText'
-import { miles, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
-import { color, hazard } from '@/tokens'
+import { crewText, useCrewLang } from '@/sweet-treats/crewText'
+import type { CrewText } from '@/sweet-treats/crewText'
+import { checkOut, demoSignIn, forgetSite, loadSession, saveSession, signOutSession, useDemoSignIn } from '@/sweet-treats/crewSession'
+import type { Session } from '@/sweet-treats/crewSession'
+import Setup from '@/crew/Setup'
+import SafetyHome from '@/crew/SafetyHome'
+import ChangeSite from '@/crew/ChangeSite'
+import { BigButton, LangSwitch } from '@/crew/parts'
+import { color } from '@/tokens'
 
-// The crew phone page (web guide section 8). Site and name are picked once and remembered on the
-// phone. A status strip mirrors the site's alerts, I'M ON SITE / I'M LEAVING post /checkin with the
-// phone's GPS, and REPORT HAZARD takes a photo, shrinks it to 1600 px and posts /reports, then shows
-// the AI tag for confirmation. ?site=12 (a QR code at the site) picks the site, &name= the name.
-// ?fake=1 simulates check in and reports with no login. English or Spanish (EN / ES in the header).
+// The crew phone page (web guide section 8), as three steps:
+//   1. sign in (Auth0, or a plain demo step when it is not configured)
+//   2. who you are (crew directory) and where (the phone's location first), then connect to that beacon
+//   3. the safety home for that one beacon: what it says, check in and out, conditions, hazard reports
+// The phone stays on its beacon; changing site needs a supervisor and checks the person out first.
+// ?site=12 (a QR code at the site) and &name= prefill step 2. ?fake=1 simulates everything.
+// The flow and session logic are a sweet treat (sweet-treats/crewSession.ts); English or Spanish.
 
-const SITE_KEY = 'omnirisk.crew.site'
-const NAME_KEY = 'omnirisk.crew.name'
 const query = new URLSearchParams(location.search)
-const fake = query.has('fake')
-
-function load(key: string) {
-  try {
-    return localStorage.getItem(key) ?? ''
-  } catch {
-    return ''
-  }
-}
-function save(key: string, v: string) {
-  try {
-    localStorage.setItem(key, v)
-  } catch {
-    /* remembered for this visit only */
-  }
-}
-
-// The phone's position right now, or nulls if it is refused or slow.
-function gps(): Promise<{ lat: number | null; lon: number | null }> {
-  return new Promise((done) => {
-    if (!('geolocation' in navigator)) return done({ lat: null, lon: null })
-    navigator.geolocation.getCurrentPosition(
-      (p) => done({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      () => done({ lat: null, lon: null }),
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 30_000 },
-    )
-  })
-}
-
-// A 12 MP photo shrunk to 1600 px on the long side as JPEG, so it uploads fast on hotspot Wi-Fi.
-async function shrink(file: File): Promise<Blob> {
-  const img = await createImageBitmap(file)
-  const k = Math.min(1, 1600 / Math.max(img.width, img.height))
-  const c = document.createElement('canvas')
-  c.width = Math.round(img.width * k)
-  c.height = Math.round(img.height * k)
-  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
-  return new Promise((done) => c.toBlob((b) => done(b ?? file), 'image/jpeg', 0.82))
-}
-
-type Tag = { tag: string; description: string; confidence: number }
 
 export default function Crew() {
   const auth = useAuth()
-  const { sites, status, connect: connectSites } = useDash()
-  const [siteId, setSiteId] = useState(() => Number(query.get('site') ?? load(SITE_KEY)) || 0)
-  const [name, setName] = useState(() => query.get('name') ?? load(NAME_KEY))
-  const [picking, setPicking] = useState(false)
+  const { sites, status, connect } = useDash()
   const [lang, setLang] = useCrewLang()
   const t = crewText[lang]
-  useEffect(() => connectSites(), [connectSites])
+  const [session, setSession] = useState<Session>(() => loadSession(query))
+  const [demoSigned, demoIn, demoOut] = useDemoSignIn()
+  const [connected, setConnected] = useState(false) // past step 2 this visit
+  const [menu, setMenu] = useState(false)
+  const [changing, setChanging] = useState(false)
+  const [checkedIn, setCheckedIn] = useState(false)
+  useEffect(() => connect(), [connect])
 
-  const site = sites.find((s) => s.site_id === siteId)
-  const ready = site && name.trim()
-  const needSignIn = authOn && auth.ready && !auth.signedIn && !fake
-  useTitle(site ? `${t.crew} · ${site.name}` : t.crew)
+  const signedIn = demoSignIn ? demoSigned : auth.signedIn
+  const site = sites.find((s) => s.site_id === session.siteId)
+  // A QR link (?site=) always shows step 2 first so the person confirms who and where.
+  const home = signedIn && site && session.name && (connected || !query.has('site'))
+  useTitle(site && home ? `${t.crew} · ${site.name}` : t.crew)
 
-  useEffect(() => {
-    if (!name && auth.name) setName(auth.name)
-  }, [auth.name]) // eslint-disable-line react-hooks/exhaustive-deps
+  const leave = async () => {
+    if (site && session.name && checkedIn) await checkOut(site.site_id, session.name, await auth.token())
+  }
+  const logOut = async () => {
+    setMenu(false)
+    await leave()
+    signOutSession()
+    setSession((s) => ({ siteId: 0, name: s.name }))
+    if (demoSignIn) demoOut()
+    else auth.signOut()
+  }
+  const switched = async () => {
+    setChanging(false)
+    await leave()
+    forgetSite()
+    setSession((s) => ({ siteId: 0, name: s.name }))
+    setConnected(false)
+  }
 
   return (
     <div className="min-h-dvh" style={{ background: color.bg, color: color.text }}>
-      <header className="flex items-center justify-between px-4 py-3" style={{ background: color.chrome, color: color.chromeText }}>
-        <span className="flex items-center gap-2">
+      <header className="relative flex items-center justify-between gap-3 px-4 py-3" style={{ background: color.chrome, color: color.chromeText }}>
+        <span className="flex shrink-0 items-center gap-2">
           <Scan className="size-5" style={{ color: color.accent }} strokeWidth={2.25} />
           <span className="text-[18px] font-bold tracking-tight">OmniRisk</span>
-          <span className="font-mono text-[11px] uppercase opacity-70">/ {t.crew}</span>
         </span>
-        <span className="flex min-w-0 items-center gap-3">
-          {ready && (
-            <button onClick={() => setPicking(true)} className="flex min-w-0 items-center gap-1 text-[13px] font-semibold">
-              <span className="truncate">{site.name}</span> <ChevronDown className="size-4 shrink-0" />
-            </button>
+        <span className="flex min-w-0 items-center gap-2">
+          {home && (
+            <span className="flex min-w-0 items-center gap-1 text-[13px] font-semibold">
+              <Lock className="size-3.5 shrink-0 opacity-70" /> <span className="truncate">{site.name}</span>
+            </span>
           )}
           <LangSwitch lang={lang} onChange={setLang} />
+          {signedIn && (
+            <button onClick={() => setMenu(!menu)} className="rounded-md p-1.5" aria-label="Menu" aria-expanded={menu}>
+              <MoreVertical className="size-5" />
+            </button>
+          )}
         </span>
+        {menu && (
+          <div className="absolute top-full right-3 z-40 mt-1 w-56 animate-in overflow-hidden rounded-lg duration-150 fade-in" style={{ background: color.surface, color: color.text, boxShadow: '0 16px 36px rgb(0 0 0 / 0.25)' }}>
+            {home && (
+              <button onClick={() => (setMenu(false), setChanging(true))} className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px]">
+                <Repeat className="size-5" style={{ color: color.muted }} /> {t.changeSite}
+              </button>
+            )}
+            <button onClick={logOut} className="flex w-full items-center gap-3 border-t px-4 py-3 text-left text-[15px]" style={{ borderColor: color.border }}>
+              <LogOut className="size-5" style={{ color: color.muted }} /> {t.logOut}
+            </button>
+          </div>
+        )}
       </header>
 
-      <main className="mx-auto flex max-w-md flex-col gap-4 p-4">
-        {needSignIn ? (
-          <SignIn t={t} onSignIn={auth.signIn} />
-        ) : !ready || picking ? (
+      <main className="mx-auto flex max-w-md flex-col gap-4 p-4" onClick={() => menu && setMenu(false)}>
+        {!demoSignIn && !auth.ready ? (
+          <LoaderCircle className="mx-auto mt-16 size-8 animate-spin" style={{ color: color.muted }} />
+        ) : !signedIn ? (
+          <SignIn t={t} demo={demoSignIn} onSignIn={demoSignIn ? demoIn : auth.signIn} />
+        ) : !home ? (
           <Setup
             t={t}
             sites={sites}
             failed={status === 'error'}
-            siteId={siteId}
-            name={name}
-            onDone={(id, n) => {
-              setSiteId(id)
-              setName(n)
-              save(SITE_KEY, String(id))
-              save(NAME_KEY, n)
-              setPicking(false)
+            initial={{ siteId: session.siteId, name: session.name || auth.name || '' }}
+            onDone={(s) => {
+              saveSession(s)
+              setSession(s)
+              setConnected(true)
             }}
           />
         ) : (
-          <OnSite t={t} lang={lang} site={site} name={name.trim()} token={auth.token} />
+          <SafetyHome t={t} lang={lang} site={site} name={session.name} token={auth.token} onCheckedIn={setCheckedIn} />
         )}
       </main>
+
+      {changing && site && <ChangeSite t={t} site={site.name} token={auth.token} signIn={auth.signIn} onApproved={switched} onClose={() => setChanging(false)} />}
     </div>
   )
 }
 
-function SignIn({ t, onSignIn }: { t: CrewText; onSignIn: () => void }) {
+function SignIn({ t, demo, onSignIn }: { t: CrewText; demo: boolean; onSignIn: () => void }) {
   return (
     <section className="mt-6 flex flex-col gap-4">
       <h1 className="text-[34px] leading-tight font-bold">{t.signInTitle}</h1>
-      <p className="text-[16px]" style={{ color: color.muted }}>{t.signInBody}</p>
-      <BigButton onClick={onSignIn} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>{t.signIn}</BigButton>
+      <p className="text-[16px]" style={{ color: color.muted }}>{demo ? t.signInDemoBody : t.signInBody}</p>
+      <BigButton onClick={onSignIn} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>{demo ? t.signInDemo : t.signIn}</BigButton>
     </section>
-  )
-}
-
-function Setup({ t, sites, failed, siteId, name, onDone }: { t: CrewText; sites: SiteRow[]; failed: boolean; siteId: number; name: string; onDone: (id: number, name: string) => void }) {
-  const here = useDeviceLocation()
-  const [n, setN] = useState(name)
-  const [id, setId] = useState(siteId)
-  // Nearest first once the phone shares its location; the beacon site leads until then.
-  const list = [...sites].sort((a, b) => (here ? miles(here, a) - miles(here, b) : Number(b.beacon) - Number(a.beacon) || a.name.localeCompare(b.name)))
-
-  return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-[30px] leading-tight font-bold">{t.yourSite}</h1>
-      <label className="flex flex-col gap-1">
-        <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{t.yourName}</span>
-        <input
-          value={n}
-          onChange={(e) => setN(e.target.value)}
-          placeholder={t.firstName}
-          autoComplete="given-name"
-          className="h-14 rounded-md px-4 text-[18px] outline-none"
-          style={{ background: color.surface, boxShadow: `inset 0 0 0 1.5px ${color.border}` }}
-        />
-      </label>
-      <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{here ? t.nearestFirst : t.pickSite}</span>
-      <ul className="flex max-h-[45dvh] flex-col gap-2 overflow-y-auto">
-        {!sites.length && (
-          <li className="flex items-center justify-between gap-3 text-[15px]" style={{ color: failed ? hazard.stopwork : color.muted }}>
-            {failed ? t.listFailed : t.loadingSites}
-            {failed && <button onClick={() => location.reload()} className="font-semibold underline">{t.retry}</button>}
-          </li>
-        )}
-        {list.map((s) => (
-          <li key={s.site_id}>
-            <button
-              onClick={() => setId(s.site_id)}
-              className="flex w-full items-center justify-between gap-3 rounded-md px-4 py-3 text-left"
-              style={{ background: id === s.site_id ? color.accentPale : color.surface, boxShadow: `inset 0 0 0 ${id === s.site_id ? 2 : 1}px ${id === s.site_id ? color.accent : color.border}` }}
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-[17px] font-semibold">{s.name}</span>
-                <span className="block text-[13px]" style={{ color: color.muted }}>
-                  {s.county}, {s.state}{here ? ` · ${Math.round(miles(here, s))} mi` : ''}
-                </span>
-              </span>
-              {id === s.site_id && <Check className="size-6 shrink-0" style={{ color: color.signal }} strokeWidth={3} />}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <BigButton disabled={!id || !n.trim()} onClick={() => onDone(id, n.trim())} fill={color.accent} ink={color.accentInk} icon={<MapPin className="size-7" />}>
-        {t.useSite}
-      </BigButton>
-    </section>
-  )
-}
-
-function OnSite({ t, lang, site, name, token }: { t: CrewText; lang: Lang; site: SiteRow; name: string; token: () => Promise<string | null> }) {
-  const snapshot = useSite((s) => s.snapshot)
-  const connect = useSite((s) => s.connect)
-  useEffect(() => connect(site.site_id), [connect, site.site_id])
-
-  const s = snapshot?.site.id === site.site_id ? snapshot : null
-  const lost = useSlow(!s, 8000, site.site_id)
-  const [fakeIn, setFakeIn] = useState(false)
-  const [busy, setBusy] = useState<'in' | 'out' | null>(null)
-  const [error, setError] = useState('')
-  const [since, setSince] = useState<string>('')
-  const checkedIn = fake ? fakeIn : !!s?.crew.some((c) => c.in && c.name.toLowerCase() === name.toLowerCase())
-  const stop = !!s && (isTakeover(s) || s.alert_type === 'stopwork')
-
-  const checkin = async (action: 'in' | 'out') => {
-    setBusy(action)
-    setError('')
-    try {
-      if (fake) await new Promise((r) => setTimeout(r, 700))
-      else await post('/checkin', { site_id: site.site_id, action, via: 'phone', name, ...(await gps()) }, await token())
-      if (fake) setFakeIn(action === 'in')
-      setSince(action === 'in' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '')
-      navigator.vibrate?.(60)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  return (
-    <>
-      {/* Status strip: what the site's beacon is saying right now. */}
-      {stop ? (
-        <section className="flex items-center gap-3 rounded-md px-4 py-4" style={{ background: hazard.stopwork, color: '#fff' }}>
-          <OctagonAlert className="size-9 shrink-0" />
-          <span className="min-w-0 flex-1">
-            <b className="block text-[24px] leading-tight">{t.stopWork}</b>
-            <span className="block text-[14px] opacity-90">
-              {s.reason ? `${reasonIn(s.reason, lang)} · ` : ''}{t.leaveZone}
-            </span>
-          </span>
-          {s.countdown > 0 && <span className="font-mono text-[26px] font-bold">{formatCountdown(s.countdown)}</span>}
-        </section>
-      ) : s?.alert_type ? (
-        <section className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: color.accentPale, borderLeft: `4px solid ${color.text}` }}>
-          <TriangleAlert className="size-6 shrink-0" />
-          <span className="text-[15px] font-semibold">{reasonIn(s.reason, lang)}</span>
-        </section>
-      ) : (
-        <section className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: color.raised }}>
-          <ShieldCheck className="size-6 shrink-0" style={{ color: color.signal }} />
-          <span className="flex-1 text-[15px] font-semibold">{s ? t.allClear : lost ? t.notConnected : t.connecting}</span>
-          {!s && lost && <button onClick={() => location.reload()} className="text-[14px] font-semibold underline">{t.retry}</button>}
-        </section>
-      )}
-
-      <section className="rounded-md p-4" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-        <p className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{name}</p>
-        <p className="mt-1 flex items-center gap-2 text-[24px] font-bold">
-          <span className="size-3 rounded-full" style={{ background: checkedIn ? color.signal : color.muted }} />
-          {checkedIn ? t.onSite : t.offSite}
-        </p>
-        <p className="text-[14px]" style={{ color: color.muted }}>
-          {checkedIn ? (since ? t.checkedInAt(since) : t.checkedIn) : t.checkInHint}
-        </p>
-      </section>
-
-      <div className="flex flex-col gap-3">
-        <BigButton onClick={() => checkin('in')} disabled={!!busy || checkedIn} busy={busy === 'in'} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>
-          {t.imOn}
-        </BigButton>
-        <BigButton onClick={() => checkin('out')} disabled={!!busy || !checkedIn} busy={busy === 'out'} fill={color.chrome} ink={color.chromeText} icon={<LogOut className="size-7" />}>
-          {t.imLeaving}
-        </BigButton>
-        {error && <p className="rounded-md px-4 py-3 text-[15px]" style={{ background: `color-mix(in srgb, ${hazard.stopwork} 12%, ${color.surface})`, color: hazard.stopwork }}>{error}</p>}
-      </div>
-
-      <Report t={t} site={site} token={token} />
-    </>
-  )
-}
-
-function Report({ t, site, token }: { t: CrewText; site: SiteRow; token: () => Promise<string | null> }) {
-  const input = useRef<HTMLInputElement>(null)
-  const [photo, setPhoto] = useState<File | null>(null)
-  const [preview, setPreview] = useState('')
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<Tag | null>(null)
-  const [error, setError] = useState('')
-
-  const pick = (f?: File) => {
-    if (!f) return
-    setPhoto(f)
-    setPreview(URL.createObjectURL(f))
-    setResult(null)
-    setError('')
-  }
-  const reset = () => {
-    if (preview) URL.revokeObjectURL(preview)
-    setPhoto(null)
-    setPreview('')
-    setNote('')
-    setResult(null)
-    setError('')
-  }
-  const send = async () => {
-    if (!photo) return
-    setBusy(true)
-    setError('')
-    try {
-      if (fake) {
-        await new Promise((r) => setTimeout(r, 1500))
-        setResult({ tag: 'alligator', description: 'An alligator resting near standing water at the edge of the work area.', confidence: 0.91 })
-      } else {
-        const [img, at] = await Promise.all([shrink(photo), gps()])
-        const form = new FormData()
-        form.append('photo', img, 'hazard.jpg')
-        form.append('site_id', String(site.site_id))
-        if (at.lat !== null) form.append('lat', String(at.lat))
-        if (at.lon !== null) form.append('lon', String(at.lon))
-        form.append('note', note)
-        setResult(await post<Tag>('/reports', form, await token()))
-      }
-      navigator.vibrate?.(60)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <section className="flex flex-col gap-3">
-      <input ref={input} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-      {!photo ? (
-        <BigButton onClick={() => input.current?.click()} fill={color.surface} ink={color.text} edge={color.text} icon={<Camera className="size-7" />}>
-          {t.reportHazard}
-        </BigButton>
-      ) : (
-        <div className="flex flex-col gap-3 rounded-md p-3" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-          <div className="relative">
-            <img src={preview} alt={t.photoAlt} className="max-h-[40dvh] w-full rounded-sm object-cover" />
-            {!busy && (
-              <button onClick={reset} className="absolute top-2 right-2 rounded-full p-2" style={{ background: color.chrome, color: color.chromeText }} aria-label={t.discard}>
-                <X className="size-5" />
-              </button>
-            )}
-          </div>
-          {result ? (
-            <div className="flex flex-col gap-2 rounded-sm p-3" style={{ background: color.raised }}>
-              <p className="flex items-center gap-2 text-[13px] font-bold tracking-[0.04em] uppercase" style={{ color: color.signal }}>
-                <Check className="size-4" strokeWidth={3} /> {t.saved}
-              </p>
-              <p className="text-[22px] leading-tight font-bold capitalize">{result.tag}</p>
-              <p className="text-[15px] leading-snug">{result.description}</p>
-              <p className="font-mono text-[11px]" style={{ color: color.muted }}>{t.sure(Math.round(result.confidence * 100))}</p>
-              <BigButton onClick={reset} fill={color.accent} ink={color.accentInk} icon={<Camera className="size-7" />}>{t.another}</BigButton>
-            </div>
-          ) : (
-            <>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder={t.note}
-                rows={2}
-                className="rounded-md px-4 py-3 text-[16px] outline-none"
-                style={{ background: color.bg, boxShadow: `inset 0 0 0 1.5px ${color.border}` }}
-              />
-              <BigButton onClick={send} disabled={busy} busy={busy} fill={color.accent} ink={color.accentInk} icon={<TriangleAlert className="size-7" />}>
-                {busy ? t.sending : t.send}
-              </BigButton>
-            </>
-          )}
-          {error && <p className="text-[15px]" style={{ color: hazard.stopwork }}>{error}</p>}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function BigButton({ children, icon, onClick, disabled, busy, fill, ink, edge }: { children: ReactNode; icon: ReactNode; onClick: () => void; disabled?: boolean; busy?: boolean; fill: string; ink: string; edge?: string }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="flex h-tap w-full items-center justify-center gap-3 rounded-md text-[20px] font-bold tracking-wide transition-transform active:scale-[0.98] disabled:opacity-40"
-      style={{ background: fill, color: ink, boxShadow: `${edge ? `inset 0 0 0 2px ${edge}, ` : ''}0 6px 14px rgb(29 40 34 / 0.14)` }}
-    >
-      {busy ? <LoaderCircle className="size-7 animate-spin" /> : icon}
-      {children}
-    </button>
-  )
-}
-
-function LangSwitch({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return (
-    <span className="flex shrink-0 rounded-md p-0.5" style={{ background: color.chromeSoft }} role="group" aria-label="Language / Idioma">
-      {(['en', 'es'] as Lang[]).map((l) => (
-        <button
-          key={l}
-          onClick={() => onChange(l)}
-          aria-pressed={lang === l}
-          className="rounded-[5px] px-2.5 py-1 text-[12px] font-bold uppercase"
-          style={{ background: lang === l ? color.accent : 'transparent', color: lang === l ? color.accentInk : color.chromeText }}
-        >
-          {l}
-        </button>
-      ))}
-    </span>
   )
 }
