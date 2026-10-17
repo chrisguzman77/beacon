@@ -57,6 +57,7 @@ local C = {
 }
 
 local rng
+local floating -- Site.Floating: lily pads, logs, the boat. Wildlife lifts them as the water rises.
 
 ---------------------------------------------------------------- helpers
 
@@ -429,10 +430,16 @@ local function marsh(parent)
 		for _ = 1, 22 do
 			local a, d = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0, r - 6)
 			local x, z = c.X + math.cos(a) * d, c.Z + math.sin(a) * d
-			nonCollide(column(parent, "LilyPad", 0.08, rng:NextNumber(1.6, 2.8), Vector3.new(x, WATER_Y + 0.02, z), C.lily, Enum.Material.Grass))
+			nonCollide(column(floating, "LilyPad", 0.08, rng:NextNumber(1.6, 2.8), Vector3.new(x, WATER_Y + 0.02, z), C.lily, Enum.Material.Grass))
 			if rng:NextNumber() < 0.25 then
-				nonCollide(part(parent, "Lily", Vector3.new(0.5, 0.5, 0.5), CFrame.new(x + 0.3, WATER_Y + 0.3, z), C.white, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
+				nonCollide(part(floating, "Lily", Vector3.new(0.5, 0.5, 0.5), CFrame.new(x + 0.3, WATER_Y + 0.3, z), C.white, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
 			end
+		end
+		for _ = 1, 3 do -- fallen cypress logs adrift
+			local a, d = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0, r - 15)
+			local log = part(floating, "Log", Vector3.new(rng:NextNumber(8, 14), 1.2, 1.2),
+				CFrame.new(c.X + math.cos(a) * d, WATER_Y, c.Z + math.sin(a) * d) * CFrame.Angles(0, a, 0), C.bark, Enum.Material.Wood, Enum.PartType.Cylinder)
+			nonCollide(log)
 		end
 	end
 end
@@ -447,9 +454,10 @@ local function dock(parent)
 		end
 	end
 	local hull = CFrame.new(96, WATER_Y + 0.15, z + 5.2) * CFrame.Angles(0, math.rad(4), 0)
-	part(parent, "Hull", Vector3.new(11, 1.2, 4), hull, C.alum, Enum.Material.Metal)
-	part(parent, "Bench", Vector3.new(0.6, 0.3, 3.6), hull * CFrame.new(-1, 0.7, 0), C.wood, Enum.Material.WoodPlanks)
-	part(parent, "Motor", Vector3.new(0.8, 1.6, 0.8), hull * CFrame.new(5.6, 0.8, 0), C.dark, Enum.Material.Metal)
+	local boat = model(floating, "Boat")
+	boat.PrimaryPart = part(boat, "Hull", Vector3.new(11, 1.2, 4), hull, C.alum, Enum.Material.Metal)
+	part(boat, "Bench", Vector3.new(0.6, 0.3, 3.6), hull * CFrame.new(-1, 0.7, 0), C.wood, Enum.Material.WoodPlanks)
+	part(boat, "Motor", Vector3.new(0.8, 1.6, 0.8), hull * CFrame.new(5.6, 0.8, 0), C.dark, Enum.Material.Metal)
 end
 
 -- an American alligator about 11 ft long, built facing -Z with its pivot at the body center
@@ -530,6 +538,23 @@ local function wildlife(parent)
 	gatorModel(ServerStorage, "Gator", CFrame.new())
 end
 
+-- staff gauge at the zone's south east corner, so everyone sees the water climb
+local function floodGauge(parent)
+	local x, z = 37, 37
+	column(parent, "GaugePost", 8, 0.5, Vector3.new(x + 0.9, 0, z - 0.3), C.steel, Enum.Material.Metal)
+	local board = part(parent, "FloodGauge", Vector3.new(1.4, 7, 0.15), CFrame.new(x, 3.5, z), C.white)
+	local g = surface(board, 50)
+	label(g, "Title", "FLOOD FT", UDim2.fromScale(1, 0.05), UDim2.fromScale(0, 0.005), C.red)
+	for ft = 1, 6 do -- a 5.5 stud avatar is about 6 ft, so 1 ft is about 0.92 studs
+		local y = 1 - ft * 0.92 / 7
+		local tick = Instance.new("Frame")
+		tick.BorderSizePixel, tick.BackgroundColor3 = 0, C.black
+		tick.Size, tick.Position = UDim2.fromScale(0.45, 0.006), UDim2.fromScale(0, y)
+		tick.Parent = g
+		label(g, "Ft" .. ft, tostring(ft), UDim2.fromScale(0.45, 0.06), UDim2.fromScale(0.5, y - 0.03), C.black)
+	end
+end
+
 local function billboard(parent)
 	local cf = CFrame.new(-28, 0, 70)
 	for _, x in ipairs({ -6, 6 }) do
@@ -558,10 +583,13 @@ local function markers()
 	rain.Size, rain.Squash = NumberSequence.new(0.12), NumberSequence.new(2.5)
 	rain.Orientation = Enum.ParticleOrientation.VelocityParallel
 	rain.Color, rain.Transparency = ColorSequence.new(Color3.fromRGB(200, 212, 228)), NumberSequence.new(0.35)
+	rain.WindAffectsDrag, rain.Drag = true, 0.6
 	rain.Parent = rainPart
 
 	ghost(part(workspace, "GatorSpot", Vector3.new(4, 1, 4), CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), C.green)) -- crawls toward the zone
-	ghost(part(workspace, "FloodWater", Vector3.new(70, 0.2, 160), CFrame.new(72, 0.1, 0), Color3.fromRGB(70, 88, 60), Enum.Material.Glass)) -- swamp spilling toward the pad
+	-- flood plane over the whole site, hidden under the ground until WeatherFx raises it
+	local flood = ghost(part(workspace, "FloodWater", Vector3.new(1400, 0.4, 1400), CFrame.new(100, -1.2, 0), Color3.fromRGB(62, 76, 50), Enum.Material.Glass))
+	flood.Reflectance = 0.08
 end
 
 local function lighting()
@@ -590,6 +618,9 @@ function Builder.build()
 	local site = Instance.new("Folder")
 	site.Name = "Site"
 	site.Parent = workspace
+	floating = Instance.new("Folder")
+	floating.Name = "Floating"
+	floating.Parent = site
 
 	plumbing()
 	terrain()
@@ -606,6 +637,7 @@ function Builder.build()
 	marsh(site)
 	dock(site)
 	wildlife(site)
+	floodGauge(site)
 	billboard(site)
 	markers()
 	lighting()

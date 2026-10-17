@@ -64,28 +64,33 @@ local function emitter()
 	return part and part:FindFirstChildOfClass("ParticleEmitter")
 end
 
--- FloodWater is a flat translucent part on the low side of the site, hidden at depth 0
-local waterBase
+-- The flood. FloodWater is a site wide plane that sits under the ground until a water event raises it.
+-- The scenarios speak in depth_mm (the contract); the twin exaggerates so the rise reads on screen:
+-- 20 mm is shin deep on the pad (gauge about 1 ft), 60 mm thigh deep (3 ft), 100 mm chest deep (4.7 ft).
+local WATER_Y = -0.5
+local STUDS_PER_MM = 2.4 / 60
+local RISE_SECONDS = 8
+
 function WeatherFx.setWater(depth_mm, instant)
+	local top = depth_mm > 0 and math.min(6, 0.3 + depth_mm * STUDS_PER_MM) or -1
+	workspace:SetAttribute("WaterSurface", math.max(WATER_Y, top)) -- Wildlife floats the boat, logs, pads, and gators to this
 	local water = workspace:FindFirstChild("FloodWater")
 	if not water then return end
-	waterBase = waterBase or water.CFrame
-	local h = 0.2 + math.clamp(depth_mm, 0, 100) * 0.03
 	local goal = {
-		Transparency = depth_mm > 0 and 0.35 or 1,
-		Size = Vector3.new(water.Size.X, h, water.Size.Z),
-		CFrame = waterBase * CFrame.new(0, (h - 0.2) / 2, 0),
+		Transparency = depth_mm > 0 and 0.28 or 1,
+		CFrame = CFrame.new(water.Position.X, top - water.Size.Y / 2, water.Position.Z),
 	}
 	if instant then
 		for name, v in pairs(goal) do water[name] = v end
 	else
-		TweenService:Create(water, TweenInfo.new(3, Enum.EasingStyle.Sine), goal):Play()
+		TweenService:Create(water, TweenInfo.new(RISE_SECONDS, Enum.EasingStyle.Sine), goal):Play()
 	end
 end
 
 function WeatherFx.reset()
 	set(blend(0), 0)
 	workspace:SetAttribute("Storm", 0)
+	workspace.GlobalWind = Vector3.new(4, 0, 0)
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
 	WeatherFx.setWater(0, true)
@@ -97,6 +102,8 @@ function WeatherFx.apply(e)
 	local k = math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)
 	set(blend(k), 4)
 	workspace:SetAttribute("Storm", k) -- Wildlife flushes the egrets past 0.6
+	-- wind from the scenario's gust (mph), blowing east off the storm: bends the rain, the grass, and the clouds
+	workspace.GlobalWind = Vector3.new(math.max(4, (e.gust or 0) * 0.8), 0, (e.gust or 0) * 0.15)
 	local rain = emitter()
 	if rain then
 		rain.Enabled = (e.rain or 0) > 0

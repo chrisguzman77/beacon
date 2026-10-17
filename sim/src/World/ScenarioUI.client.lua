@@ -17,8 +17,8 @@ local THEME = {
 	dim = Color3.fromRGB(138, 145, 160),
 }
 local SCENARIOS = {
-	{ "storm_west", "Storm W" }, { "heat_day", "Heat day" }, { "flash_flood", "Flood" },
-	{ "gator", "Gator" }, { "tipped", "Tipped pod" },
+	{ "storm_west", "Storm W" }, { "hurricane", "Hurricane" }, { "flash_flood", "Flash flood" },
+	{ "heat_day", "Heat day" }, { "gator", "Gator" }, { "tipped", "Tipped pod" },
 }
 local SPEEDS = { 1, 10, 60, 120 }
 

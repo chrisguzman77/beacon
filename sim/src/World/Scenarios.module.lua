@@ -1,7 +1,7 @@
 -- Scenarios (ModuleScript)
 local Scenarios = {}
 
-Scenarios.order = { "storm_west", "heat_day", "flash_flood", "gator", "tipped" }
+Scenarios.order = { "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
 
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
@@ -13,6 +13,27 @@ Scenarios.storm_west = {
 		{ t = 1500, type = "strike",  bearing = 260, miles = 8 },
 		{ t = 1800, type = "strike",  bearing = 250, miles = 6 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
+		{ t = 2400, type = "water",   depth_mm = 10 },
+	},
+}
+
+-- A Gulf hurricane making landfall: outer rain bands, lightning walking in from the south, wind past
+-- hurricane force, then rain and surge push the swamp up over the pad. About a minute at 120x.
+Scenarios.hurricane = {
+	name = "Hurricane landfall", clockStart = "06:00", speed = 120,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 2,  temp_c = 29, humidity = 85, gust = 30 },
+		{ t = 1200, type = "weather", clouds = 0.8,  rain = 20, temp_c = 28, humidity = 92, gust = 50 },
+		{ t = 1800, type = "strike",  bearing = 200, miles = 12 },
+		{ t = 2400, type = "strike",  bearing = 190, miles = 9 },
+		{ t = 3000, type = "weather", clouds = 0.95, rain = 60, temp_c = 27, humidity = 97, gust = 75 },
+		{ t = 3300, type = "strike",  bearing = 180, miles = 6 },
+		{ t = 3600, type = "water",   depth_mm = 20 },
+		{ t = 3900, type = "strike",  bearing = 170, miles = 4 },
+		{ t = 4800, type = "water",   depth_mm = 60 },
+		{ t = 5400, type = "note",    text = "Surge and rain push the swamp over the pad. The beacon's water sensor trips, the crew moves to high ground by the trucks." },
+		{ t = 6000, type = "water",   depth_mm = 100 },
+		{ t = 6600, type = "weather", clouds = 0.85, rain = 25, temp_c = 27, humidity = 95, gust = 45 },
 	},
 }
 
@@ -36,7 +57,11 @@ Scenarios.flash_flood = {
 		{ t = 900,  type = "water",   depth_mm = 0 },
 		{ t = 1200, type = "weather", clouds = 0.9, rain = 60, temp_c = 25, humidity = 97, gust = 30 },
 		{ t = 1500, type = "water",   depth_mm = 20 },
+		{ t = 1800, type = "strike",  bearing = 120, miles = 7 },
 		{ t = 2100, type = "water",   depth_mm = 60 },
+		{ t = 2700, type = "water",   depth_mm = 90 },
+		{ t = 3300, type = "weather", clouds = 0.6, rain = 5, temp_c = 26, humidity = 90, gust = 10 },
+		{ t = 3900, type = "water",   depth_mm = 40 },
 	},
 }
 

@@ -207,7 +207,7 @@ return Engine
 	{ "Scenarios", "ModuleScript", [==[-- Scenarios (ModuleScript)
 local Scenarios = {}
 
-Scenarios.order = { "storm_west", "heat_day", "flash_flood", "gator", "tipped" }
+Scenarios.order = { "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
 
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
@@ -219,6 +219,27 @@ Scenarios.storm_west = {
 		{ t = 1500, type = "strike",  bearing = 260, miles = 8 },
 		{ t = 1800, type = "strike",  bearing = 250, miles = 6 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
+		{ t = 2400, type = "water",   depth_mm = 10 },
+	},
+}
+
+-- A Gulf hurricane making landfall: outer rain bands, lightning walking in from the south, wind past
+-- hurricane force, then rain and surge push the swamp up over the pad. About a minute at 120x.
+Scenarios.hurricane = {
+	name = "Hurricane landfall", clockStart = "06:00", speed = 120,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 2,  temp_c = 29, humidity = 85, gust = 30 },
+		{ t = 1200, type = "weather", clouds = 0.8,  rain = 20, temp_c = 28, humidity = 92, gust = 50 },
+		{ t = 1800, type = "strike",  bearing = 200, miles = 12 },
+		{ t = 2400, type = "strike",  bearing = 190, miles = 9 },
+		{ t = 3000, type = "weather", clouds = 0.95, rain = 60, temp_c = 27, humidity = 97, gust = 75 },
+		{ t = 3300, type = "strike",  bearing = 180, miles = 6 },
+		{ t = 3600, type = "water",   depth_mm = 20 },
+		{ t = 3900, type = "strike",  bearing = 170, miles = 4 },
+		{ t = 4800, type = "water",   depth_mm = 60 },
+		{ t = 5400, type = "note",    text = "Surge and rain push the swamp over the pad. The beacon's water sensor trips, the crew moves to high ground by the trucks." },
+		{ t = 6000, type = "water",   depth_mm = 100 },
+		{ t = 6600, type = "weather", clouds = 0.85, rain = 25, temp_c = 27, humidity = 95, gust = 45 },
 	},
 }
 
@@ -242,7 +263,11 @@ Scenarios.flash_flood = {
 		{ t = 900,  type = "water",   depth_mm = 0 },
 		{ t = 1200, type = "weather", clouds = 0.9, rain = 60, temp_c = 25, humidity = 97, gust = 30 },
 		{ t = 1500, type = "water",   depth_mm = 20 },
+		{ t = 1800, type = "strike",  bearing = 120, miles = 7 },
 		{ t = 2100, type = "water",   depth_mm = 60 },
+		{ t = 2700, type = "water",   depth_mm = 90 },
+		{ t = 3300, type = "weather", clouds = 0.6, rain = 5, temp_c = 26, humidity = 90, gust = 10 },
+		{ t = 3900, type = "water",   depth_mm = 40 },
 	},
 }
 
@@ -326,6 +351,7 @@ local C = {
 }
 
 local rng
+local floating -- Site.Floating: lily pads, logs, the boat. Wildlife lifts them as the water rises.
 
 ---------------------------------------------------------------- helpers
 
@@ -698,10 +724,16 @@ local function marsh(parent)
 		for _ = 1, 22 do
 			local a, d = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0, r - 6)
 			local x, z = c.X + math.cos(a) * d, c.Z + math.sin(a) * d
-			nonCollide(column(parent, "LilyPad", 0.08, rng:NextNumber(1.6, 2.8), Vector3.new(x, WATER_Y + 0.02, z), C.lily, Enum.Material.Grass))
+			nonCollide(column(floating, "LilyPad", 0.08, rng:NextNumber(1.6, 2.8), Vector3.new(x, WATER_Y + 0.02, z), C.lily, Enum.Material.Grass))
 			if rng:NextNumber() < 0.25 then
-				nonCollide(part(parent, "Lily", Vector3.new(0.5, 0.5, 0.5), CFrame.new(x + 0.3, WATER_Y + 0.3, z), C.white, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
+				nonCollide(part(floating, "Lily", Vector3.new(0.5, 0.5, 0.5), CFrame.new(x + 0.3, WATER_Y + 0.3, z), C.white, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
 			end
+		end
+		for _ = 1, 3 do -- fallen cypress logs adrift
+			local a, d = rng:NextNumber(0, math.pi * 2), rng:NextNumber(0, r - 15)
+			local log = part(floating, "Log", Vector3.new(rng:NextNumber(8, 14), 1.2, 1.2),
+				CFrame.new(c.X + math.cos(a) * d, WATER_Y, c.Z + math.sin(a) * d) * CFrame.Angles(0, a, 0), C.bark, Enum.Material.Wood, Enum.PartType.Cylinder)
+			nonCollide(log)
 		end
 	end
 end
@@ -716,9 +748,10 @@ local function dock(parent)
 		end
 	end
 	local hull = CFrame.new(96, WATER_Y + 0.15, z + 5.2) * CFrame.Angles(0, math.rad(4), 0)
-	part(parent, "Hull", Vector3.new(11, 1.2, 4), hull, C.alum, Enum.Material.Metal)
-	part(parent, "Bench", Vector3.new(0.6, 0.3, 3.6), hull * CFrame.new(-1, 0.7, 0), C.wood, Enum.Material.WoodPlanks)
-	part(parent, "Motor", Vector3.new(0.8, 1.6, 0.8), hull * CFrame.new(5.6, 0.8, 0), C.dark, Enum.Material.Metal)
+	local boat = model(floating, "Boat")
+	boat.PrimaryPart = part(boat, "Hull", Vector3.new(11, 1.2, 4), hull, C.alum, Enum.Material.Metal)
+	part(boat, "Bench", Vector3.new(0.6, 0.3, 3.6), hull * CFrame.new(-1, 0.7, 0), C.wood, Enum.Material.WoodPlanks)
+	part(boat, "Motor", Vector3.new(0.8, 1.6, 0.8), hull * CFrame.new(5.6, 0.8, 0), C.dark, Enum.Material.Metal)
 end
 
 -- an American alligator about 11 ft long, built facing -Z with its pivot at the body center
@@ -799,6 +832,23 @@ local function wildlife(parent)
 	gatorModel(ServerStorage, "Gator", CFrame.new())
 end
 
+-- staff gauge at the zone's south east corner, so everyone sees the water climb
+local function floodGauge(parent)
+	local x, z = 37, 37
+	column(parent, "GaugePost", 8, 0.5, Vector3.new(x + 0.9, 0, z - 0.3), C.steel, Enum.Material.Metal)
+	local board = part(parent, "FloodGauge", Vector3.new(1.4, 7, 0.15), CFrame.new(x, 3.5, z), C.white)
+	local g = surface(board, 50)
+	label(g, "Title", "FLOOD FT", UDim2.fromScale(1, 0.05), UDim2.fromScale(0, 0.005), C.red)
+	for ft = 1, 6 do -- a 5.5 stud avatar is about 6 ft, so 1 ft is about 0.92 studs
+		local y = 1 - ft * 0.92 / 7
+		local tick = Instance.new("Frame")
+		tick.BorderSizePixel, tick.BackgroundColor3 = 0, C.black
+		tick.Size, tick.Position = UDim2.fromScale(0.45, 0.006), UDim2.fromScale(0, y)
+		tick.Parent = g
+		label(g, "Ft" .. ft, tostring(ft), UDim2.fromScale(0.45, 0.06), UDim2.fromScale(0.5, y - 0.03), C.black)
+	end
+end
+
 local function billboard(parent)
 	local cf = CFrame.new(-28, 0, 70)
 	for _, x in ipairs({ -6, 6 }) do
@@ -827,10 +877,13 @@ local function markers()
 	rain.Size, rain.Squash = NumberSequence.new(0.12), NumberSequence.new(2.5)
 	rain.Orientation = Enum.ParticleOrientation.VelocityParallel
 	rain.Color, rain.Transparency = ColorSequence.new(Color3.fromRGB(200, 212, 228)), NumberSequence.new(0.35)
+	rain.WindAffectsDrag, rain.Drag = true, 0.6
 	rain.Parent = rainPart
 
 	ghost(part(workspace, "GatorSpot", Vector3.new(4, 1, 4), CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), C.green)) -- crawls toward the zone
-	ghost(part(workspace, "FloodWater", Vector3.new(70, 0.2, 160), CFrame.new(72, 0.1, 0), Color3.fromRGB(70, 88, 60), Enum.Material.Glass)) -- swamp spilling toward the pad
+	-- flood plane over the whole site, hidden under the ground until WeatherFx raises it
+	local flood = ghost(part(workspace, "FloodWater", Vector3.new(1400, 0.4, 1400), CFrame.new(100, -1.2, 0), Color3.fromRGB(62, 76, 50), Enum.Material.Glass))
+	flood.Reflectance = 0.08
 end
 
 local function lighting()
@@ -859,6 +912,9 @@ function Builder.build()
 	local site = Instance.new("Folder")
 	site.Name = "Site"
 	site.Parent = workspace
+	floating = Instance.new("Folder")
+	floating.Name = "Floating"
+	floating.Parent = site
 
 	plumbing()
 	terrain()
@@ -875,6 +931,7 @@ function Builder.build()
 	marsh(site)
 	dock(site)
 	wildlife(site)
+	floodGauge(site)
 	billboard(site)
 	markers()
 	lighting()
@@ -949,28 +1006,33 @@ local function emitter()
 	return part and part:FindFirstChildOfClass("ParticleEmitter")
 end
 
--- FloodWater is a flat translucent part on the low side of the site, hidden at depth 0
-local waterBase
+-- The flood. FloodWater is a site wide plane that sits under the ground until a water event raises it.
+-- The scenarios speak in depth_mm (the contract); the twin exaggerates so the rise reads on screen:
+-- 20 mm is shin deep on the pad (gauge about 1 ft), 60 mm thigh deep (3 ft), 100 mm chest deep (4.7 ft).
+local WATER_Y = -0.5
+local STUDS_PER_MM = 2.4 / 60
+local RISE_SECONDS = 8
+
 function WeatherFx.setWater(depth_mm, instant)
+	local top = depth_mm > 0 and math.min(6, 0.3 + depth_mm * STUDS_PER_MM) or -1
+	workspace:SetAttribute("WaterSurface", math.max(WATER_Y, top)) -- Wildlife floats the boat, logs, pads, and gators to this
 	local water = workspace:FindFirstChild("FloodWater")
 	if not water then return end
-	waterBase = waterBase or water.CFrame
-	local h = 0.2 + math.clamp(depth_mm, 0, 100) * 0.03
 	local goal = {
-		Transparency = depth_mm > 0 and 0.35 or 1,
-		Size = Vector3.new(water.Size.X, h, water.Size.Z),
-		CFrame = waterBase * CFrame.new(0, (h - 0.2) / 2, 0),
+		Transparency = depth_mm > 0 and 0.28 or 1,
+		CFrame = CFrame.new(water.Position.X, top - water.Size.Y / 2, water.Position.Z),
 	}
 	if instant then
 		for name, v in pairs(goal) do water[name] = v end
 	else
-		TweenService:Create(water, TweenInfo.new(3, Enum.EasingStyle.Sine), goal):Play()
+		TweenService:Create(water, TweenInfo.new(RISE_SECONDS, Enum.EasingStyle.Sine), goal):Play()
 	end
 end
 
 function WeatherFx.reset()
 	set(blend(0), 0)
 	workspace:SetAttribute("Storm", 0)
+	workspace.GlobalWind = Vector3.new(4, 0, 0)
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
 	WeatherFx.setWater(0, true)
@@ -982,6 +1044,8 @@ function WeatherFx.apply(e)
 	local k = math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)
 	set(blend(k), 4)
 	workspace:SetAttribute("Storm", k) -- Wildlife flushes the egrets past 0.6
+	-- wind from the scenario's gust (mph), blowing east off the storm: bends the rain, the grass, and the clouds
+	workspace.GlobalWind = Vector3.new(math.max(4, (e.gust or 0) * 0.8), 0, (e.gust or 0) * 0.15)
 	local rain = emitter()
 	if rain then
 		rain.Enabled = (e.rain or 0) > 0
@@ -1372,8 +1436,8 @@ local THEME = {
 	dim = Color3.fromRGB(138, 145, 160),
 }
 local SCENARIOS = {
-	{ "storm_west", "Storm W" }, { "heat_day", "Heat day" }, { "flash_flood", "Flood" },
-	{ "gator", "Gator" }, { "tipped", "Tipped pod" },
+	{ "storm_west", "Storm W" }, { "hurricane", "Hurricane" }, { "flash_flood", "Flash flood" },
+	{ "heat_day", "Heat day" }, { "gator", "Gator" }, { "tipped", "Tipped pod" },
 }
 local SPEEDS = { 1, 10, 60, 120 }
 
@@ -1524,10 +1588,12 @@ player:GetAttributeChangedSignal("Operator"):Connect(refresh)
 refresh()
 ]==] },
 	{ "Wildlife", "Script", [==[-- Wildlife (Script in ServerScriptService/World)
--- Gators swim slow loops and bask, egrets flush when the storm arrives, the gator scenario's gator crawls toward the zone.
+-- Gators swim slow loops and bask, egrets flush when the storm or the flood arrives, the gator scenario's gator
+-- crawls toward the zone, and everything that floats (pads, logs, the boat, the gators) rides the rising water.
 local RunService = game:GetService("RunService")
 
-local wild = workspace:WaitForChild("Site"):WaitForChild("Wildlife")
+local site = workspace:WaitForChild("Site")
+local wild = site:WaitForChild("Wildlife")
 local beacon = workspace:WaitForChild("Beacon")
 
 local swimmers, baskers, birds = {}, {}, {}
@@ -1543,19 +1609,39 @@ for _, m in ipairs(wild:GetChildren()) do
 	end
 end
 
+local WATER_Y = -0.5
+local floats = {}
+local floatFolder = site:FindFirstChild("Floating")
+if floatFolder then
+	for _, f in ipairs(floatFolder:GetChildren()) do
+		table.insert(floats, { f = f, base = f:GetPivot() })
+	end
+end
+local surface, applied = WATER_Y, WATER_Y
+
 local crawled = setmetatable({}, { __mode = "k" })
 local CRAWL_STUDS, CRAWL_SPEED = 16, 0.8
 
 local t = 0
 RunService.Heartbeat:Connect(function(dt)
 	t += dt
+	-- the water surface eases toward WeatherFx's target over about the same 8 s the flood plane tweens
+	local target = workspace:GetAttribute("WaterSurface") or WATER_Y
+	surface += (target - surface) * math.min(1, dt * 0.45)
+	local rise = surface - WATER_Y
+	if math.abs(surface - applied) > 0.02 then
+		applied = surface
+		for _, x in ipairs(floats) do
+			x.f:PivotTo(x.base + Vector3.new(0, rise, 0))
+		end
+	end
 	for _, s in ipairs(swimmers) do
 		local m = s.m
 		local r = m:GetAttribute("R")
 		s.a += dt * m:GetAttribute("Speed") / r
 		local pos = Vector3.new(
 			m:GetAttribute("CX") + math.cos(s.a) * r,
-			m:GetAttribute("Y") + math.sin(t * 0.8 + s.a) * 0.05,
+			m:GetAttribute("Y") + rise + math.sin(t * 0.8 + s.a) * 0.05,
 			m:GetAttribute("CZ") + math.sin(s.a) * r)
 		local ahead = pos + Vector3.new(-math.sin(s.a), 0, math.cos(s.a))
 		-- a slow side to side sway, the way a swimming gator sculls with its tail
@@ -1563,10 +1649,12 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 
 	for _, b in ipairs(baskers) do
-		b.m:PivotTo(b.base * CFrame.new(0, math.sin(t * 0.5) * 0.03, 0)) -- breathing
+		-- breathing, and once the flood is over the bank the gator floats off it
+		local lift = math.max(0, surface - 0.6 - b.base.Y)
+		b.m:PivotTo(b.base * CFrame.new(0, lift + math.sin(t * 0.5) * 0.03, 0))
 	end
 
-	local storm = (workspace:GetAttribute("Storm") or 0) > 0.6 or beacon:GetAttribute("Led") == "strobe"
+	local storm = (workspace:GetAttribute("Storm") or 0) > 0.6 or beacon:GetAttribute("Led") == "strobe" or rise > 0.8
 	local k = math.min(1, dt * 0.35)
 	for _, b in ipairs(birds) do
 		b.f += ((storm and 1 or 0) - b.f) * k
