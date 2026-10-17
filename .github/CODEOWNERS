@@ -1,0 +1,10 @@
+# Folder ownership. GitHub will request these reviews on PRs to main.
+/backend/app/core/   @vietnguyen20
+/backend/app/intel/  @chrisguzman77
+/ml/                 @chrisguzman77
+/web/                @GldnCh
+/sim/                @github-slavik
+/sim/src/Bridge/     @vietnguyen20
+/firmware/           @github-slavik
+/contracts/          @chrisguzman77
+/deploy/             @chrisguzman77

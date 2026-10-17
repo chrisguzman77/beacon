@@ -1,0 +1,32 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+# node
+node_modules/
+dist/
+.vite/
+# env and secrets
+.env
+.env.*
+!.env.example
+# data and models
+ml/data/raw/*
+!ml/data/raw/.gitkeep
+ml/data/processed/*
+!ml/data/processed/.gitkeep
+*.parquet
+*.joblib
+# uploads
+backend/uploads/
+# os and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+# roblox autosaves and locks
+*.rbxl.lock
+*.rbxlx.lock
+*_autosave*

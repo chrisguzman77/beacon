@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+asyncpg
+websockets
+apscheduler
+httpx
+pydantic-settings
+pyjwt[crypto]
+timezonefinder
+pandas
+openpyxl
+google-genai
+joblib
+lightgbm
+shap
+python-multipart

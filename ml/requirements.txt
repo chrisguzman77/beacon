@@ -1,0 +1,15 @@
+pandas
+numpy
+pyarrow
+scikit-learn
+lightgbm
+shap
+requests
+pgeocode
+joblib
+matplotlib
+tqdm
+google-genai
+asyncpg
+python-dotenv
+timezonefinder
