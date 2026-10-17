@@ -18,7 +18,8 @@ A Roblox experience is the digital twin of the beacon's site. Scenarios run in L
 | web | Cam | dashboard, crew page, beacon kiosk |
 | sim/src/World, sim/place | Slavik | Roblox place, scenarios, lightning, zone, beacon visuals, scene |
 | sim/src/Bridge | Viet | Luau HTTP bridge to the backend |
-| firmware | Slavik | pod, control box, Pi gateway |
+| firmware/pod, firmware/controlbox | Slavik | pod, control box, all wiring |
+| firmware/gateway | Chris | Pi gateway (taken over from Slavik) |
 | contracts | Chris (changes announced in chat) | the interfaces every piece speaks |
 | docs | everyone | the build guides |
 

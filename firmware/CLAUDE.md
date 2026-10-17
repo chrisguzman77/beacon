@@ -1,6 +1,6 @@
 # firmware
 
-Owner: Slavik. Three programs.
+Owners: Slavik (pod/, controlbox/, all wiring) and Chris (gateway/, taken over 2026-10-17 so Slavik can build the device; he had not started it). Three programs.
 - pod/ MicroPython on the Waveshare RP2040-Zero. Reads the LD2410B radar on UART1, the photoresistor at 5 kHz on core 1 for lightning flashes, the water sensor, the DHT11, the tilt switch, and the IR receiver. Streams one line every 100 ms plus immediate FLASH and IR lines. See contracts/serial.md.
 - controlbox/ Arduino sketch on the UNO R3. Drives the 4 digit countdown and the 1 digit crew count display through the 74HC595 (shared segment lines, 1 digit select on A0), the RGB status LED, the servo gauge needle, and the LCD1602 on the beacon head as the beacon's text display. Parses commands from the Pi. See contracts/serial.md.
 - gateway/ Python on the Raspberry Pi. Opens both serial ports, runs the local rules (flash to bang distance, heat, water, tilt), holds the equipment interlock on GPIO 18 and the e-stop on GPIO 23, handles the IR remote (crew check in by digit, supervisor PIN with OK digits OK, briefing UP English and DOWN Spanish), plays voice clips, connects to the backend websocket (contracts/gateway-ws.md), and queues events while offline.
@@ -11,6 +11,13 @@ You cannot run hardware tests from here. For every step, tell the human exactly 
 
 Suggested: pyserial, websockets, gpiozero, pygame or aplay for audio. Pre rendered WAV clips for the fixed voice lines.
 
-Guide: docs/hardware-guide.md. Appendix D is the gateway program map and its local rules. The beacon LCD lines and the IR key meanings are in contracts/serial.md.
+Guide: docs/hardware-guide.md. Appendix C is the gateway program map and its local rules (the guide has no Appendix D). Gateway setup, the on-device TEST list, and the laptop simulator are in gateway/README.md. The beacon LCD lines and the IR key meanings are in contracts/serial.md.
 
 ## Decisions
+- gateway: uv with pyproject.toml (venv from the system python with --system-site-packages so gpiozero finds the Pi 5's lgpio), started by beacon-gateway.service.
+- gateway: voice is Piper (en_US-lessac-medium, es_MX-ald-medium, offline) with espeak-ng as the fallback; the Pi 5 has no 3.5 mm jack, so the speaker is USB. Piper's macOS wheel is broken (hard coded espeak data path), so on a laptop it falls back to say or log.
+- gateway: the Pi has no microphone, so offline the laptop's BANG cannot arrive. A USB mic on the Pi, if present, pairs flash and bang locally; with none, a flash while offline fails safe to a stop work with distance unknown. Demo step 7 works literally with a mic and as "a flashlight stops the fan" without one.
+- gateway: one Roblox bolt reaches the Pi twice (the backend's STOPWORK at once, the local flash to bang ~37 s later at 8 mi); a trigger whose strike time is within 5 s of the running stop work's is the same strike, so there is no "countdown reset" mid demo.
+- gateway: the backend sends 1800 s unscaled, so the Pi applies DEMO_COUNTDOWN_SCALE to every countdown.
+- gateway: pod readings go up once a second and at once on a presence or tilt change (the backend only acts on changes and every 5 s). Offline, events (local_stopwork, checkin, pin, estop) are queued to queue.jsonl and replayed in order with original timestamps; readings, state, and count are dropped. 5 s websocket pings notice a dropped hotspot in about 10 s.
+- gateway: a stop work or e-stop is saved to lock.json and survives a restart as LOCKED OUT with the motor off until the PIN. A PIN release is "SUPERVISOR" on the LCD; a dashboard CLEAR shows the name it carries.
