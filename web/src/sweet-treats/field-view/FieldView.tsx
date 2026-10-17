@@ -8,7 +8,7 @@ import { useFactorHistory } from './useFactorHistory'
 import SiteBoard from './SiteBoard'
 import AlarmState from './AlarmState'
 import CautionScreen from './CautionScreen'
-import AppNav from '@/components/AppNav'
+import AppNav from './AppNav'
 import { beaconSiteId } from './fakeGateway'
 
 const FLASH_EVERY_MS = 10_000

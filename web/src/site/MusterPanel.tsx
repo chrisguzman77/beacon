@@ -1,5 +1,6 @@
 import { Gamepad2 } from 'lucide-react'
 import Fold from '@/components/Fold'
+import { Pill } from '@/components/marsh'
 import { color, hazard } from '@/tokens'
 import type { Snapshot } from './types'
 
@@ -15,20 +16,17 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
     <Fold
       id="hub.muster"
       title="Muster"
-      summary={`IN ${crewIn} / ${crew.length}`}
+      summary={`${crewIn} of ${crew.length} in`}
       edge={!s.zone_clear && stop ? hazard.stopwork : undefined}
       badge={
-        <span className="px-2 py-0.5 font-mono text-[11px] font-bold tracking-wider" style={{ color: zoneTint, boxShadow: `inset 0 0 0 1px ${zoneTint}` }}>
-          ZONE {s.zone_clear ? 'CLEAR' : 'OCCUPIED'}
-        </span>
+        <Pill tint={zoneTint} solid={!s.zone_clear && stop}>Zone {s.zone_clear ? 'clear' : 'occupied'}</Pill>
       }
     >
      <div className="flex flex-col gap-3">
 
       <p className="flex items-baseline gap-2">
-        <span className="font-mono text-label font-bold tracking-widest text-dim">IN</span>
-        <span className="text-[44px] leading-none font-bold">{crewIn}</span>
-        <span className="text-heading font-semibold text-dim">/ {crew.length}</span>
+        <span className="text-[44px] leading-none font-semibold">{crewIn}</span>
+        <span className="text-[18px]" style={{ color: color.muted }}>of {crew.length} checked in</span>
       </p>
 
       {crew.length === 0 ? (
@@ -36,14 +34,12 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
       ) : (
         <ul className="flex flex-col">
           {crew.map((c) => (
-            <li key={c.id} className="flex items-center justify-between border-t border-line py-2 first:border-t-0">
-              <span className="flex items-center gap-2 text-body" style={{ color: c.in ? color.text : color.muted }}>
+            <li key={c.id} className="flex items-center justify-between border-t border-line py-2.5 first:border-t-0">
+              <span className="flex items-center gap-2 text-[15px]" style={{ color: c.in ? color.text : color.muted }}>
                 {c.name}
                 {c.roblox && <Gamepad2 className="size-4 text-dim" aria-label="Roblox player" />}
               </span>
-              <span className="font-mono text-label font-bold tracking-wider" style={{ color: c.in ? (stop ? hazard.stopwork : color.signal) : color.muted }}>
-                {c.in ? 'IN' : 'OUT'}
-              </span>
+              <Pill tint={c.in ? (stop ? hazard.stopwork : color.signal) : color.muted}>{c.in ? 'In' : 'Out'}</Pill>
             </li>
           ))}
         </ul>

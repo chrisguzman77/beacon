@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Accessibility, Camera, Check, ClipboardList, Gauge, LayoutGrid, Scan } from 'lucide-react'
+import { Accessibility, Check, Gauge, LayoutGrid, Scan } from 'lucide-react'
 import { color } from '@/tokens'
 import { useReducedMotion } from '@/sweet-treats/useReducedMotion'
 
@@ -48,8 +48,6 @@ export default function Frame({ unit, status, active, footer, hubTo = '/hub', ch
       <nav className="flex shrink-0 items-center gap-3 px-7 pt-3 pb-2">
         <Tab to="/dashboard" active={active === 'dashboard'} icon={<LayoutGrid className="size-5" />}>Dashboard</Tab>
         <Tab to={hubTo} active={active === 'hub'} icon={<Gauge className="size-5" />}>Hub</Tab>
-        <Tab icon={<ClipboardList className="size-5" />} soon>Conditions</Tab>
-        <Tab icon={<Camera className="size-5" />} soon>Reports</Tab>
         <button
           onClick={toggleMotion}
           className="ml-auto flex h-12 min-w-64 items-center justify-center gap-3 rounded-md px-5 text-[15px] font-semibold"
@@ -67,12 +65,11 @@ export default function Frame({ unit, status, active, footer, hubTo = '/hub', ch
   )
 }
 
-function Tab({ children, icon, to, active, soon }: { children: string; icon: ReactNode; to?: string; active?: boolean; soon?: boolean }) {
+function Tab({ children, icon, to, active }: { children: string; icon: ReactNode; to?: string; active?: boolean }) {
   const body = (
     <span
-      className="flex h-12 w-52 items-center gap-3 rounded-md px-5 text-[15px] font-semibold"
-      style={{ background: active ? color.accent : color.chromeSoft, color: active ? color.accentInk : color.chromeText, opacity: soon ? 0.5 : 1 }}
-      title={soon ? 'Not designed yet' : undefined}
+      className={`flex h-12 w-52 items-center gap-3 rounded-md px-5 text-[15px] font-semibold ${active ? '' : 'press'}`}
+      style={{ background: active ? color.accent : color.chromeSoft, color: active ? color.accentInk : color.chromeText }}
     >
       {icon}
       {children}

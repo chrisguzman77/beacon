@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { LoaderCircle, Play, RefreshCw, Square } from 'lucide-react'
 import { post } from '@/api'
 import { useAuth } from '@/lib/auth'
-import { cut } from '@/components/Panel'
 import Fold from '@/components/Fold'
+import { Button, label as labelCls, Segmented } from '@/components/marsh'
 import { color, hazard } from '@/tokens'
 import type { Snapshot } from './types'
 
@@ -81,27 +81,15 @@ export default function BriefingPanel({ s }: { s: Snapshot }) {
   }
 
   return (
-    <Fold id="hub.briefing" title="Briefing" summary={date || 'NOT YET'}>
+    <Fold id="hub.briefing" title="Briefing" summary={date || 'Not yet'}>
      <div className="flex flex-col gap-3">
       <header className="flex items-center justify-between gap-3">
         <p className="text-label text-dim">{date ? `${lang === 'en' ? 'For' : 'Para'} ${date}` : ''}</p>
-        <div className="flex" role="group" aria-label="Language">
-          {(['en', 'es'] as Lang[]).map((l) => (
-            <button
-              key={l}
-              onClick={() => choose(l)}
-              className="px-3 py-1 font-mono text-label font-bold tracking-wider uppercase"
-              style={{ color: lang === l ? color.bg : color.muted, background: lang === l ? color.signal : 'transparent', boxShadow: `inset 0 0 0 1px ${lang === l ? color.signal : color.border}` }}
-              aria-pressed={lang === l}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
+        <Segmented<Lang> label="Language" value={lang} onChange={choose} options={[{ id: 'en', label: 'English' }, { id: 'es', label: 'Español' }]} />
       </header>
 
       {text ? (
-        <p className="text-body leading-snug">{text}</p>
+        <p className="text-[15px] leading-relaxed">{text}</p>
       ) : (
         <p className="text-label text-dim">
           Tomorrow's briefing has not been generated yet. It runs at {s.next_briefing} site time, or a supervisor can press Run now.
@@ -111,42 +99,33 @@ export default function BriefingPanel({ s }: { s: Snapshot }) {
       {b.payload && (
         <dl className="flex flex-wrap gap-2">
           {Object.entries(b.payload).slice(0, 4).map(([k, v]) => (
-            <div key={k} className="px-2 py-1" style={{ boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-              <dt className="font-mono text-[10px] font-bold tracking-widest text-dim uppercase">{label(k)}</dt>
-              <dd className="font-mono text-label font-bold">{v}</dd>
+            <div key={k} className="rounded-md px-3 py-1.5" style={{ background: color.bg }}>
+              <dt className={labelCls} style={{ color: color.muted }}>{label(k)}</dt>
+              <dd className="text-[14px] font-semibold">{v}</dd>
             </div>
           ))}
         </dl>
       )}
 
       <div className="flex gap-2">
-        <Action onClick={play} disabled={!text} icon={speaking ? <Square className="size-4" /> : <Play className="size-4" />}>
+        <Button className="flex-1" onClick={play} disabled={!text} icon={speaking ? <Square className="size-4" /> : <Play className="size-4" />}>
           {speaking ? 'Stop' : 'Play'}
-        </Action>
-        <Action
+        </Button>
+        <Button
+          primary
+          className="flex-1"
           onClick={run}
           disabled={running}
           title={fake ? 'Demo data: simulated, nothing is sent' : 'Generate tomorrow’s briefing now (5 to 30 s)'}
           icon={running ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
         >
           {running ? 'Writing…' : 'Run now'}
-        </Action>
+        </Button>
       </div>
       {running && <p className="text-label text-dim">Writing tomorrow’s briefing in English and Spanish. This takes up to 30 seconds.</p>}
-      {fresh.source && !running && <p className="font-mono text-[11px] tracking-wider text-dim uppercase">Just generated · {fresh.source === 'gemini' ? 'AI written, numbers checked' : fresh.source}</p>}
+      {fresh.source && !running && <p className="text-[12px] text-dim">Just generated · {fresh.source === 'gemini' ? 'AI written, numbers checked' : fresh.source}</p>}
       {error && <p className="text-label" style={{ color: hazard.stopwork }}>Run now failed: {error}</p>}
      </div>
     </Fold>
-  )
-}
-
-function Action({ children, icon, onClick, disabled, title }: { children: string; icon: React.ReactNode; onClick?: () => void; disabled?: boolean; title?: string }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title} className="flex-1 p-[2px] disabled:opacity-40" style={{ clipPath: cut(10), background: color.border }}>
-      <span className="flex items-center justify-center gap-2 px-3 py-2 font-mono text-label font-bold tracking-[0.14em] uppercase" style={{ clipPath: cut(9), background: color.raised }}>
-        <span className="text-signal">{icon}</span>
-        {children}
-      </span>
-    </button>
   )
 }

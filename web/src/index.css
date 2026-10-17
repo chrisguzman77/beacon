@@ -105,3 +105,14 @@
   animation: none !important;
   transition: none !important;
 }
+
+/* Poise: every control answers the same way. A slight lift on hover, a small press on click,
+   a clear amber ring for keyboard focus (never for mouse clicks). */
+.press { transition: transform var(--motion-ms) var(--motion-ease), box-shadow var(--motion-ms) var(--motion-ease), background-color var(--motion-ms) var(--motion-ease), filter var(--motion-ms) var(--motion-ease); }
+.press:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.02); }
+.press:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+:focus-visible { outline: 2px solid var(--t-accent); outline-offset: 2px; border-radius: 6px; }
+button, a, select, input, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), a, select { cursor: pointer; }
+::selection { background: var(--t-accentPale); }
+* { scrollbar-width: thin; scrollbar-color: var(--t-border) transparent; }

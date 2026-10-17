@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Gauge, Radio, TriangleAlert, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
-import Frame, { useClock } from '@/components/Frame'
+import Frame from '@/components/Frame'
 import { color, indexColor } from '@/tokens'
 import FactorWeb from './FactorWeb'
 import type { Focus } from './FactorWeb'
@@ -39,7 +39,6 @@ export default function HubBoard({ s, live, history }: Props) {
     if (f) return { group: f.group, factor: f.id }
     return groups.some((g) => g.id === node) ? { group: node as Focus['group'] } : {}
   })
-  const { time, date } = useClock()
   const factors = buildFactors(s)
   const hazards = factors.filter(isHazard)
   const top = worst(hazards)
@@ -86,7 +85,7 @@ export default function HubBoard({ s, live, history }: Props) {
         <div className="flex flex-col items-end gap-1">
           <SitePicker current={s.site.id} name={s.site.name} />
           <p className="font-mono text-[11px] tracking-[0.08em]" style={{ color: color.muted }}>
-            {s.online ? 'LIVE' : 'LAST KNOWN'} &nbsp;/&nbsp; {date} &nbsp;/&nbsp; {time}
+            {s.online ? 'LIVE FROM THE BEACON' : 'LAST KNOWN STATE'}
           </p>
         </div>
       </div>
@@ -126,11 +125,6 @@ export default function HubBoard({ s, live, history }: Props) {
               {focus.group ? 'Click a factor to see its readings' : 'Click a category to open it'}
             </p>
           </div>
-          <p className="pointer-events-none absolute right-0 bottom-0 text-right font-mono text-[11px] leading-relaxed" style={{ color: color.muted, display: factor ? 'none' : undefined }}>
-            {factors.length} FACTORS
-            <br />
-            INDEX {s.index} / 10
-          </p>
         </div>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {s.site.beacon !== false && <DeviceCard s={s} />}

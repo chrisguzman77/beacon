@@ -46,7 +46,7 @@ function Row({ s, rank, active, onSelect }: { s: SiteRow; rank: number; active: 
 
   return (
     <div
-      className="relative grid grid-cols-[26px_48px_1fr_auto] items-center gap-3 rounded-md py-2 pr-2 pl-3 transition-colors"
+      className="press relative grid grid-cols-[26px_48px_1fr_auto] items-center gap-3 rounded-md py-2 pr-2 pl-3 hover:shadow-md"
       style={{
         background: stop ? `color-mix(in srgb, ${hazard.stopwork} 10%, ${color.surface})` : active ? color.accentPale : color.surface,
         boxShadow: `inset 0 0 0 ${active || stop ? 2 : 1}px ${stop ? hazard.stopwork : active ? color.accent : color.border}`,

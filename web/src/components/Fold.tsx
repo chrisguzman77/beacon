@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
-import Panel from '@/components/Panel'
 import { color } from '@/tokens'
+import { label } from './marsh'
 
-// A chamfered panel whose header folds it to one line. Folded, it shows `summary` instead of the
-// body. The open state is remembered per `id` in this browser.
+// A MARSH card whose header folds it to one line. Folded, it shows `summary` beside the title.
+// The open state is remembered per `id` in this browser. `edge` tints the card for alarms.
 
 function load(id: string, fallback: boolean) {
   try {
@@ -30,18 +30,21 @@ export default function Fold({ id, title, summary, badge, edge, defaultOpen = fa
   }
 
   return (
-    <Panel size={12} depth={1} edge={edge} inner="flex flex-col">
-      <button onClick={toggle} className="flex items-center justify-between gap-3 px-5 py-4 text-left" aria-expanded={open}>
-        <span className="flex items-center gap-3">
-          <span className="text-[13px] font-bold tracking-[0.02em] uppercase">{title}</span>
-          {!open && summary && <span className="font-mono text-label font-bold tracking-wider whitespace-nowrap text-dim">{summary}</span>}
+    <section
+      className="shrink-0 rounded-lg transition-shadow"
+      style={{ background: color.surface, boxShadow: `inset 0 0 0 ${edge ? 2 : 1}px ${edge ?? color.border}, 0 1px 2px rgb(29 40 34 / 0.06)` }}
+    >
+      <button onClick={toggle} className="group flex w-full items-center justify-between gap-3 rounded-lg px-5 py-4 text-left" aria-expanded={open}>
+        <span className="flex min-w-0 items-center gap-3">
+          <span className={label} style={{ color: color.text }}>{title}</span>
+          {!open && summary && <span className="truncate text-[13px]" style={{ color: color.muted }}>{summary}</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-3 whitespace-nowrap">
+        <span className="flex shrink-0 items-center gap-3">
           {badge}
-          <ChevronDown className="size-5 transition-transform" style={{ color: color.muted, transform: open ? 'rotate(180deg)' : undefined }} />
+          <ChevronDown className="size-5 transition-transform duration-300 group-hover:translate-y-px" style={{ color: color.muted, transform: open ? 'rotate(180deg)' : undefined }} />
         </span>
       </button>
-      {open && <div className="px-5 pb-5">{children}</div>}
-    </Panel>
+      {open && <div className="animate-in px-5 pb-5 duration-300 fade-in slide-in-from-top-1">{children}</div>}
+    </section>
   )
 }

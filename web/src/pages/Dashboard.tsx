@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, Navigation, OctagonAlert, Users } from 'lucide-react'
-import Frame, { useClock } from '@/components/Frame'
+import { ChevronDown, Navigation, Users } from 'lucide-react'
+import Frame from '@/components/Frame'
 import LoginButton from '@/components/LoginButton'
 import { rank, useDash } from '@/dashboard/store'
 import RankedList from '@/dashboard/RankedList'
@@ -54,7 +54,6 @@ export default function Dashboard() {
   const [group, setGroup] = useState<Group>('none')
   const [fitSignal, setFitSignal] = useState(0)
   const here = useDeviceLocation()
-  const { date, time } = useClock()
 
   useEffect(() => connect(), [connect])
 
@@ -91,7 +90,6 @@ export default function Dashboard() {
         status={
           <>
             <span className="flex items-center gap-2"><Users className="size-4" /> <b>{crew}</b> on site</span>
-            {stops > 0 && <span className="flex items-center gap-2 font-semibold" style={{ color: color.accent }}><OctagonAlert className="size-4" /> {stops} stop work</span>}
             <LoginButton />
           </>
         }
@@ -102,9 +100,6 @@ export default function Dashboard() {
             <p className="font-mono text-[11px] tracking-[0.12em] uppercase" style={{ color: color.muted }}>All sites / {head.crumb}</p>
             <h1 className="mt-1 text-[30px] leading-tight font-bold tracking-[-0.01em]">{head.text}</h1>
           </div>
-          <p className="font-mono text-[11px] tracking-[0.08em]" style={{ color: color.muted }}>
-            {sites.length} SITES &nbsp;/&nbsp; {date} &nbsp;/&nbsp; {time}
-          </p>
         </div>
         <StatusBar sites={sites} />
 

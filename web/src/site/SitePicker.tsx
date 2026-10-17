@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Search } from 'lucide-react'
-import Panel from '@/components/Panel'
 import { LiveBadge } from '@/dashboard/RankedList'
 import { rank, useDash } from '@/dashboard/store'
 import { color, indexColor } from '@/tokens'
@@ -40,8 +39,8 @@ export default function SitePicker({ current, name }: { current: number; name: s
 
       {open && (
         <div className="absolute top-full right-0 z-40 mt-2 w-[440px]">
-          <Panel size={14} depth={3} edge={color.signal} inner="flex flex-col gap-3 p-3">
-            <label className="flex items-center gap-2 px-2 py-2" style={{ boxShadow: `inset 0 0 0 1px ${color.border}` }}>
+          <div className="flex animate-in flex-col gap-3 rounded-lg p-3 duration-200 fade-in slide-in-from-top-1" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}, 0 18px 40px rgb(29 40 34 / 0.18)` }}>
+            <label className="flex items-center gap-2 rounded-md px-3 py-2" style={{ background: color.bg }}>
               <Search className="size-4 text-dim" />
               <input
                 autoFocus
@@ -63,7 +62,7 @@ export default function SitePicker({ current, name }: { current: number; name: s
                       setQ('')
                       go(`/hub/${s.site_id}${location.search.replace(/[?&]step=\d+/, '')}`)
                     }}
-                    className="grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 px-2 py-2 text-left hover:bg-raised"
+                    className="grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-raised"
                     style={{ background: s.site_id === current ? color.raised : undefined }}
                   >
                     <span className="text-center text-[22px] font-bold" style={{ color: s.index == null ? color.muted : indexColor(s.index) }}>{s.index ?? '–'}</span>
@@ -76,7 +75,7 @@ export default function SitePicker({ current, name }: { current: number; name: s
                 </li>
               ))}
             </ul>
-          </Panel>
+          </div>
         </div>
       )}
     </div>

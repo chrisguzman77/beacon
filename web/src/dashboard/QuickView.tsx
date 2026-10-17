@@ -45,19 +45,13 @@ export default function QuickView({ site, rank, total, distance }: Props) {
   const idx = site.index ?? s?.index ?? null
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+    <div key={site.site_id} className="flex min-h-0 animate-in flex-col gap-3 overflow-y-auto pr-1 duration-300 fade-in slide-in-from-left-1">
       <section className="rounded-md p-5" style={{ background: color.chrome, color: color.chromeText }}>
         <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] uppercase opacity-75">
           <MapPin className="size-3.5" /> {distance !== undefined ? `Nearest site · ${Math.round(distance)} mi from you` : 'Selected site'}
         </p>
         <h2 className="mt-1 text-[24px] leading-tight font-semibold">{site.name}</h2>
         <p className="text-[13px] opacity-75">{site.county} County, {site.state} · {site.tech}</p>
-        {s?.index_reasons?.length ? (
-          <p className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px]">
-            <span className="font-mono text-[10px] tracking-[0.1em] uppercase opacity-70">Why</span>
-            {s.index_reasons.map((r) => <span key={r} className="rounded-sm px-2 py-0.5" style={{ background: color.chromeSoft }}>{r}</span>)}
-          </p>
-        ) : null}
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat label="Rank" value={`#${rank}`} sub={`of ${total}`} />
           <Stat label="Index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
@@ -104,7 +98,7 @@ export default function QuickView({ site, rank, total, distance }: Props) {
             <li key={h.id}>
               <Link
                 to={hubHref(site.site_id, h.id)}
-                className="group flex items-center gap-3 rounded-sm py-2 pr-2 pl-3 hover:brightness-95"
+                className="press group flex items-center gap-3 rounded-sm py-2 pr-2 pl-3"
                 style={{ background: color.bg, borderLeft: `4px solid ${h.tint ?? color.muted}` }}
               >
                 <span className="min-w-0 flex-1">

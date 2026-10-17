@@ -1,6 +1,6 @@
 import { Fan, Radar, Users } from 'lucide-react'
-import Panel from '@/components/Panel'
 import Fold from '@/components/Fold'
+import { label as labelCls } from '@/components/marsh'
 import { LiveBadge } from '@/dashboard/RankedList'
 import { color, device, hazard } from '@/tokens'
 import { formatCountdown } from './store'
@@ -18,14 +18,14 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
   const lcd = s.lcd ?? ['', '']
 
   return (
-    <Fold id="hub.device" title="Beacon" defaultOpen badge={<LiveBadge />} edge={locked ? hazard.stopwork : undefined} summary={s.online ? (locked ? 'LOCKED' : 'RUNNING') : 'OFFLINE'}>
+    <Fold id="hub.device" title="Beacon" defaultOpen badge={<LiveBadge />} edge={locked ? hazard.stopwork : undefined} summary={s.online ? (locked ? 'Locked out' : 'Running') : 'Offline'}>
      <div className="flex flex-col gap-4">
 
       {!s.online && (
-        <Panel size={10} depth={0} edge={color.offline} fill={`color-mix(in srgb, ${color.offline} 14%, ${color.bg})`} inner="px-4 py-3 font-mono text-label font-bold tracking-wider" style={{ color: color.offline }}>
-          OFFLINE · LOCAL RULES ACTIVE
-          <span className="mt-1 block font-sans text-label font-normal tracking-normal text-dim">Showing the last state the beacon sent. It keeps enforcing stop work on its own.</span>
-        </Panel>
+        <div className="rounded-md px-4 py-3" style={{ background: color.accentPale, borderLeft: `4px solid ${color.offline}` }}>
+          <p className="text-[14px] font-semibold">Offline · local rules active</p>
+          <p className="text-[13px]" style={{ color: color.muted }}>Showing the last state the beacon sent. It keeps enforcing stop work on its own.</p>
+        </div>
       )}
 
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-4">
@@ -35,8 +35,8 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
       </div>
 
       <section className="flex flex-col gap-2">
-        <h3 className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim uppercase">LCD</h3>
-        <div className="px-4 py-3 font-mono text-[19px] leading-snug whitespace-pre" style={{ background: device.lcdBg, color: device.lcdInk, boxShadow: 'inset 0 0 0 3px rgb(0 0 0 / 0.45), inset 0 0 18px rgb(0 0 0 / 0.5)' }}>
+        <h3 className={labelCls} style={{ color: color.muted }}>LCD</h3>
+        <div className="rounded-md px-4 py-3 font-mono text-[19px] leading-snug whitespace-pre" style={{ background: device.lcdBg, color: device.lcdInk, boxShadow: 'inset 0 0 0 3px rgb(0 0 0 / 0.45), inset 0 0 18px rgb(0 0 0 / 0.5)' }}>
           {(lcd[0] ?? '').padEnd(16)}
           {'\n'}
           {(lcd[1] ?? '').padEnd(16)}
@@ -44,10 +44,10 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
       </section>
 
       <dl className="grid grid-cols-2 gap-3">
-        <Fact icon={<Fan className={`size-5 ${locked ? '' : 'animate-spin'}`} style={{ animationDuration: '1.2s' }} />} label="Equipment" value={locked ? 'LOCKED' : 'RUNNING'} tint={locked ? hazard.stopwork : color.signal} />
-        <Fact icon={<Radar className="size-5" />} label="Work zone" value={s.zone_clear ? 'CLEAR' : 'OCCUPIED'} tint={s.zone_clear ? color.signal : s.alert_type === 'stopwork' ? hazard.stopwork : color.text} />
+        <Fact icon={<Fan className={`size-5 ${locked ? '' : 'animate-spin'}`} style={{ animationDuration: '1.2s' }} />} label="Equipment" value={locked ? 'Locked out' : 'Running'} tint={locked ? hazard.stopwork : color.signal} />
+        <Fact icon={<Radar className="size-5" />} label="Work zone" value={s.zone_clear ? 'Clear' : 'Occupied'} tint={s.zone_clear ? color.signal : s.alert_type === 'stopwork' ? hazard.stopwork : color.text} />
         <Fact icon={<Users className="size-5" />} label="Crew in" value={`${crewIn} of ${s.crew.length}`} />
-        <Fact icon={<span className="size-2.5" style={{ background: s.online ? color.online : color.offline }} />} label="Link" value={s.online ? 'ONLINE' : 'OFFLINE'} tint={s.online ? color.online : color.offline} />
+        <Fact icon={<span className="block size-2.5 rounded-full" style={{ background: s.online ? color.online : color.offline }} />} label="Link" value={s.online ? 'Online' : 'Offline'} tint={s.online ? color.online : color.offline} />
       </dl>
      </div>
     </Fold>
@@ -58,7 +58,7 @@ function Light({ c, strobe }: { c: string; strobe: boolean }) {
   return (
     <span className="flex flex-col items-center gap-1">
       <span className={`size-10 rounded-full ${strobe ? 'animate-beacon-pulse' : ''}`} style={{ background: c, boxShadow: `0 0 18px ${c}, inset 0 -4px 8px rgb(0 0 0 / 0.35)` }} />
-      <span className="font-mono text-[10px] font-bold tracking-widest text-dim">LED</span>
+      <span className={labelCls} style={{ color: color.muted }}>LED</span>
     </span>
   )
 }
@@ -67,21 +67,21 @@ function Light({ c, strobe }: { c: string; strobe: boolean }) {
 function Digits({ text, lit, label }: { text: string; lit: boolean; label?: string }) {
   return (
     <span className="flex flex-col items-center gap-1">
-      <span className="px-3 py-1 font-mono text-[34px] leading-none font-bold tracking-[0.08em]" style={{ background: '#000', color: lit ? device.digit : device.digitOff, textShadow: lit ? `0 0 10px ${device.digit}` : undefined }}>
+      <span className="rounded-sm px-3 py-1 font-mono text-[34px] leading-none font-bold tracking-[0.08em]" style={{ background: '#000', color: lit ? device.digit : device.digitOff, textShadow: lit ? `0 0 10px ${device.digit}` : undefined }}>
         {text}
       </span>
-      <span className="font-mono text-[10px] font-bold tracking-widest text-dim uppercase">{label ?? 'countdown'}</span>
+      <span className={labelCls} style={{ color: color.muted }}>{label ?? 'Countdown'}</span>
     </span>
   )
 }
 
 function Fact({ icon, label, value, tint }: { icon: React.ReactNode; label: string; value: string; tint?: string }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2" style={{ boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-      <span className="text-dim">{icon}</span>
+    <div className="flex items-center gap-3 rounded-md px-3 py-2.5" style={{ background: color.bg }}>
+      <span style={{ color: color.muted }}>{icon}</span>
       <span>
-        <dt className="font-mono text-[10px] font-bold tracking-widest text-dim uppercase">{label}</dt>
-        <dd className="text-body leading-tight font-bold" style={{ color: tint ?? color.text }}>{value}</dd>
+        <dt className={labelCls} style={{ color: color.muted }}>{label}</dt>
+        <dd className="text-[16px] leading-tight font-semibold" style={{ color: tint ?? color.text }}>{value}</dd>
       </span>
     </div>
   )

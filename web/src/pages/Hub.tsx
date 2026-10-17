@@ -5,7 +5,8 @@ import { isTakeover } from '@/site/types'
 import { useFactorHistory } from '@/sweet-treats/useFactorHistory'
 import HubBoard from '@/site/HubBoard'
 import AlarmState from '@/site/AlarmState'
-import AppNav from '@/components/AppNav'
+import { Scan } from 'lucide-react'
+import { color } from '@/tokens'
 import { beaconSiteId } from '@/site/fakeGateway'
 import { useDash } from '@/dashboard/store'
 
@@ -29,11 +30,10 @@ export default function Hub() {
 
   if (!snapshot)
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <AppNav />
-        <div className="size-4 animate-beacon-pulse bg-signal" />
-        <p className="text-heading font-semibold">Loading the web</p>
-        <p className="text-body text-dim">Waiting for the first reading. Add ?fake=1 to the URL to use demo data.</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-3" style={{ background: color.bg, color: color.text }}>
+        <Scan className="size-10 animate-beacon-pulse" style={{ color: color.accent }} strokeWidth={2} />
+        <p className="text-[22px] font-semibold">Reading the site</p>
+        <p className="text-[14px]" style={{ color: color.muted }}>Waiting for the first reading from the backend.</p>
       </div>
     )
 
