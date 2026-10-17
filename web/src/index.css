@@ -91,3 +91,9 @@
   50% { opacity: 0.35; }
 }
 .animate-beacon-pulse { animation: beacon-pulse 1.6s ease-in-out infinite; }
+
+/* Danger links in the factor web flow toward the hazard index. */
+@keyframes web-flow {
+  to { stroke-dashoffset: 40; }
+}
+.web-flow { animation: web-flow 0.8s linear infinite; }
