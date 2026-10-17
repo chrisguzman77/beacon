@@ -1717,6 +1717,7 @@ end
 }
 
 return function()
+	print("[WorldInstaller] version 1017-0356, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
@@ -1734,5 +1735,6 @@ return function()
 		print(("[WorldInstaller] %s %s"):format(kind, s:GetFullName()))
 	end
 	require(folder.SceneBuilder).build()
-	print("[WorldInstaller] done. Save the place (Ctrl+S).")
+	print(("[WorldInstaller] done. site pieces %d, gators and egrets %d, flood water %s. Save the place (Ctrl+S)."):format(
+		#workspace.Site:GetChildren(), #workspace.Site.Wildlife:GetChildren(), tostring(workspace:FindFirstChild("FloodWater") ~= nil)))
 end

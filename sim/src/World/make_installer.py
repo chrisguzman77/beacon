@@ -2,6 +2,7 @@
 # World goes into Studio with one paste. Rerun after changing any World script:
 #   python sim/src/World/make_installer.py
 from pathlib import Path
+from datetime import datetime
 
 here = Path(__file__).parent
 KINDS = {".module.lua": "ModuleScript", ".server.lua": "Script", ".client.lua": "LocalScript"}
@@ -29,6 +30,7 @@ for name, kind, src in entries:
 out.append("""}
 
 return function()
+	print("[WorldInstaller] version VERSION, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
@@ -46,8 +48,11 @@ return function()
 		print(("[WorldInstaller] %s %s"):format(kind, s:GetFullName()))
 	end
 	require(folder.SceneBuilder).build()
-	print("[WorldInstaller] done. Save the place (Ctrl+S).")
+	print(("[WorldInstaller] done. site pieces %d, gators and egrets %d, flood water %s. Save the place (Ctrl+S)."):format(
+		#workspace.Site:GetChildren(), #workspace.Site.Wildlife:GetChildren(), tostring(workspace:FindFirstChild("FloodWater") ~= nil)))
 end
 """)
-(here / "WorldInstaller.module.lua").write_text("\n".join(out), encoding="utf-8", newline="\n")
-print(f"wrote WorldInstaller.module.lua with {len(entries)} scripts")
+version = datetime.now().strftime("%m%d-%H%M")
+text = "\n".join(out).replace("version VERSION", "version " + version)
+(here / "WorldInstaller.module.lua").write_text(text, encoding="utf-8", newline="\n")
+print(f"wrote WorldInstaller.module.lua with {len(entries)} scripts, version {version}")
