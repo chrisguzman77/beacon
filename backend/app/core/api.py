@@ -40,6 +40,13 @@ async def list_sites():
     return out
 
 
+async def _conditions(site_id, hours):
+    rows = await db.fetch("SELECT bucket AS ts, heat_max, precip, gust_max, soil, water FROM site_hourly"
+                          " WHERE site_id=$1 AND bucket > now() - make_interval(hours => $2) ORDER BY bucket",
+                          site_id, hours)
+    return [dict(r) for r in rows]
+
+
 @router.get("/sites/{site_id}")
 async def site_detail(site_id: int):
     s = SITES.get(site_id)
@@ -51,12 +58,20 @@ async def site_detail(site_id: int):
     brief = await db.fetchrow("SELECT * FROM briefings WHERE site_id=$1 ORDER BY for_date DESC LIMIT 1", site_id)
     reports = await db.fetch("SELECT * FROM reports WHERE site_id=$1 ORDER BY ts DESC LIMIT 20", site_id)
     return {**s,
+            "conditions": await _conditions(site_id, 48),
             "alerts": [alert_json(a) for a in alerts],
             "alert_history": [alert_json(a) for a in history],
             "index": dict(idx) if idx else None,
             "briefing": dict(brief) if brief else None,
             "reports": [dict(r) for r in reports],
             "device": gateway.last_state.get(site_id, {"online": False})}
+
+
+@router.get("/sites/{site_id}/conditions")
+async def site_conditions(site_id: int, hours: int = 48):
+    if site_id not in SITES:
+        raise HTTPException(404, "unknown site")
+    return await _conditions(site_id, min(hours, 24 * 30))
 
 
 @router.get("/sites/{site_id}/device")
