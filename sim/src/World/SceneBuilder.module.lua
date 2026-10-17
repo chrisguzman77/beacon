@@ -7,6 +7,7 @@
 -- Nothing is uploaded; every part is a plain Part.
 
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -70,7 +71,7 @@ local function part(parent, name, size, cf, color, material, shape)
 	p.Name = name
 	if shape then p.Shape = shape end
 	p.Size, p.CFrame, p.Color = size, cf, color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Material = material or Enum.Material.Plastic
 	p.Anchored = true
 	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
 	p.Parent = parent
@@ -196,8 +197,8 @@ local function beacon()
 	glow.Parent = light
 	-- level tag floating over the light, readable from the spawn
 	local tag = Instance.new("BillboardGui")
-	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(240, 64), Vector3.new(0, 2.6, 0)
-	tag.MaxDistance, tag.LightInfluence = 300, 0
+	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(190, 46), Vector3.new(0, 2.4, 0)
+	tag.MaxDistance, tag.LightInfluence = 140, 0
 	tag.Parent = light
 	label(tag, "Level", "ALL CLEAR", UDim2.fromScale(1, 0.62), UDim2.new(), C.green)
 	label(tag, "Sub", "HAZARD INDEX 0", UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0.62), C.white, Enum.Font.GothamMedium)
@@ -238,25 +239,38 @@ local function beacon()
 	end
 end
 
--- yellow and black stripes along the ground from a to b
-local function hazardLine(parent, a, b)
-	local n = math.floor((b - a).Magnitude / 3)
-	for i = 0, n - 1 do
-		local p0, p1 = a:Lerp(b, i / n), a:Lerp(b, (i + 1) / n)
-		local s = part(parent, "Stripe", Vector3.new(1, 0.12, (p1 - p0).Magnitude), CFrame.lookAt((p0 + p1) / 2, p1),
-			i % 2 == 0 and C.safety or C.dark)
-		s.CanCollide, s.CanQuery, s.CastShadow = false, false, false
-	end
-end
-
 local function zone()
 	local z = ghost(part(workspace, "ZonePart", Vector3.new(ZONE, 14, ZONE), CFrame.new(0, 7, 0), C.safety))
+	-- kept for BeaconVisuals, which tints it; invisible so the zone reads as a real taped off area
 	local floor = part(z, "ZoneFloor", Vector3.new(ZONE, 0.05, ZONE), CFrame.new(0, 0.05, 0), C.green)
-	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 0.9, false, false, false
+	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 1, false, false, false
 	local h = ZONE / 2
-	local corners = { Vector3.new(-h, 0.07, -h), Vector3.new(h, 0.07, -h), Vector3.new(h, 0.07, h), Vector3.new(-h, 0.07, h) }
+	local corners = { Vector3.new(-h, 0, -h), Vector3.new(h, 0, -h), Vector3.new(h, 0, h), Vector3.new(-h, 0, h) }
+	local tape = Color3.fromRGB(240, 200, 30)
 	for i = 1, 4 do
-		hazardLine(z, corners[i], corners[i % 4 + 1])
+		local a, b = corners[i], corners[i % 4 + 1]
+		local count = math.floor((b - a).Magnitude / 7.5)
+		local prev
+		for k = 0, count - 1 do
+			local p = a:Lerp(b, k / count)
+			-- stakes driven into the muck, leaning a little like real ones do
+			local stake = part(z, "Stake", Vector3.new(0.3, 5, 0.3), CFrame.new(p + Vector3.new(0, 1.5, 0)) * CFrame.Angles(math.rad(rng:NextNumber(-4, 4)), 0, math.rad(rng:NextNumber(-4, 4))), C.wood, Enum.Material.Wood)
+			stake.CanCollide = false
+			local att = Instance.new("Attachment")
+			att.Position = Vector3.new(0, 1.8, 0)
+			att.Parent = stake
+			if prev then
+				local band = Instance.new("Beam")
+				band.Attachment0, band.Attachment1 = prev, att
+				band.Width0, band.Width1, band.Segments = 0.3, 0.3, 6
+				band.CurveSize0, band.CurveSize1 = -0.4, 0.4 -- a little sag between stakes
+				band.Color = ColorSequence.new(tape)
+				band.FaceCamera, band.LightInfluence = true, 1
+				band.Parent = stake
+			end
+			prev = att
+		end
+		prev = nil
 	end
 end
 
@@ -605,15 +619,27 @@ end
 
 local function lighting()
 	pcall(function() Lighting.Technology = Enum.Technology.Future end)
-	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.2
-	Lighting.Ambient = Color3.fromRGB(38, 40, 46)
+	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.12
+	Lighting.Ambient = Color3.fromRGB(22, 24, 28)
 	Lighting.EnvironmentDiffuseScale, Lighting.EnvironmentSpecularScale = 1, 1
-	Lighting.GeographicLatitude = 29
+	Lighting.ExposureCompensation = 0
+	Lighting.GeographicLatitude = 26 -- the Everglades
 	ensure(Lighting, "Sky", "Sky")
 	local bloom = ensure(Lighting, "BloomEffect", "Bloom")
-	bloom.Intensity, bloom.Size, bloom.Threshold = 0.5, 28, 1.4
+	bloom.Intensity, bloom.Size, bloom.Threshold = 0.25, 20, 2.2
 	local rays = ensure(Lighting, "SunRaysEffect", "SunRays")
-	rays.Intensity, rays.Spread = 0.05, 0.7
+	rays.Intensity, rays.Spread = 0.03, 0.6
+	local dof = ensure(Lighting, "DepthOfFieldEffect", "DepthOfField")
+	dof.FarIntensity, dof.NearIntensity, dof.FocusDistance, dof.InFocusRadius = 0.12, 0, 80, 70
+	local theirs = Lighting:FindFirstChild("PlanITColor")
+	if theirs and theirs:IsA("ColorCorrectionEffect") then
+		theirs.Brightness, theirs.Contrast, theirs.Saturation, theirs.TintColor = 0, 0, 0, Color3.new(1, 1, 1)
+	end
+	-- swamp water is tea colored and murky, with soft reflections and a light chop
+	local T = workspace.Terrain
+	T.WaterColor = Color3.fromRGB(58, 60, 38)
+	T.WaterTransparency, T.WaterReflectance = 0.3, 0.22
+	T.WaterWaveSize, T.WaterWaveSpeed = 0.05, 5
 	WeatherFx.reset()
 end
 
@@ -621,8 +647,45 @@ end
 
 ---------------------------------------------------------------- the jobsite from the challenge brief
 
--- a blocky hi-vis crew member, pivot at the torso, feet 3 studs below it
+-- a crew member: a humanoid rig in a hi-vis vest and hard hat, anchored at the root so scripts move it,
+-- pivot at the root, feet 3 studs below it. Falls back to a block figure where rigs cannot be made.
+local function humanoidWorker(parent, cf)
+	local d = Instance.new("HumanoidDescription")
+	local vest, pants, skin = C.orange, C.navy, ({ Color3.fromRGB(176, 124, 92), Color3.fromRGB(120, 82, 58), Color3.fromRGB(224, 172, 140) })[rng:NextInteger(1, 3)]
+	d.HeadColor, d.TorsoColor, d.LeftArmColor, d.RightArmColor = skin, vest, skin, skin
+	d.LeftLegColor, d.RightLegColor = pants, pants
+	d.HeightScale, d.WidthScale, d.DepthScale, d.ProportionScale = rng:NextNumber(0.97, 1.05), 0.95, 0.95, 1
+	local m = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	m.Name = "Worker"
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+	local root = m:FindFirstChild("HumanoidRootPart")
+	if root then root.Anchored = true end
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then p.CanCollide = false end
+	end
+	local head, torso = m:FindFirstChild("Head"), m:FindFirstChild("UpperTorso")
+	local function wear(name, size, offset, color, material, on)
+		if not on then return end
+		local p = Instance.new("Part")
+		p.Name, p.Size, p.Color, p.Material = name, size, color, material
+		p.CanCollide, p.Massless, p.CastShadow = false, true, true
+		p.CFrame = on.CFrame * offset
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0, weld.Part1, weld.Parent = on, p, p
+		p.Parent = m
+	end
+	wear("HardHat", Vector3.new(1.35, 0.5, 1.45), CFrame.new(0, 0.62, 0), C.yellow, Enum.Material.Plastic, head)
+	wear("HatBrim", Vector3.new(1.55, 0.08, 1.7), CFrame.new(0, 0.42, -0.05), C.yellow, Enum.Material.Plastic, head)
+	wear("VestStripe", Vector3.new(2.05, 0.18, 1.12), CFrame.new(0, -0.15, 0), Color3.fromRGB(215, 220, 225), Enum.Material.Foil, torso)
+	m:PivotTo(cf)
+	m.Parent = parent
+	return m
+end
+
 local function workerModel(parent, cf)
+	local ok, rig = pcall(humanoidWorker, parent, cf)
+	if ok and rig and rig:FindFirstChild("Head") then return rig end
 	local m = model(parent, "Worker")
 	local function w(n, size, off, color)
 		return nonCollide(part(m, n, size, cf * off, color))

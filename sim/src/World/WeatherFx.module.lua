@@ -24,16 +24,16 @@ local targets = {
 }
 
 local CLEAR = {
-	lighting = { Brightness = 2.5, OutdoorAmbient = Color3.fromRGB(140, 140, 150) },
-	atmosphere = { Density = 0.34, Haze = 1.6, Glare = 0.25, Color = Color3.fromRGB(196, 198, 172), Decay = Color3.fromRGB(96, 112, 96) },
-	grade = { Brightness = 0, Contrast = 0.05, Saturation = 0.1, TintColor = Color3.new(1, 1, 1) },
-	clouds = { Cover = 0.45, Density = 0.6, Color = Color3.new(1, 1, 1) },
+	lighting = { Brightness = 3, OutdoorAmbient = Color3.fromRGB(118, 120, 126) },
+	atmosphere = { Density = 0.36, Haze = 1.8, Glare = 0.35, Color = Color3.fromRGB(200, 204, 196), Decay = Color3.fromRGB(108, 118, 112) },
+	grade = { Brightness = 0, Contrast = 0.12, Saturation = -0.06, TintColor = Color3.fromRGB(255, 248, 236) },
+	clouds = { Cover = 0.5, Density = 0.55, Color = Color3.new(1, 1, 1) },
 }
 local STORM = {
-	lighting = { Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(90, 95, 110) },
-	atmosphere = { Density = 0.55, Haze = 2.5, Glare = 0, Color = Color3.fromRGB(110, 115, 125), Decay = Color3.fromRGB(70, 75, 90) },
-	grade = { Brightness = -0.05, Contrast = 0.12, Saturation = -0.25, TintColor = Color3.fromRGB(215, 225, 240) },
-	clouds = { Cover = 0.95, Density = 0.85, Color = Color3.fromRGB(120, 125, 135) },
+	lighting = { Brightness = 1.1, OutdoorAmbient = Color3.fromRGB(78, 84, 96) },
+	atmosphere = { Density = 0.58, Haze = 2.6, Glare = 0, Color = Color3.fromRGB(104, 110, 120), Decay = Color3.fromRGB(64, 70, 84) },
+	grade = { Brightness = -0.04, Contrast = 0.16, Saturation = -0.3, TintColor = Color3.fromRGB(212, 222, 236) },
+	clouds = { Cover = 0.96, Density = 0.9, Color = Color3.fromRGB(105, 110, 120) },
 }
 
 -- k = 0 is CLEAR, k = 1 is STORM

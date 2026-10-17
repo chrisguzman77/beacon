@@ -19,11 +19,34 @@ tailboard = tailboard and tailboard.CFrame
 local WALK = 7 -- studs per second
 local MUDDY, ROTATE_S = 0.85, 900 -- the resting group changes every 15 simulated minutes
 
+-- Roblox's own R15 walk and idle animations, so the rigs move like people. Missing animations are not fatal.
+local WALK_ANIM, IDLE_ANIM = "rbxassetid://507777826", "rbxassetid://507766388"
+local function tracks(m)
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if not hum then return nil end
+	local ok, result = pcall(function()
+		local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+		local walk, idle = Instance.new("Animation"), Instance.new("Animation")
+		walk.AnimationId, idle.AnimationId = WALK_ANIM, IDLE_ANIM
+		local t = { walk = animator:LoadAnimation(walk), idle = animator:LoadAnimation(idle) }
+		t.walk.Looped, t.idle.Looped = true, true
+		t.idle:Play()
+		return t
+	end)
+	return ok and result or nil
+end
+
 local workers = {}
 for i, m in ipairs(crew:GetChildren()) do
 	if m.Name == "Worker" then
-		table.insert(workers, { m = m, home = m:GetPivot(), i = i, hidden = false })
+		table.insert(workers, { m = m, home = m:GetPivot(), i = i, hidden = false, anim = tracks(m), walking = false })
 	end
+end
+
+local function setWalking(w, walking)
+	if w.walking == walking or not w.anim then return end
+	w.walking = walking
+	if walking then w.anim.idle:Stop(0.2) w.anim.walk:Play(0.2) else w.anim.walk:Stop(0.2) w.anim.idle:Play(0.2) end
 end
 
 local sinkers = {}
@@ -37,9 +60,13 @@ for _, m in ipairs(site:GetChildren()) do
 	end
 end
 
+-- hiding keeps each part's own transparency (a rig's root part is always invisible)
 local function setVisible(m, visible)
 	for _, p in ipairs(m:GetDescendants()) do
-		if p:IsA("BasePart") then p.Transparency = visible and 0 or 1 end
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			if p:GetAttribute("BaseT") == nil then p:SetAttribute("BaseT", p.Transparency) end
+			p.Transparency = visible and p:GetAttribute("BaseT") or 1
+		end
 	end
 end
 
@@ -70,12 +97,15 @@ RunService.Heartbeat:Connect(function(dt)
 		local flat = Vector3.new(target.X - pos.X, 0, target.Z - pos.Z)
 		local dist = flat.Magnitude
 		local arrived = dist < 0.6
+		setWalking(w, not arrived)
 		if not arrived then
 			-- at 300x a stop work lasts seconds, so the crew hurries in step with the playback, up to 4x
 			local hurry = math.clamp((workspace:GetAttribute("SimSpeed") or 1) / 60, 1, 4)
 			local step = math.min(dist, dt * WALK * hurry)
 			local nextPos = pos + flat.Unit * step
-			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, math.abs(math.sin(t * 9)) * 0.15, 0))
+			-- rigs walk on their animation; the block figure bobs instead
+			local bob = w.anim and 0 or math.abs(math.sin(t * 9)) * 0.15
+			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, bob, 0))
 		elseif briefing and not stop then
 			w.m:PivotTo(CFrame.new(w.m:GetPivot().Position) * tailboard.Rotation) -- facing the board
 		elseif not stop and not rests then

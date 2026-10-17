@@ -511,7 +511,7 @@ check(shiftLogHas("STOP WORK: strike 8 mi") and shiftLogHas("COUNTDOWN RESET: st
 if crewFolder then
 	step(4, 0.25) -- still inside the 30 minutes the 6 mile strike restarted
 	local hidden = 0
-	for _, w in ipairs(workers()) do if w.Torso.Transparency == 1 then hidden += 1 end end
+	for _, w in ipairs(workers()) do if w.Head.Transparency == 1 then hidden += 1 end end
 	check(hidden == #workers() and hidden == 4, ("crew sheltered in the truck (%d of %d)"):format(hidden, #workers()))
 	step(0.5, 0.25)
 	check(rowText(4):find("CREW 4/4 SHELTERED", 1, true) ~= nil and shiftLogHas("Headcount: crew 4/4 accounted for"), "headcount on the board and in the log (" .. rowText(4) .. ")")
