@@ -31,6 +31,9 @@ export const takeover = {
   unsafe: '#7B1FA2',
 }
 
+// Replica of the beacon's own displays on the device card: LCD1602 backlight and the LED digits.
+export const device = { lcdBg: '#1E3FA8', lcdInk: '#E8F0FF', digit: '#FF2A1A', digitOff: '#2A0A08' }
+
 export type HazardKey = keyof typeof hazard
 
 export const alertHazard: Record<string, HazardKey> = {

@@ -51,17 +51,17 @@ export function buildFactors(s: Snapshot): Factor[] {
   // Weather. Heat index, NWS bands: 91+ extreme caution, 103+ danger.
   const hi = s.heat_index_f
   const heatB: Bands = { caution: 91, danger: 103, max: 130, unit: '°F' }
-  out.push({
+  if (Number.isFinite(hi)) out.push({
     id: 'heat', group: 'weather', label: 'Heat index', value: `${f(hi)}°F`, raw: hi, bands: heatB, tint: hazard.heat, note: `Heat index ${f(hi)}°F`,
     status: s.alert_type === 'heat_danger' ? 'danger' : level(hi, heatB),
     guide: 'Above 91°F, water, rest and shade every hour. Above 103°F, heavy work stops in the hottest hours and buddies check each other every 15 minutes.',
   })
   const tempF = s.temp_c * 9 / 5 + 32
-  out.push({
+  if (Number.isFinite(tempF)) out.push({
     id: 'temp', group: 'weather', label: 'Temperature', value: `${f(tempF)}°F`, raw: tempF, status: tempF >= 95 ? 'caution' : 'info', tint: hazard.heat, note: `Air temperature ${f(tempF)}°F`,
     guide: 'Air temperature alone. The heat index, which adds humidity, is what sets work and rest cycles.',
   })
-  out.push({ id: 'humidity', group: 'weather', label: 'Humidity', value: `${f(s.humidity)}%`, raw: s.humidity, status: 'info', guide: 'High humidity stops sweat from cooling the body and pushes the heat index up.' })
+  if (Number.isFinite(s.humidity)) out.push({ id: 'humidity', group: 'weather', label: 'Humidity', value: `${f(s.humidity)}%`, raw: s.humidity, status: 'info', guide: 'High humidity stops sweat from cooling the body and pushes the heat index up.' })
   out.push({
     id: 'lightning', group: 'weather', label: 'Lightning', value: lightning ? `${miles ?? '?'} MI` : 'NONE',
     status: lightning ? 'danger' : 'ok', tint: hazard.stopwork, note: `Lightning ${miles ?? ''} mi, stop work`,
@@ -86,7 +86,7 @@ export function buildFactors(s: Snapshot): Factor[] {
 
   // Water.
   const waterB: Bands = { caution: 1, danger: 30, max: 100, unit: '%' }
-  out.push({
+  if (Number.isFinite(s.water_pct)) out.push({
     id: 'water', group: 'water', label: 'Standing water', value: `${f(s.water_pct)}%`, raw: s.water_pct, bands: waterB, tint: hazard.flood, note: `Standing water ${f(s.water_pct)}%`,
     status: s.alert_type === 'flood_confirmed' ? 'danger' : level(s.water_pct, waterB),
     guide: 'Water at the beacon. Any water is a slip and electrical risk near equipment; above 30% treat it as flooding.',
@@ -156,12 +156,12 @@ export function buildFactors(s: Snapshot): Factor[] {
     guide: 'Equipment power. LOCKED means the beacon has cut the motor; only the supervisor PIN on the remote restores it.',
   })
   const tiltB: Bands = { caution: 5, danger: 15, max: 45, unit: '°' }
-  out.push({
+  if (Number.isFinite(s.tilt)) out.push({
     id: 'tilt', group: 'equipment', label: 'Beacon tilt', value: `${f(s.tilt)}°`, raw: s.tilt, bands: tiltB, tint: hazard.unsafe, note: `Beacon tilted ${f(s.tilt)}°`,
     status: s.alert_type === 'beacon_unsafe' ? 'danger' : level(s.tilt, tiltB),
     guide: 'The beacon should stand level. Above 5°, check the mount; above 15°, its sensors cannot be trusted.',
   })
-  out.push({ id: 'light', group: 'equipment', label: 'Light sensor', value: String(s.light), raw: s.light, status: 'info', guide: 'Raw light sensor reading the beacon uses to catch lightning flashes.' })
+  if (Number.isFinite(s.light)) out.push({ id: 'light', group: 'equipment', label: 'Light sensor', value: String(s.light), raw: s.light, status: 'info', guide: 'Raw light sensor reading the beacon uses to catch lightning flashes.' })
 
   // Site.
   out.push({

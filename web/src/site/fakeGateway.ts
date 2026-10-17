@@ -6,6 +6,17 @@ import script from './fake-snapshots.json'
 import fakeSites from '@/dashboard/fake-sites.json'
 import { allClear, steps, STEP_MS } from '@/sweet-treats/showcase'
 import type { Snapshot } from './types'
+import { formatCountdown } from './store'
+
+// The beacon LCD1602's two 16 character lines, as the firmware would show them.
+const pad = (t: string) => t.slice(0, 16).padEnd(16)
+function lcdFor(s: Snapshot): string[] {
+  if (s.awaiting_clear) return [pad('STOP WORK'), pad('ENTER PIN')]
+  if (s.countdown > 0) return [pad('STOP WORK'), pad(`${s.reason.replace('LIGHTNING', 'LTNG')} ${formatCountdown(s.countdown)}`)]
+  if (s.interlock === 'locked' || s.alert_type === 'stopwork') return [pad('STOP WORK'), pad(s.reason || 'LOCKED OUT')]
+  return [pad(`ALL CLEAR IDX ${s.index}`), pad(`CREW ${s.crew.filter((c) => c.in).length}   ${s.next_briefing}`)]
+}
+const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s) })
 
 type Frame = { at: number; patch: Partial<Snapshot> }
 const base = script.base as Snapshot
@@ -14,7 +25,7 @@ export const beaconSiteId = fakeSites.find((s) => s.beacon)!.site_id
 
 export function startFakeGateway(onSnapshot: (s: Snapshot) => void, mode: string, siteId: number) {
   const site = fakeSites.find((s) => s.site_id === siteId) ?? fakeSites.find((s) => s.beacon)!
-  return mode === 'storm' ? storm(onSnapshot) : showcase(onSnapshot, { id: site.site_id, name: site.name })
+  return mode === 'storm' ? storm(onSnapshot) : showcase(onSnapshot, { id: site.site_id, name: site.name, beacon: site.beacon })
 }
 
 function showcase(onSnapshot: (s: Snapshot) => void, site: Snapshot['site']) {
@@ -24,7 +35,7 @@ function showcase(onSnapshot: (s: Snapshot) => void, site: Snapshot['site']) {
   let last = Date.now()
   const emit = () => {
     const step = steps[Math.floor(elapsed / STEP_MS) % steps.length]
-    onSnapshot({ ...base, ...allClear, ...step.patch(), site } as Snapshot)
+    onSnapshot(withLcd({ ...base, ...allClear, ...step.patch(), site } as Snapshot))
   }
   const timer = setInterval(() => {
     const t = Date.now()
@@ -66,7 +77,7 @@ function storm(onSnapshot: (s: Snapshot) => void) {
     return s
   }
 
-  const timer = setInterval(() => onSnapshot(snapshotAt(((Date.now() - start) / 1000) % script.loop_s)), 250)
+  const timer = setInterval(() => onSnapshot(withLcd(snapshotAt(((Date.now() - start) / 1000) % script.loop_s))), 250)
   return {
     stop: () => clearInterval(timer),
     setPaused: () => {},
