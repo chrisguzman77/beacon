@@ -4,7 +4,7 @@ import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from . import rules
+from . import gateway, rules
 from .config import settings
 from .sites import SITES
 
@@ -41,3 +41,26 @@ async def sim_strike(body: StrikeIn):
     alerts = await rules.on_strike(rules.now(), lat, lon, "sim")
     return {"lat": lat, "lon": lon, "distance_m": round(rules.haversine_m(lat, lon, site["lat"], site["lon"])),
             "alerts": alerts}
+
+
+class BangIn(BaseModel):
+    site_id: int
+    ts_us: int
+
+
+SOUND_MPS = 343
+
+
+@router.post("/bang")
+async def sim_bang(body: BangIn):
+    """From the mic listener page. Relay to the Pi, and pair with the last FLASH here too; whichever decides first wins."""
+    relayed = await gateway.send(body.site_id, {"cmd": "BANG", "ts_us": body.ts_us})
+    flash = gateway.last_flash.get(body.site_id)
+    gap_s = (body.ts_us - flash) / 1e6 if flash else None
+    if gap_s is None or not 0 < gap_s < 60:
+        return {"relayed": relayed, "paired": False}
+    gateway.last_flash.pop(body.site_id)
+    d = gap_s * SOUND_MPS
+    if d < rules.STOPWORK_RADIUS_M:
+        await gateway._local_stopwork(body.site_id, {"distance_m": round(d), "flash_ts_us": flash, "bang_ts_us": body.ts_us})
+    return {"relayed": relayed, "paired": True, "distance_m": round(d)}

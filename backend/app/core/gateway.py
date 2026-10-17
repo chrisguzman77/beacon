@@ -15,6 +15,8 @@ _conns: dict[int, WebSocket] = {}
 # Last "state" message per site, served at GET /sites/{id}/device. Memory only, Roblox polls it every second.
 last_state: dict[int, dict] = {}
 _last_presence: dict[int, int] = {}
+# Last FLASH ts_us per site, paired with POST /sim/bang. Pi and laptop clocks must be NTP synced for this to be accurate.
+last_flash: dict[int, int] = {}
 
 
 def connected(site_id):
@@ -74,6 +76,8 @@ async def _handle(site_id, m):
         await _pod(site_id, m)
     elif kind == "local_stopwork":
         await _local_stopwork(site_id, m)
+    elif kind == "flash":
+        last_flash[site_id] = int(m["ts_us"])
     elif kind == "count":
         await hub.publish(site_id, {"type": "count", "seconds": m.get("seconds")})
     elif kind == "estop":
