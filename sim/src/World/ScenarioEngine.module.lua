@@ -1,0 +1,89 @@
+-- ScenarioEngine (ModuleScript)
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Scenarios = require(script.Parent.Scenarios)
+local Lightning = require(script.Parent.Lightning)
+local WeatherFx = require(script.Parent.WeatherFx)
+local events = ReplicatedStorage:WaitForChild("SimEvents")
+
+local Engine = {}
+Engine.Changed = Instance.new("BindableEvent")
+
+local state = {
+	scenario = nil, key = nil, name = "", clockStart = "13:00",
+	simTime = 0, speed = 60, playing = false, fired = {}, note = "",
+}
+
+function Engine.snapshot()
+	return {
+		key = state.key, name = state.name, clockStart = state.clockStart,
+		simTime = state.simTime, speed = state.speed, playing = state.playing, note = state.note,
+	}
+end
+
+local function emit()
+	Engine.Changed:Fire(Engine.snapshot())
+end
+
+function Engine.load(key)
+	local sc = Scenarios[key]
+	if not sc then warn("[Engine] unknown scenario " .. tostring(key)) return end
+	state.scenario, state.key, state.name = sc, key, sc.name
+	state.clockStart = sc.clockStart or "13:00"
+	state.simTime, state.speed, state.playing = 0, sc.speed or 60, false
+	state.fired, state.note = {}, ""
+	WeatherFx.reset()
+	emit()
+end
+
+function Engine.play()
+	if state.scenario then state.playing = true emit() end
+end
+
+function Engine.pause()
+	state.playing = false
+	emit()
+end
+
+function Engine.setSpeed(s)
+	state.speed = math.clamp(s, 1, 600)
+	emit()
+end
+
+local function dispatch(e)
+	if e.type == "strike" then
+		Lightning.strike(e.bearing, e.miles)
+	elseif e.type == "weather" then
+		WeatherFx.apply(e)
+		events.Weather:Fire({ temp_c = e.temp_c, humidity = e.humidity, precip_mm = e.rain or 0, gust = e.gust })
+	elseif e.type == "water" then
+		WeatherFx.setWater(e.depth_mm)
+		events.Water:Fire(e.depth_mm)
+	elseif e.type == "wildlife" then
+		WeatherFx.spawnGator()
+	elseif e.type == "note" then
+		state.note = e.text
+		emit()
+	end
+	print(("[Engine] t=%d %s"):format(e.t, e.type))
+end
+
+local acc = 0
+RunService.Heartbeat:Connect(function(dt)
+	if not state.playing or not state.scenario then return end
+	state.simTime += dt * state.speed
+	for i, e in ipairs(state.scenario.events) do
+		if not state.fired[i] and e.t <= state.simTime then
+			state.fired[i] = true
+			dispatch(e)
+		end
+	end
+	acc += dt
+	if acc >= 0.5 then
+		acc = 0
+		emit()
+	end
+end)
+
+return Engine

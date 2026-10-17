@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beacon thunder listener</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f1218; color: #e6e8ee; margin: 0; padding: 24px; }
+  label { display: block; margin: 10px 0 2px; font-size: 13px; color: #9aa3b5; }
+  input { width: 100%; max-width: 480px; padding: 8px; background: #1a1f2a; color: #fff; border: 1px solid #2c3444; border-radius: 6px; }
+  button { margin-top: 16px; padding: 12px 20px; font-size: 16px; border: 0; border-radius: 8px; background: #2d6cdf; color: #fff; }
+  #meter { height: 24px; background: #1a1f2a; border-radius: 6px; margin-top: 16px; max-width: 480px; overflow: hidden; }
+  #bar { height: 100%; width: 0; background: #39c26d; transition: width 60ms linear; }
+  #bar.hot { background: #e0483e; }
+  #stats, #log { margin-top: 10px; font-family: ui-monospace, monospace; font-size: 13px; color: #9aa3b5; white-space: pre-wrap; max-width: 640px; }
+</style>
+</head>
+<body>
+<h2>Thunder listener</h2>
+<label>Backend URL</label><input id="url" value="https://api.omnirisking-it-all-at-swamphacks.us">
+<label>SIM_TOKEN</label><input id="token">
+<label>Site id</label><input id="site" value="12">
+<button id="start">Start listening</button>
+<div id="meter"><div id="bar"></div></div>
+<div id="stats">rms 0.0000  baseline 0.0000  ratio 0.0</div>
+<div id="log"></div>
+<script>
+const $ = id => document.getElementById(id);
+for (const k of ["url", "token", "site"]) {
+  try { $(k).value = localStorage.getItem("listener_" + k) || $(k).value; } catch (e) {}
+}
+function log(msg) {
+  const t = new Date().toLocaleTimeString();
+  $("log").textContent = `${t}  ${msg}\n` + $("log").textContent.slice(0, 4000);
+}
+
+const RATIO = 4;            // trigger when rms exceeds this many times the baseline
+const SUSTAIN_MS = 300;     // for at least this long
+const REFRACTORY_MS = 3000; // then ignore for this long
+const FLOOR = 0.004;        // never trigger below this absolute rms
+const EMA = 0.005;          // baseline follows quiet sound slowly
+
+let analyser, buf, baseline = 0.01, hotSince = 0, lastFire = 0;
+
+async function start() {
+  for (const k of ["url", "token", "site"]) {
+    try { localStorage.setItem("listener_" + k, $(k).value); } catch (e) {}
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  });
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const band = ctx.createBiquadFilter();
+  band.type = "bandpass"; band.frequency.value = 120; band.Q.value = 1;
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  src.connect(band);
+  band.connect(analyser);
+  buf = new Float32Array(analyser.fftSize);
+  $("start").disabled = true;
+  $("start").textContent = "Listening";
+  log(`listening, bandpass 120 Hz, trigger at ${RATIO}x baseline for ${SUSTAIN_MS} ms`);
+  requestAnimationFrame(tick);
+}
+
+function tick(now) {
+  analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  const rms = Math.sqrt(sum / buf.length);
+  const hot = rms > FLOOR && rms > RATIO * baseline;
+  if (!hot) {
+    baseline += EMA * (rms - baseline);
+    hotSince = 0;
+  } else if (!hotSince) {
+    hotSince = now;
+  }
+  const inRefractory = now - lastFire < REFRACTORY_MS;
+  if (hot && hotSince && now - hotSince >= SUSTAIN_MS && !inRefractory) {
+    lastFire = now;
+    hotSince = 0;
+    fire(rms, baseline);
+  }
+  $("bar").style.width = Math.min(100, rms * 800) + "%";
+  $("bar").className = hot ? "hot" : "";
+  $("stats").textContent = `rms ${rms.toFixed(4)}  baseline ${baseline.toFixed(4)}  ratio ${(rms / Math.max(baseline, 1e-6)).toFixed(1)}`;
+  requestAnimationFrame(tick);
+}
+
+async function fire(rms, base) {
+  const ts_us = Math.round(Date.now() * 1000);
+  const body = { site_id: Number($("site").value), ts_us };
+  log(`BANG  rms ${rms.toFixed(4)} (${(rms / base).toFixed(1)}x baseline)  posting /sim/bang`);
+  try {
+    const r = await fetch($("url").value.replace(/\/$/, "") + "/sim/bang", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Token": $("token").value },
+      body: JSON.stringify(body),
+    });
+    log(r.ok ? "backend accepted BANG" : "backend returned " + r.status);
+  } catch (e) {
+    log("POST failed: " + e.message);
+  }
+}
+
+$("start").addEventListener("click", () => start().catch(e => log("mic error: " + e.message)));
+</script>
+</body>
+</html>
