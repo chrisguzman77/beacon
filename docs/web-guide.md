@@ -4,9 +4,9 @@
 
 *PlanIT Beacon, SwampHacks XII*
 
-Version 1, October 2026. Split out of the Platform guide for the repo. Covers the supervisor dashboard, the crew phone page, and the beacon kiosk.
+Version 1, October 2026. Split out of the Platform guide for the repo. Covers the supervisor dashboard and the crew phone page.
 
-This guide is for Cam, who owns web/. It is one Vite React app with three faces. The supervisor dashboard (/dashboard and /site/:id) is the first thing the PlanIT judges see. The crew phone page (/crew) is what a judge uses on their own phone to check in and file a hazard photo. The beacon kiosk (/beacon) runs full screen on the 7 inch touchscreen on the physical beacon, served by the Pi, and works with no internet. The kiosk is what judges look at longest, so it is designed first. Where this guide and a file in contracts/ disagree, the contract wins.
+This guide is for Cam, who owns web/. It is one Vite React app with two faces. The supervisor dashboard (/dashboard and /site/:id) is the first thing the PlanIT judges see, and the beacon site's page is on the room display during the demo. The crew phone page (/crew) is what a judge uses on their own phone to check in and file a hazard photo. Where this guide and a file in contracts/ disagree, the contract wins.
 
 # 1. Read this first
 
@@ -16,13 +16,13 @@ This guide is for Cam, who owns web/. It is one Vite React app with three faces.
 |---|---|---|
 | PlanIT Control | Dashboard | 50 real sites on a map ranked by hazard index, the beacon site jumps to the top when the Roblox storm hits, every alert type visible as a chip, the briefing panel shows tomorrow's text in English and Spanish |
 | PlanIT Control | Crew phone page | A judge signs in, checks in, takes a photo of a printed alligator, sees the tag come back, sees the pin on the dashboard |
-| Hardware track | Kiosk | Red stop work screen with the countdown matching the four digit display, crew tiles, supervisor PIN pad, briefing with PLAY |
+| Hardware track | Site page | On the beacon site, the full screen red alarm state with the countdown matching the beacon's four digit display, and the device card mirroring the beacon live |
 | Easy On The Eyes | All three | One coherent dark theme, large type hierarchy, consistent hazard colors, real loading and empty states, no default browser widgets showing |
 | Roblox | Site page | A small panel showing the scenario Roblox is playing and the live device state, so the room can see the loop close on a screen |
 
 ## 1.2 What is fixed and what is yours
 
-Fixed. The routes. The API and websocket messages in contracts/api.md. The kiosk websocket messages in contracts/kiosk-ws.md. The seven kiosk screens in section 9 and the rule that the stop work screen cannot be dismissed by touch. The hazard color meaning (one color per hazard type, used identically on every screen).
+Fixed. The routes. The API and websocket messages in contracts/api.md. The site page alarm state in section 7 and the rule that it cannot be dismissed by a click. The hazard color meaning (one color per hazard type, used identically on every screen).
 
 Yours. Everything about how it looks. Layout, type, spacing, motion, the exact palette, the component library. The suggested stack below is a suggestion, and section 2 is the conversation to have before choosing.
 
@@ -30,7 +30,7 @@ Yours. Everything about how it looks. Layout, type, spacing, motion, the exact p
 
 Cam has been designing in Figma. Before writing any component, work through these with him in the first fifteen minutes, write the answers at the bottom of web/CLAUDE.md under Decisions, and then build.
 
-1. Which screens exist in Figma today, and at what fidelity. Dashboard, site page, crew page, which kiosk screens.
+1. Which screens exist in Figma today, and at what fidelity. Dashboard, site page, crew page.
 
 2. Is there a token set (colors, type scale, spacing, radius) in Figma, or are the values only in the frames.
 
@@ -44,7 +44,7 @@ Figma MCP server. Dev Mode gives exact spacing and type and lets Claude Code rea
 
 Figma to code plugins. Usually produce markup that takes longer to clean than to write. Not recommended this weekend.
 
-5. Which of the three faces Cam wants to design in Figma first and which can be built straight from the tokens. The kiosk is the recommended answer for Figma first, because it is the most constrained (800 by 480 pixels, gloved fingers, two meter reading distance) and the most photographed.
+5. Which face Cam wants to design in Figma first and which can be built straight from the tokens. The site page with its alarm state is the recommended answer for Figma first, because it is on the room display and the most photographed.
 
 6. Whether Cam prefers Tailwind, or plain CSS modules. Both are fine. Tailwind with shadcn/ui is faster to a finished look. CSS modules give pixel control that matches Figma more exactly. Pick one and do not mix.
 
@@ -52,13 +52,13 @@ Figma to code plugins. Usually produce markup that takes longer to clean than to
 
 1. `npm create vite@latest . -- --template react-ts` inside web/, then `npm i maplibre-gl @auth0/auth0-react recharts react-router-dom zustand qrcode.react` and, if Tailwind was chosen, `npm i -D tailwindcss @tailwindcss/vite` plus shadcn/ui init.
 
-2. Routes. /dashboard (map and ranked list), /site/:id (detail), /crew (phone page), /beacon (kiosk, only built when VITE_MODE=beacon). Redirect / to /dashboard.
+2. Routes. /dashboard (map and ranked list), /site/:id (detail), /crew (phone page). Redirect / to /dashboard.
 
-3. Environment, web/.env, copied from the keys in contracts/env.md. VITE_API_URL, VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, VITE_AUTH0_AUDIENCE, VITE_MAPTILER_KEY, VITE_MODE (dashboard or beacon), VITE_SITE_ID (beacon only).
+3. Environment, web/.env, copied from the keys in contracts/env.md. VITE_API_URL, VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, VITE_AUTH0_AUDIENCE, VITE_MAPTILER_KEY.
 
-4. One websocket client in a zustand store. In dashboard mode it subscribes to WS /ws/site/{id} for the open site and feeds every component. In beacon mode it connects to the gateway's local websocket instead (section 9). Components never open sockets themselves.
+4. One websocket client in a zustand store. It subscribes to WS /ws/site/{id} for the open site and feeds every component. Components never open sockets themselves.
 
-5. Auth0 with @auth0/auth0-react. Supervisor pages require the role claim https://planit-beacon/role to equal supervisor. The crew page accepts crew or supervisor. The kiosk has no Auth0 at all, the Pi is trusted.
+5. Auth0 with @auth0/auth0-react. Supervisor pages require the role claim https://planit-beacon/role to equal supervisor. The crew page accepts crew or supervisor.
 
 6. TEST. `scripts/dev.sh web` serves the app, the Auth0 login button appears, and an empty map renders with terrain.
 
@@ -66,19 +66,19 @@ Figma to code plugins. Usually produce markup that takes longer to clean than to
 
 Decide these once with Cam, put them in tokens.ts or the Tailwind theme, and never type a raw color again.
 
-1. Theme. One dark theme shared by the dashboard and the kiosk. Suggested, deep navy background (around #0B1220), raised surfaces two steps lighter, near white text, a muted text color for labels. The kiosk in a dim venue reads better dark, and the red stop work screen is more startling against it.
+1. Theme. One dark theme shared by the dashboard, site page and crew page. Suggested, deep navy background (around #0B1220), raised surfaces two steps lighter, near white text, a muted text color for labels. A dim venue reads better dark, and the red alarm state is more startling against it.
 
-2. Hazard colors, one each, used everywhere a hazard appears (map markers, chips, kiosk, charts). Lightning and stop work red. Heat amber. Flood blue. Wildlife green. Beacon unsafe (tilt, e-stop) purple. The hazard index scale runs green through yellow to red and is the only gradient in the app.
+2. Hazard colors, one each, used everywhere a hazard appears (map markers, chips, alarm state, charts). Lightning and stop work red. Heat amber. Flood blue. Wildlife green. Beacon unsafe (tilt, e-stop) purple. The hazard index scale runs green through yellow to red and is the only gradient in the app.
 
-3. Type. Three sizes do most of the work. A display size for the index number and the countdown, a heading size, a body size. One typeface, variable weight, bundled locally so the kiosk has it offline. Numbers in tabular figures so the countdown does not jitter.
+3. Type. Three sizes do most of the work. A display size for the index number and the countdown, a heading size, a body size. One typeface, variable weight, bundled locally. Numbers in tabular figures so the countdown does not jitter.
 
 4. States. Every list and panel has a loading skeleton, an empty message in a full sentence, and an error line with a retry. Judges will open the dashboard while a fetcher is still running, and a skeleton looks finished where a blank looks broken.
 
-5. Motion. One easing, 200 milliseconds, for chips and panels. The stop work takeover on the kiosk is the one exception, it snaps.
+5. Motion. One easing, 200 milliseconds, for chips and panels. The alarm state takeover on the site page is the one exception, it snaps.
 
 6. The LIVE BEACON badge. The beacon site is marked everywhere it appears with a small pulsing dot, and its device state (section 7) is shown live.
 
-TEST. Open the dashboard and the kiosk side by side. A stranger should be able to say they are the same product.
+TEST. Open the dashboard and the beacon site page side by side. A stranger should be able to say they are the same product.
 
 # 5. Map
 
@@ -119,7 +119,9 @@ TEST. Post a sim strike with curl (platform guide section 3.10) and watch the be
 
 - Header. Name, index as a big colored number with the three reasons as chips (from GET /sites/{id}/index/explain), active alerts with live countdowns.
 
-- Device card, beacon site only. The live state from GET /sites/{id}/device and the site websocket. Light color, countdown, interlock, zone presence, online or offline, the two LCD lines rendered in a monospace block exactly as the equipment LCD shows them. When the beacon goes offline the card says LOCAL RULES ACTIVE instead of going blank.
+- Device card, beacon site only. The live state from GET /sites/{id}/device and the site websocket. Light color, countdown, interlock, zone presence, online or offline, the two LCD lines rendered in a monospace block exactly as the beacon's LCD1602 shows them, and the crew count from the beacon's one digit display. When the beacon goes offline the card says LOCAL RULES ACTIVE instead of going blank.
+
+- Alarm state, beacon site only. When the site has an active stop work, the page is taken over full screen: red background, the countdown in the largest digits on the page matching the beacon's four digit display (from the site websocket, never a local timer), the reason (LIGHTNING 8 MI), zone status from the radar (ZONE OCCUPIED or ZONE CLEAR), and the crew not yet checked out. It cannot be dismissed by a click and leaves only when the alert clears (supervisor PIN on the beacon's IR remote, or the dashboard clear). It snaps in, no animation.
 
 - Scenario panel, beacon site only. What Roblox is playing (GET /sim/scenario/{id} if the backend keeps it, otherwise the last sim event), and the join link or QR code for the Roblox experience so judges can get in from their phones.
 
@@ -133,7 +135,7 @@ TEST. Post a sim strike with curl (platform guide section 3.10) and watch the be
 
 - Compliance log. Every stop work with start, strikes that reset it, expiry, who cleared it and when. Built from the alerts list, no new endpoint.
 
-TEST. Open the beacon site. Run the storm scenario in Roblox. The device card goes red, the countdown counts, the muster shows the judge who walked into the zone.
+TEST. Open the beacon site. Run the storm scenario in Roblox. The alarm state takes over with the countdown in step with the beacon's four digit display, the device card goes red, the muster shows the judge who walked into the zone.
 
 # 8. Crew phone page
 
@@ -149,59 +151,16 @@ TEST. Open the beacon site. Run the storm scenario in Roblox. The device card go
 
 6. TEST. On a real phone over the hotspot, log in, check in, take a photo, and see the pin appear on the dashboard within two seconds.
 
-# 9. Beacon kiosk
-
-The same app built with VITE_MODE=beacon and VITE_SITE_ID set. It talks only to the Pi gateway's local websocket at ws://localhost:8080/ws (contracts/kiosk-ws.md), never to the cloud, so it works offline. The gateway serves the built files on port 8080 and Chromium opens http://localhost:8080/beacon in kiosk mode. The screen is 800 by 480 pixels, touched with gloves, read from two meters.
-
-## 9.1 Screens
-
-Seven screens. The first four must exist before the kiosk goes on the Pi, the rest are polish.
-
-| **Screen** | **What it shows** | **What a tap does** |
-|---|---|---|
-| Status (default) | Site name, hazard index as a large colored number with its one line reason, measured heat index, standing water, next briefing time, connection indicator (ONLINE or OFFLINE LOCAL RULES ACTIVE), four buttons along the bottom | Buttons go to Crew, Supervisor, Briefing, Report |
-| Crew | A grid of name tiles for the day's crew (from the snapshot's crew list), green when checked in | Tap a tile to check in, tap again to check out. Sends checkin on the kiosk websocket. The muster count updates on the dashboard |
-| Stop work (takes over the screen) | Full red background, countdown in digits 80 mm tall matching the four digit display, the reason (LIGHTNING 8 MI), zone status from the radar (ZONE OCCUPIED or ZONE CLEAR), list of crew not yet checked out | A small SUPERVISOR button in the corner only |
-| Supervisor | A number pad and a RELEASE button, disabled until the countdown has finished | Entering the PIN sends pin on the kiosk websocket. Wrong PIN shakes the pad |
-| Briefing | Tomorrow's briefing text with the numbers in a table beside it, ENGLISH and ESPAÑOL toggle, PLAY button | PLAY sends play_briefing with the language, the Pi reads it through the speaker |
-| Report | A QR code that opens the phone report page for this site, and the last three reports with their tags | Nothing else, the phone does the work |
-| Health | Live raw sensors updating ten times a second, radar presence, distance, moving and still energy, light level, temperature, humidity, heat index, water percent, tilt, last flash time | A TEST FLASH button fires the white overlay on this screen for calibration |
-
-## 9.2 Design rules
-
-- Every tap target is at least 20 mm (about 75 pixels on this screen), the crew will be wearing gloves.
-
-- Text on the Status and Stop work screens is readable from two meters. The countdown digits are the largest thing on the device.
-
-- The stop work screen cannot be dismissed by touch. It appears when the snapshot's countdown is above zero or interlock is locked, and leaves only when the snapshot says otherwise.
-
-- Nothing on the kiosk needs the internet. The typeface, icons, and QR code are bundled. No CDN links, no Google Fonts, no web requests except the local websocket.
-
-- The language toggle is remembered in localStorage.
-
-- A hidden long press (two seconds) on the site name opens a maintenance view with the demo countdown scale control (real, 10x, 60x) which sends demo_scale.
-
-- The countdown shown here comes from the snapshot, which the gateway fills from the UNO's COUNT lines. The kiosk never runs its own timer, so the touchscreen, the four digit display, and the equipment LCD always show the same number.
-
-## 9.3 Build and hand off
-
-1. `VITE_MODE=beacon VITE_SITE_ID=1 npm run build -- --outDir dist-beacon --base /beacon/`.
-
-2. Hand the dist-beacon folder to Slavik (zip it in the team chat or scp it to the Pi). The gateway serves it at /beacon. Do this the first time with just the Status screen so the kiosk autostart in the hardware guide can be tested, then again whenever screens land.
-
-3. TEST. On the Pi, with the gateway running and no internet, the Status screen shows live sensor values. Flash a phone light at the pod. The Stop work screen takes over, counts down in step with the four digit display, and leaves when the supervisor PIN is entered.
-
-# 10. Order of work and cut list
+# 9. Order of work and cut list
 
 Everything done by 3 AM Sunday. In this order.
 
 | **Block** | **Build** | **Done when** |
 |---|---|---|
-| First | The Figma conversation, tokens, Vite setup, the kiosk Status and Stop work screens against a fake snapshot (a JSON file replayed on a timer) | The two screens look finished on an 800 by 480 browser window |
-| Second | Kiosk Crew and Supervisor screens, first hand off to Slavik, dashboard map with sites from the public backend | The kiosk runs on the Pi, the map shows 50 sites |
-| Third | Ranked list with live re-sort, site page header, device card, muster, alerts | A curl strike moves the beacon site to the top and the device card turns red |
-| Fourth | Crew phone page with Auth0, check in, photo report | A photo from a phone appears as a pin |
-| Fifth | Briefing panel, conditions chart, reports list, kiosk Briefing and Report screens, scenario panel | Every judge row in section 1.1 is demonstrable |
-| Sixth | Compliance log, kiosk Health screen, polish pass on states and motion, mobile check of the dashboard | Easy On The Eyes submission screenshots taken |
+| First | The Figma conversation, tokens, Vite setup, dashboard map with sites from the public backend, ranked list with live re-sort | The map shows 50 sites and a curl strike moves the beacon site to the top without a reload |
+| Second | Site page header, alarm state (repurposed from the Stop work screen), device card, muster, alerts | A curl strike turns the beacon site page into the full screen alarm state and the device card turns red |
+| Third | Crew phone page with Auth0, check in, photo report | A photo from a phone appears as a pin |
+| Fourth | Briefing panel, conditions chart, reports list, scenario panel | Every judge row in section 1.1 is demonstrable |
+| Fifth | Compliance log, polish pass on states and motion, mobile check of the dashboard | Easy On The Eyes submission screenshots taken |
 
-Cut in this order if behind. Compliance log. Kiosk Health screen (keep TEST FLASH as a button on the maintenance view). Conditions chart (show the numbers as text). Scenario panel. Never cut the kiosk Status, Stop work, Crew, and Supervisor screens, the ranked list with live re-sort, the device card, or the crew phone page.
+Cut in this order if behind. Compliance log. Conditions chart (show the numbers as text). Scenario panel. Never cut the ranked list with live re-sort, the site page alarm state, the device card, or the crew phone page.

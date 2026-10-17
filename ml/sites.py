@@ -23,7 +23,16 @@ df = gen.groupby('Plant ID').agg(name=('Plant Name', 'first'), state=('Plant Sta
                                  lat=('Latitude', 'first'), lon=('Longitude', 'first'),
                                  mw=('Nameplate Capacity (MW)', 'sum')).join(tech.rename('tech'))
 fl = df[df.state == 'FL'].nlargest(25, 'mw'); rest = df[df.state != 'FL'].nlargest(25, 'mw')
-sites = pd.concat([fl, rest]).reset_index(drop=True)
+ids = list(fl.index) + list(rest.index)
+# Plants sharing coordinates would stack on the map. ids is in capacity order, so the later one is the smaller:
+# give its slot to the next largest plant in the same state at a free location, so no other site_id moves.
+coords = lambda p: (df.at[p, 'lat'], df.at[p, 'lon'])
+for i, pid in enumerate(ids):
+    if coords(pid) in {coords(p) for p in ids[:i]}:
+        taken = {coords(p) for p in ids}
+        cand = df[(df.state == df.at[pid, 'state']) & ~df.index.isin(ids)]
+        ids[i] = cand[[c not in taken for c in zip(cand.lat, cand.lon)]].mw.idxmax()
+sites = df.loc[ids].reset_index(drop=True)
 sites['site_id'] = sites.index + 1
 sites['mw'] = sites.mw.round(1)
 
