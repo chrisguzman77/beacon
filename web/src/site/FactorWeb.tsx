@@ -52,9 +52,9 @@ function look(status: Status, tint = color.border) {
 const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '12 8' : undefined)
 const tag: Record<Status, string> = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
 
-type Props = { s: Snapshot; tour?: boolean; selected?: string | null; onSelect?: (id: string | null) => void }
+type Props = { s: Snapshot; tour?: boolean; selected?: string | null; onSelect?: (id: string | null) => void; backdrop?: string }
 
-const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tour, selected, onSelect }, ref) {
+const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tour, selected, onSelect, backdrop = color.bg }, ref) {
   const factors = buildFactors(s)
   const pos = layout(factors)
   const box = useRef<HTMLDivElement>(null)
@@ -69,7 +69,8 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
     const ys = pts.map((p) => p.y)
     const w = Math.max(...xs) - Math.min(...xs) + 260
     const h = Math.max(...ys) - Math.min(...ys) + 160
-    const k = Math.min(el.clientWidth / w, el.clientHeight / h, 1.1)
+    // Never smaller than 0.6 so node text stays readable; pan to reach the edges.
+    const k = Math.max(0.6, Math.min(el.clientWidth / w, el.clientHeight / h, 1.1))
     setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
   }, [s])
   useImperativeHandle(ref, () => ({ fit }), [fit])
@@ -249,7 +250,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 55%, ${color.bg} 100%)` }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 55%, ${backdrop} 100%)` }} />
     </div>
   )
 })

@@ -14,6 +14,10 @@ export const color = {
   signal: '#00FF88', // UI chrome: panel edges, control stripes, pressed state. Never a hazard meaning
   online: '#00FF88',
   offline: '#FFB300',
+  chrome: '#040806', // MARSH frame bars (top bar, bottom nav)
+  chromeText: '#F0FFF6',
+  accent: '#00FF88', // active tab and primary action
+  accentInk: '#040806', // text on the accent
 }
 
 // One color per hazard type, used identically on every screen.
@@ -78,6 +82,52 @@ export const size = {
 }
 
 export const motion = { ms: 200, ease: 'cubic-bezier(0.2, 0, 0, 1)' }
+
+// Shape and depth for the current look.
+export const shape = { round: 0, glow: true, shadow: 0.7, stripes: true, marsh: false }
+
+// Looks, picked with ?look= (remembered in this browser). tech is the original; field, night and
+// hybrid interpret Cam's MARSH Figma screens (web/design/marsh), which are a style example only:
+// nothing here is tied to one place or climate. Each look swaps colors and shape only.
+type Look = { color: Partial<typeof color>; hazard?: Partial<typeof hazard>; index?: typeof indexStops; shape: Partial<typeof shape> }
+const lightHazard = { stopwork: '#C8352B', heat: '#C98A12', flood: '#1F7FA8', wildlife: '#B23C8E', unsafe: '#7A4FC2' }
+const fieldColor = {
+  bg: '#E8EADF', surface: '#F6F6EF', raised: '#DDE5D3', border: '#C6CDBB', text: '#18221B', muted: '#5E6B60',
+  signal: '#2F6B3F', online: '#2F8F4E', offline: '#B7791F', chrome: '#18221B', chromeText: '#EEF0E6', accent: '#F2B94B', accentInk: '#18221B',
+}
+export const looks: Record<string, Look> = {
+  tech: { color: {}, shape: {} },
+  field: { color: fieldColor, hazard: lightHazard, index: { low: '#2F8F4E', mid: '#C98A12', high: '#C8352B' }, shape: { round: 8, glow: false, shadow: 0.12, stripes: false, marsh: true } },
+  night: {
+    color: {
+      bg: '#111915', surface: '#18231C', raised: '#213027', border: '#34473A', text: '#EEF0E6', muted: '#9DAA98',
+      signal: '#8CC78A', online: '#8CC78A', offline: '#F2B94B', chrome: '#0A0F0C', chromeText: '#EEF0E6', accent: '#F2B94B', accentInk: '#18221B',
+    },
+    hazard: { stopwork: '#FF5A4E', heat: '#F2B94B', flood: '#4FC3E8', wildlife: '#F07AC8', unsafe: '#B794F6' },
+    index: { low: '#8CC78A', mid: '#F2B94B', high: '#FF5A4E' },
+    shape: { round: 8, glow: false, shadow: 0.5, stripes: false, marsh: true },
+  },
+  hybrid: { color: fieldColor, hazard: lightHazard, index: { low: '#2F8F4E', mid: '#C98A12', high: '#C8352B' }, shape: { round: 0, glow: false, shadow: 0.14, stripes: true, marsh: true } },
+}
+
+function pickLook() {
+  let id = new URLSearchParams(location.search).get('look')
+  try {
+    if (id && looks[id]) localStorage.setItem('look', id)
+    else id = localStorage.getItem('look')
+  } catch {
+    /* no storage, URL only */
+  }
+  return id && looks[id] ? id : 'tech'
+}
+export const lookId = pickLook()
+
+// Applied as this module loads, so every component reads the chosen look's values.
+const look = looks[lookId]
+Object.assign(color, look.color)
+Object.assign(hazard, look.hazard ?? {})
+Object.assign(indexStops, look.index ?? {})
+Object.assign(shape, look.shape)
 
 export function applyTokens() {
   const s = document.documentElement.style

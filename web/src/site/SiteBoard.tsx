@@ -3,7 +3,9 @@ import { Scan } from 'lucide-react'
 import Panel from '@/components/Panel'
 import ControlButton from '@/components/ControlButton'
 import AppNav from '@/components/AppNav'
-import { color } from '@/tokens'
+import { color, shape } from '@/tokens'
+import LookSwitcher from '@/components/LookSwitcher'
+import MarshBoard from './MarshBoard'
 import FactorWeb from './FactorWeb'
 import FactorDetail from './FactorDetail'
 import type { Point } from './FactorDetail'
@@ -19,7 +21,11 @@ import type { Snapshot } from './types'
 // the other site panels join it as the site page is built.
 type Props = { s: Snapshot; live: boolean; idle: boolean; history: Record<string, Point[]> }
 
-export default function SiteBoard({ s, live, idle, history }: Props) {
+export default function SiteBoard(props: Props) {
+  return shape.marsh ? <MarshBoard {...props} /> : <TechBoard {...props} />
+}
+
+function TechBoard({ s, live, idle, history }: Props) {
   const web = useRef<FactorWebHandle>(null)
   // ?node=heat opens a factor's detail directly (shareable link).
   const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(location.search).get('node'))
@@ -66,6 +72,7 @@ export default function SiteBoard({ s, live, idle, history }: Props) {
         {['Conditions', 'Reports', 'Scenario', 'Compliance log'].map((t) => (
           <Placeholder key={t} title={t} tab />
         ))}
+        <div className="ml-auto self-center"><LookSwitcher /></div>
       </nav>
     </div>
   )
