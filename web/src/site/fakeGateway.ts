@@ -4,7 +4,7 @@
 // ?fake=storm  the stop work storm replay (fake-snapshots.json); &t=12 jumps to second 12
 import script from './fake-snapshots.json'
 import fakeSites from '@/dashboard/fake-sites.json'
-import { allClear, steps, STEP_MS } from './showcase'
+import { allClear, steps, STEP_MS } from '@/sweet-treats/showcase'
 import type { Snapshot } from './types'
 
 type Frame = { at: number; patch: Partial<Snapshot> }

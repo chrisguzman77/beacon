@@ -17,6 +17,8 @@ Polish matters here (the Easy On The Eyes prize). One dark theme shared by the d
 
 Order of work: dashboard map and ranked list with live re-sort, site page with the alarm state and device card, crew phone page, briefing panel, polish.
 
+Sweet treats (Cam's rule for web): any feature that is not in Chris's roadmap (the order of work above and docs/web-guide.md) and does not change what is on screen (logic, hooks, data helpers, simulators, timers) goes in web/src/sweet-treats/. Off-roadmap visual work (components, styling) stays with the screen it belongs to. Roadmap code never depends on sweet-treats for its core behavior beyond what is already wired.
+
 Run: scripts/dev.sh web.
 
 ## Decisions
@@ -43,3 +45,4 @@ Run: scripts/dev.sh web.
 - WEB detail (Cam): clicking a node (a press that moves under 5 px; a drag still pans) opens a side panel with value, status, a limit band (OK / caution / danger on 0..max), a live trend of readings kept once a second for 3 minutes since the page opened (single 2 px line, shaded limit zones, hover readout), and what it means for the crew. The view glides the node into view beside the panel. Escape or X closes. `?node=heat` opens one directly.
 - WEB site picker (Cam): searchable list of all sites ranked like the dashboard, in the WEB header; navigates to /web/:id. In fake mode each site starts on its own showcase step.
 - More factors (Cam): wind gust (25 / 35 mph), rain 24 h (1 / 3 in), soil saturation (70 / 90%), river stage (flood stage -1 ft / flood stage), FEMA flood zone (A or V zones caution), and a Crew cluster with one node per member (danger if still checked in during stop work). Feed factors are optional in the view model and only render when present.
+- Sweet treats (Cam, 2026-10-17): off-roadmap non-visual features live in web/src/sweet-treats/ (kebab case, no space, so imports stay clean). Moved there: useIdle (idle detection), showcase (hazard showcase scenarios), useFactorHistory (trend history recorder, pulled out of the WEB page).

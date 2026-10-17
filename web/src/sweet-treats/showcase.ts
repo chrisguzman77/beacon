@@ -1,7 +1,7 @@
 // Hazard showcase for the fake gateway: every hazard display the screen can show, one per
 // 10 s step, advancing only while the screen is idle. Lightning here is display only
 // (no countdown, interlock running) so the stop work takeover does not fire.
-import type { Snapshot } from './types'
+import type { Snapshot } from '@/site/types'
 
 type Step = { name: string; patch: () => Partial<Snapshot> }
 
