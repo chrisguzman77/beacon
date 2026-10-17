@@ -66,7 +66,7 @@ function Engine.pause()
 end
 
 function Engine.setSpeed(s)
-	state.speed = math.clamp(s, 1, 600)
+	state.speed = math.clamp(s, 1, 1200)
 	emit()
 end
 

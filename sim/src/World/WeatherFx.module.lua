@@ -71,7 +71,38 @@ local WATER_Y = -0.5
 local STUDS_PER_MM = 2.4 / 60
 local RISE_SECONDS = 8
 
+-- The river crossing: the river side climbs from its normal level at -3, the land side floods only once the river
+-- passes the levee top at 4. 100 mm brings the river to the levee top, 120 mm and up overtops it.
+local RIVER_NORMAL, LEVEE_TOP, RIVER_PER_MM = -3, 4, 0.07
+local function setRiver(depth_mm, instant)
+	local riverTop = RIVER_NORMAL + math.max(0, depth_mm) * RIVER_PER_MM
+	local landTop = riverTop > LEVEE_TOP and (riverTop - 0.6) or -1.2
+	local plan = {
+		{ workspace:FindFirstChild("RiverFloodWater"), riverTop, depth_mm > 0 and 0.2 or 1 },
+		{ workspace:FindFirstChild("LandFloodWater"), landTop, riverTop > LEVEE_TOP and 0.25 or 1 },
+	}
+	for _, p in ipairs(plan) do
+		local water, top, transparency = p[1], p[2], p[3]
+		if water then
+			local goal = { Transparency = transparency, CFrame = CFrame.new(water.CFrame.Position.X, top - water.Size.Y / 2, water.CFrame.Position.Z) }
+			if instant then
+				for name, v in pairs(goal) do water[name] = v end
+			else
+				TweenService:Create(water, TweenInfo.new(RISE_SECONDS, Enum.EasingStyle.Sine), goal):Play()
+			end
+		end
+	end
+	workspace:SetAttribute("RiverOvertop", riverTop > LEVEE_TOP)
+end
+
+-- the rain falls over whichever setting is active
+function WeatherFx.moveRain(position)
+	local part = workspace:FindFirstChild("RainEmitter")
+	if part then part.CFrame = CFrame.new(position + Vector3.new(0, 150, 0)) end
+end
+
 function WeatherFx.setWater(depth_mm, instant)
+	setRiver(depth_mm, instant)
 	local top = depth_mm > 0 and math.min(6, 0.3 + depth_mm * STUDS_PER_MM) or -1
 	workspace:SetAttribute("WaterSurface", math.max(WATER_Y, top)) -- Wildlife floats the boat, logs, pads, and gators to this
 	local water = workspace:FindFirstChild("FloodWater")
@@ -114,7 +145,7 @@ function WeatherFx.apply(e)
 	local rain = emitter()
 	if rain then
 		rain.Enabled = (e.rain or 0) > 0
-		rain.Rate = math.clamp((e.rain or 0) * 8, 0, 500)
+		rain.Rate = math.clamp((e.rain or 0) * 12, 0, 800) -- the worst cells come down in sheets
 	end
 end
 

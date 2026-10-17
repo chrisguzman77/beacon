@@ -1,7 +1,57 @@
 -- Scenarios (ModuleScript)
 local Scenarios = {}
 
-Scenarios.order = { "everglades_day", "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
+Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
+
+-- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead
+-- with strikes down to 3 miles, and moves off east. Every strike inside 10 miles restarts the 30 minute all
+-- clear; the last one inside 10 is the 8 mile strike at 15:00, so the site is clear to work again at 15:30.
+Scenarios.lightning_cell = {
+	name = "Lightning cell passes over", clockStart = "14:00", speed = 120,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 33, humidity = 70, gust = 15 },
+		{ t = 1,    type = "note",    text = "14:00 a thunderstorm cell builds west of the site. Watch the radar: the red ring is 10 miles." },
+		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 32, humidity = 74, gust = 30 },
+		{ t = 600,  type = "strike",  bearing = 270, miles = 18 },
+		{ t = 900,  type = "strike",  bearing = 268, miles = 15 },
+		{ t = 1200, type = "strike",  bearing = 265, miles = 13 },
+		{ t = 1500, type = "strike",  bearing = 262, miles = 11 },
+		{ t = 1800, type = "strike",  bearing = 260, miles = 9 },
+		{ t = 1810, type = "note",    text = "14:30 strike 9 miles out, inside the ring. STOP WORK, the 30 minute all clear starts." },
+		{ t = 2100, type = "strike",  bearing = 255, miles = 7 },
+		{ t = 2400, type = "strike",  bearing = 250, miles = 5 },
+		{ t = 2600, type = "weather", clouds = 0.95, rain = 45, temp_c = 27, humidity = 94, gust = 42 },
+		{ t = 2700, type = "strike",  bearing = 240, miles = 3 },
+		{ t = 3000, type = "strike",  bearing = 120, miles = 4 },
+		{ t = 3300, type = "strike",  bearing = 100, miles = 6 },
+		{ t = 3600, type = "strike",  bearing = 90,  miles = 8 },
+		{ t = 3610, type = "note",    text = "15:00 strike 8 miles east, still inside 10. Every close strike restarts the 30 minutes." },
+		{ t = 4200, type = "strike",  bearing = 85,  miles = 12 },
+		{ t = 4200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 29, humidity = 85, gust = 15 },
+		{ t = 4800, type = "strike",  bearing = 80,  miles = 15 },
+		{ t = 5400, type = "strike",  bearing = 78,  miles = 19 },
+		{ t = 5460, type = "note",    text = "15:31 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
+	},
+}
+
+-- The brief's river example: a river site gets a flood risk warning after a night of heavy rain. The crossing sits
+-- behind a levee; the river climbs through the morning and overtops it. Plays at the Mississippi crossing setting.
+Scenarios.mississippi_flood = {
+	name = "Mississippi crossing, river flood", site = "river", clockStart = "05:00", speed = 240, soil = 0.75,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.85, rain = 30, temp_c = 22, humidity = 96, gust = 18 },
+		{ t = 1,    type = "note",    text = "05:00 after a night of heavy rain upstream. River sites get a flood risk warning before the crew mobilizes." },
+		{ t = 600,  type = "water",   depth_mm = 20 },
+		{ t = 1800, type = "water",   depth_mm = 50 },
+		{ t = 2400, type = "strike",  bearing = 200, miles = 12 },
+		{ t = 3000, type = "water",   depth_mm = 80 },
+		{ t = 3600, type = "note",    text = "06:00 the river is near the top of the levee. Equipment off the floodplain, the crossing work is postponed." },
+		{ t = 4200, type = "water",   depth_mm = 110 },
+		{ t = 4260, type = "note",    text = "06:11 the levee is overtopping. Flood confirmed on site: stop work, everyone to high ground." },
+		{ t = 5400, type = "water",   depth_mm = 130 },
+		{ t = 7200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 24, humidity = 90, gust = 10 },
+	},
+}
 
 -- The challenge brief, start to finish. 6:45 AM in August on a remote Everglades site where the crew is laying a
 -- temporary mat road for the equipment that will build a new transmission line. A week of rain has the ground at

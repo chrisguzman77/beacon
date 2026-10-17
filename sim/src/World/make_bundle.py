@@ -12,7 +12,7 @@ version = datetime.now().strftime("%m%d-%H%M")
 
 MODULES = ["Scenarios", "WeatherFx", "Lightning", "ScenarioEngine", "SceneBuilder"]
 SERVER = ["ScenarioServer", "Zone", "BeaconVisuals", "Wildlife", "Conditions", "Crew"]
-CLIENT = ["FlashClient", "ScenarioUI", "Ambience", "DemoDirector", "ZoneHud"]
+CLIENT = ["FlashClient", "ScenarioUI", "Ambience", "DemoDirector", "ZoneHud", "LightningRadar"]
 
 
 def src(name, suffix):
@@ -37,7 +37,7 @@ print("[PlanIT] server bundle version " .. BUNDLE_VERSION)
 -- an older install of the World next to this bundle would run everything twice
 local oldWorld = ServerScriptService:FindFirstChild("World")
 if oldWorld then oldWorld:Destroy() warn("[PlanIT] removed the old ServerScriptService.World folder") end
-for _, n in ipairs({{ "FlashClient", "ScenarioUI", "Ambience", "DemoDirector", "ZoneHud" }}) do
+for _, n in ipairs({{ "FlashClient", "ScenarioUI", "Ambience", "DemoDirector", "ZoneHud", "LightningRadar" }}) do
 	local x = StarterPlayerScripts:FindFirstChild(n)
 	if x then x:Destroy() warn("[PlanIT] removed old StarterPlayerScripts." .. n) end
 end

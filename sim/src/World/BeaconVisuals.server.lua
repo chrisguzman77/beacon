@@ -35,6 +35,11 @@ local billboard = billboardPart:WaitForChild("SurfaceGui"):WaitForChild("Status"
 local zone = workspace:WaitForChild("ZonePart")
 local zoneFloor = zone:FindFirstChild("ZoneFloor")
 local excavator = workspace:FindFirstChild("Excavator")
+-- the river crossing's beacon light shows exactly what this one shows
+local mirror = workspace:FindFirstChild("RiverBeacon")
+local mirrorLight = mirror and mirror:FindFirstChild("Light")
+local mirrorGlow = mirrorLight and mirrorLight:FindFirstChildOfClass("PointLight")
+local mirrorTag = mirrorLight and mirrorLight:FindFirstChild("LevelTag")
 
 local OFF = Color3.fromRGB(25, 25, 28)
 local DIM_RED = Color3.fromRGB(70, 22, 22)
@@ -213,6 +218,10 @@ task.spawn(function()
 			glow.Color, glow.Brightness = lk.color, 0.4 + 3.6 * k
 		end
 		if zoneFloor then zoneFloor.Color = lk.color end
+		if mirrorLight then
+			mirrorLight.Color = light.Color
+			if mirrorGlow then mirrorGlow.Color, mirrorGlow.Brightness = lk.color, 0.4 + 3.6 * k end
+		end
 		task.wait(0.05)
 	end
 end)
@@ -229,6 +238,9 @@ local function applyTag()
 	end
 	local sub = (top and (HAZARDS[top].sub .. "  ·  ") or "") .. "HAZARD INDEX " .. fmtIndex(attr("Index", 0))
 	tag.Sub.Text = others > 0 and ("%s  ·  +%d MORE"):format(sub, others) or sub
+	if mirrorTag then
+		mirrorTag.Level.Text, mirrorTag.Level.TextColor3, mirrorTag.Sub.Text = tag.Level.Text, tag.Level.TextColor3, tag.Sub.Text
+	end
 end
 
 ---------------------------------------------------------------- displays

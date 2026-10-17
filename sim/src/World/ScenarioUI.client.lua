@@ -25,9 +25,11 @@ local THEME = {
 }
 local MARKER_COLOR = { strike = THEME.red, water = THEME.blue, wildlife = THEME.yellow, note = THEME.text }
 local SCENARIOS = {
-	{ "everglades_day", "Everglades day" }, { "storm_west", "Storm W" }, { "hurricane", "Hurricane" },
-	{ "flash_flood", "Flash flood" }, { "heat_day", "Heat day" }, { "gator", "Gator" }, { "tipped", "Tipped pod" },
+	{ "everglades_day", "Everglades day" }, { "lightning_cell", "Lightning cell" }, { "storm_west", "Storm W" },
+	{ "hurricane", "Hurricane" }, { "flash_flood", "Flash flood" }, { "mississippi_flood", "River flood" },
+	{ "heat_day", "Heat day" }, { "gator", "Gator" }, { "tipped", "Tipped pod" },
 }
+local SITES = { { "everglades", "Everglades jobsite" }, { "river", "Mississippi crossing" } }
 local SPEEDS = { 10, 60, 120, 300 }
 
 -- DisplayOrder stays under FlashGui (1000) so the white flash covers the panel
@@ -207,6 +209,20 @@ section("DEMO")
 local current = { playing = false }
 local demoBtn = chip(grid(1, 34), "Guided demo  ·  the Everglades day", 0, function() control:FireServer("demo") end)
 demoBtn.Font, demoBtn.TextSize = Enum.Font.GothamBold, 14
+
+section("SITE")
+local siteGrid = grid(2, 30)
+local siteChips = {}
+for i, s in ipairs(SITES) do
+	local key = s[1]
+	siteChips[key] = chip(siteGrid, s[2], i, function() control:FireServer("site", key) end)
+end
+local function paintSites()
+	local active = workspace:GetAttribute("ActiveSite") or "everglades"
+	for key, b in pairs(siteChips) do setActive(b, key == active) end
+end
+workspace:GetAttributeChangedSignal("ActiveSite"):Connect(paintSites)
+paintSites()
 
 section("SCENARIOS")
 local scenarioGrid = grid(3, 30)

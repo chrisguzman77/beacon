@@ -6,6 +6,7 @@ local TweenService = game:GetService("TweenService")
 
 local events = ReplicatedStorage:WaitForChild("SimEvents")
 local flashEvent = ReplicatedStorage:WaitForChild("FlashEvent")
+local strikeRadar = ReplicatedStorage:WaitForChild("StrikeRadar")
 
 local Lightning = {}
 Lightning.STUDS_PER_MILE = 120 -- a 15 mile bolt lands 1800 studs out, near enough to see through the haze
@@ -14,7 +15,12 @@ local BOLT_COLOR = Color3.fromRGB(225, 235, 255)
 local BASE_EXPOSURE = Lighting.ExposureCompensation
 local rng = Random.new()
 
+-- strikes are measured from the active setting's beacon: the main site, or the river crossing
 local function origin()
+	local river = workspace:FindFirstChild("RiverBeacon")
+	if workspace:GetAttribute("ActiveSite") == "river" and river then
+		return river:GetPivot().Position
+	end
 	return workspace.Beacon:GetPivot().Position
 end
 
@@ -26,7 +32,7 @@ function Lightning.groundPoint(bearing, miles)
 	local z = o.Z - math.cos(math.rad(bearing)) * r
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { workspace.Beacon }
+	params.FilterDescendantsInstances = { workspace.Beacon, workspace:FindFirstChild("RiverBeacon") }
 	local hit = workspace:Raycast(Vector3.new(x, 2000, z), Vector3.new(0, -4000, 0), params)
 	return hit and hit.Position or Vector3.new(x, 0, z)
 end
@@ -87,6 +93,7 @@ function Lightning.strike(bearing, miles)
 
 	-- 2. physical path: every client flashes white and schedules thunder
 	flashEvent:FireAllClients(miles)
+	strikeRadar:FireAllClients(bearing, miles)
 
 	-- 3. data path: the Bridge posts the strike
 	events.Strike:Fire(bearing, miles)

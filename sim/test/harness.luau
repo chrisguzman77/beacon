@@ -324,7 +324,7 @@ check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
 local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
-check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 15, "client panel with 15 buttons (collapse, demo, 7 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
+check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 19, "client panel with 19 buttons (collapse, demo, 2 sites, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
 
 print("== Studio auto play starts the guided demo after 5 s")
 task.wait(5.2)
@@ -497,11 +497,57 @@ for _, d in ipairs(LOCAL_PLAYER.PlayerGui:GetDescendants()) do
 end
 check(briefing, "6 PM next-day briefing note shown")
 
+print("== lightning cell, first strike to all clear")
+local radarScope = LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true)
+local strikesBefore = #fired.strike
+control:FireServer("load", "lightning_cell")
+control:FireServer("play")
+step(16, 0.25) -- 14:32 at 120x: the 9 mile strike landed
+check(workspace:GetAttribute("SimStopWork") == true, "9 mile strike opens stop work")
+step(15.5, 0.25) -- 15:03: the 8 mile strike east restarted it
+local left = workspace:GetAttribute("SimCountdown")
+check(left > 1450, ("8 mile strike east restarts the all clear (%d s left)"):format(left))
+step(16, 0.25) -- 15:35: 30 minutes after the last close strike
+check(workspace:GetAttribute("SimStopWork") == false, "all clear 30 minutes after the last strike inside 10 mi")
+check(#fired.strike - strikesBefore == 14, ("14 strikes in the cell (%d)"):format(#fired.strike - strikesBefore))
+local dots = 0
+for _, d in ipairs(radarScope:GetChildren()) do if d.Name == "Strike" then dots += 1 end end
+check(dots == 14, ("radar plots every strike (%d dots)"):format(dots))
+
+print("== the Mississippi crossing, river flood")
+control:FireServer("load", "mississippi_flood")
+check(workspace:GetAttribute("ActiveSite") == "river", "river scenario switches to the river crossing")
+control:FireServer("play")
+step(11, 0.25) -- 05:44 at 240x: the 12 mile strike at 05:40
+local o = workspace.RiverBeacon:GetPivot().Position
+check(#fired.strike > 0, "strike fired at the river setting")
+local riverTop = function() local w = workspace.RiverFloodWater return w.CFrame.Position.Y + w.Size.Y / 2 end
+step(13, 0.25) -- past 06:10, the levee overtops
+check(riverTop() > 4 and workspace:GetAttribute("RiverOvertop") == true, ("river over the levee top (river at %.1f)"):format(riverTop()))
+check(workspace.LandFloodWater.Transparency < 0.5, "land side floods once the levee is overtopped")
+check(workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text:find("LEVEE") ~= nil, "river board reports the levee (" .. workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text .. ")")
+check(workspace.RiverBeacon.Light.LevelTag.Level.Text == beacon.Light.LevelTag.Level.Text, "river beacon mirrors the main beacon (" .. workspace.RiverBeacon.Light.LevelTag.Level.Text .. ")")
+control:FireServer("site", "everglades")
+check(workspace:GetAttribute("ActiveSite") == "everglades", "site switch back to the Everglades")
+
 print("== free play bearing")
 local o = workspace.Beacon:GetPivot().Position
 rs.StrikeHere.OnServerEvent:Fire(LOCAL_PLAYER, Vector3.new(o.X - 240, 0, o.Z))
 local last = fired.strike[#fired.strike]
 check(math.abs(last[1] - 270) < 0.5 and math.abs(last[2] - 2) < 0.01, ("click 240 studs west -> bearing %.0f, %.1f mi"):format(last[1], last[2]))
+
+print("== the guided demo, start to finish")
+control:FireServer("demo")
+local capText = function() return LOCAL_PLAYER.PlayerGui.DemoCaption:FindFirstChild("Caption", true).Text end
+local seenStop, t0 = false, os.clock()
+for _ = 1, 400 do -- 0.25 s steps, up to 100 s of play
+	step(0.25, 0.25)
+	if capText():find("STOP WORK") then seenStop = true end
+	if capText():find("18:00") then break end
+end
+local played = 0
+for _ = 1, 1 do played = (workspace:GetAttribute("SimSpeed") or 0) end
+check(seenStop and capText():find("18:00") ~= nil, "demo reaches stop work and the 6 PM briefing")
 
 print(failures == 0 and "ALL CHECKS PASSED" or (failures .. " CHECK(S) FAILED"))
 process.exit(failures == 0 and 0 or 1)

@@ -12,10 +12,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Engine = require(script.Parent.ScenarioEngine)
 local Scenarios = require(script.Parent.Scenarios)
 local events = ReplicatedStorage:WaitForChild("SimEvents")
-local gui = workspace:WaitForChild("ConditionsBoard"):WaitForChild("SurfaceGui")
-local title = gui:WaitForChild("Title")
-local rows = {}
-for i = 1, 6 do rows[i] = gui:WaitForChild("Row" .. i) end
+-- one board at each setting; both show the same picture
+local boards = {}
+for _, name in ipairs({ "ConditionsBoard", "ConditionsBoardRiver" }) do
+	local b = name == "ConditionsBoard" and workspace:WaitForChild(name) or workspace:FindFirstChild(name)
+	if b then
+		local gui = b:WaitForChild("SurfaceGui")
+		local entry = { title = gui:WaitForChild("Title"), rows = {} }
+		for i = 1, 6 do entry.rows[i] = gui:WaitForChild("Row" .. i) end
+		table.insert(boards, entry)
+	end
+end
+local title = { }
+setmetatable(title, { __newindex = function(_, k, v) for _, b in ipairs(boards) do b.title[k] = v end end })
 
 local STOP_MILES, ALL_CLEAR_S = 10, 30 * 60
 local HEAT_WARNING, HEAT_DANGER, MUDDY = 103, 115, 0.85
@@ -70,8 +79,10 @@ end
 local function n(x) return math.floor(x + 0.5) end -- string.format %d needs whole numbers
 
 local function row(i, text, color)
-	rows[i].Text = text
-	rows[i].TextColor3 = color or COLOR.text
+	for _, b in ipairs(boards) do
+		b.rows[i].Text = text
+		b.rows[i].TextColor3 = color or COLOR.text
+	end
 end
 
 local function render()
@@ -112,7 +123,11 @@ local function render()
 
 	workspace:SetAttribute("SimFloodMm", S.depth)
 	workspace:SetAttribute("SimWildlife", S.gatorAt ~= nil)
-	if S.depth > 0 then
+	if S.depth > 0 and workspace:GetAttribute("ActiveSite") == "river" then
+		local over = workspace:GetAttribute("RiverOvertop") == true
+		row(5, over and ("FLOOD  ·  river up %d mm, OVERTOPPING THE LEVEE"):format(n(S.depth))
+			or ("FLOOD RISK  ·  river up %d mm after heavy rain, levee holding"):format(n(S.depth)), over and COLOR.danger or COLOR.warning)
+	elseif S.depth > 0 then
 		row(5, ("FLOOD  ·  water %d mm over the pad, rising after heavy rain"):format(n(S.depth)), S.depth >= 30 and COLOR.danger or COLOR.warning)
 	else
 		row(5, "FLOOD  ·  none", COLOR.ok)
