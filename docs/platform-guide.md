@@ -256,11 +256,10 @@ up    {"kind":"pod","ts":...,"P":1,"D":182,"S":41,"M":12,"T":33.1,"H":78,"W":0,"
 up    {"kind":"flash","ts_us":1729170131045123}
 up    {"kind":"local_stopwork","ts":...,"distance_m":1030,"flash_ts_us":...,"bang_ts_us":...}
 up    {"kind":"count","seconds":1793}
-up    {"kind":"checkin","crew_id":3,"action":"in","via":"kiosk"}
+up    {"kind":"checkin","ts":...,"crew_number":3,"action":"in","via":"remote"}     IR remote digit 1 to 9 toggles crew N
 up    {"kind":"estop","ts":...}
 up    {"kind":"pin","value":"1234"}
 up    {"kind":"state","led":"strobe","countdown":1793,"index":7,"interlock":"locked","presence":true,"online":true,"lcd":["LOCKED OUT","LIGHTNING 8MI 29:53"]}
-down  {"cmd":"CREW","crew":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}     on connect, the roster for the kiosk
 down  {"cmd":"STOPWORK","seconds":1800,"distance_m":12874,"source":"sim"}
 down  {"cmd":"CLEAR","by":"J. Smith"}
 down  {"cmd":"INDEX","value":7,"reason":"Heat index 108"}
@@ -277,13 +276,11 @@ down  {"cmd":"DEMO_SCALE","value":60}
 
 3. Every "state" message is stored in memory as the site's last device state and served at GET /sites/{id}/device, and pushed on the site websocket. This is what Roblox polls, so keep it cheap, a dict per site, no database write.
 
-4. A checkin with via kiosk is inserted into checkins exactly like POST /checkin, then MUSTER is sent back down so the kiosk and the dashboard agree.
+4. A checkin with via remote carries crew_number, the remote digit 1 to 9, meaning crew member N of the site in crew_id order (Roblox players excluded). It is inserted into checkins exactly like POST /checkin, toggling that member if action is missing, then MUSTER is sent back down so the beacon's crew count digit and the dashboard agree.
 
-5. On connect, send CREW with the site's crew rows so the kiosk can draw its name tiles offline from then on.
+5. The gateway's offline queue replays with original timestamps, and the backend inserts them with those timestamps, so the timeline is honest after a disconnect.
 
-6. The gateway's offline queue replays with original timestamps, and the backend inserts them with those timestamps, so the timeline is honest after a disconnect.
-
-7. TEST. Before the Pi exists, connect with `websocat` or a ten line Python client, send a pod line and a state message, and confirm GET /sites/{id}/device returns the state. With the Pi connected, wave at the radar and watch a presence event arrive. Pull the Pi's network, flash and clap, reconnect, and watch the queued local_stopwork arrive with its original time.
+6. TEST. Before the Pi exists, connect with `websocat` or a ten line Python client, send a pod line and a state message, and confirm GET /sites/{id}/device returns the state. With the Pi connected, wave at the radar and watch a presence event arrive. Pull the Pi's network, flash and clap, reconnect, and watch the queued local_stopwork arrive with its original time.
 
 ## 3.10 Simulation ingest
 
