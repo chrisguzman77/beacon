@@ -31,7 +31,7 @@ export default function Frame({ unit, status, active, footer, hubTo = '/hub', ch
       <header className="flex h-14 shrink-0 items-center justify-between px-7" style={{ color: color.chromeText }}>
         <div className="flex items-center gap-3">
           <Scan className="size-6" style={{ color: color.accent }} strokeWidth={2.25} />
-          <span className="text-[19px] font-bold tracking-tight">PLANIT</span>
+          <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
           <span className="font-mono text-[12px] opacity-70">/ {unit}</span>
         </div>
         <div className="flex items-center gap-7 text-[13px]">

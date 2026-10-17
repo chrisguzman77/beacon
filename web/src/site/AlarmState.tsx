@@ -21,7 +21,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
       <header className="flex h-14 shrink-0 items-center justify-between px-7" style={{ color: color.chromeText }}>
         <div className="flex items-center gap-3">
           <Scan className="size-6" style={{ color: color.accent }} strokeWidth={2.25} />
-          <span className="text-[19px] font-bold tracking-tight">PLANIT</span>
+          <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
           <span className="font-mono text-[12px] opacity-70">/ SITE UNIT {String(s.site.id).padStart(2, '0')}</span>
         </div>
         <span className="text-[13px] font-semibold tracking-wide" style={{ color: color.accent }}>{s.online ? 'STOP WORK IN EFFECT' : 'OFFLINE · LOCAL RULES ACTIVE'}</span>
@@ -31,7 +31,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
         <div className="flex items-end justify-between">
           <div>
             <p className="font-mono text-[11px] tracking-[0.12em]" style={{ color: color.muted }}>SITE {String(s.site.id).padStart(2, '0')} / URGENT WARNING</p>
-            <h1 className="mt-1 text-[30px] leading-tight font-bold">Protect people. Pause the work.</h1>
+            <h1 className="mt-1 text-[30px] leading-tight font-bold">Stop work</h1>
           </div>
           <p className="text-[16px] font-bold">{s.site.name}</p>
         </div>

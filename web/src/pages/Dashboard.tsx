@@ -76,10 +76,10 @@ export default function Dashboard() {
 
   const head =
     stops > 0
-      ? { crumb: 'URGENT WARNING', text: `Stop work at ${stops} site${stops > 1 ? 's' : ''}. Act now.` }
+      ? { crumb: `URGENT WARNING / ${stops} SITE${stops > 1 ? 'S' : ''}`, text: 'Stop work' }
       : attention > 0
-        ? { crumb: 'CAUTION', text: `${attention} site${attention > 1 ? 's' : ''} need attention.` }
-        : { crumb: 'OVERVIEW', text: 'Every site clear. Stay ahead.' }
+        ? { crumb: `CAUTION / ${attention} SITE${attention > 1 ? 'S' : ''}`, text: 'Needs attention' }
+        : { crumb: 'OVERVIEW', text: 'All clear' }
 
   return (
     <div className="h-screen w-screen overflow-hidden">
