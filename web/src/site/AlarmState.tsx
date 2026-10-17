@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, Footprints, KeyRound, Radar, Scan, ShieldAlert, TriangleAlert, Users, Wrench } from 'lucide-react'
 import { color } from '@/tokens'
 import { formatCountdown } from './store'
+import ReleaseDialog from './ReleaseDialog'
 import type { Snapshot } from './types'
 
 // The site page's alarm state on the beacon site, built to Cam's MARSH "urgent warning" screen.
 // Takes over the page; no click dismisses it. It leaves only when the alert clears (supervisor
-// PIN on the beacon remote, or the dashboard clear). The countdown is the largest thing on the
+// PIN on the beacon remote, or the supervisor release here or on the dashboard; ?release opens it). The countdown is the largest thing on the
 // page and always comes from the beacon, never a local timer.
 export default function AlarmState({ s }: { s: Snapshot }) {
   const stillIn = s.crew.filter((c) => c.in)
@@ -14,6 +16,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
   const category = unsafe ? 'BEACON / EQUIPMENT UNSAFE' : s.alert_type === 'stopwork' ? 'LIGHTNING / STOP WORK' : 'STOP WORK'
   const title = unsafe ? 'Stop work. Make the equipment safe.' : 'Stop work. Clear the zone.'
   const miles = s.reason.match(/(\d+)\s*MI/)?.[1]
+  const [release, setRelease] = useState(() => new URLSearchParams(location.search).has('release'))
   const sub = unsafe ? s.reason || 'Equipment power is cut' : miles ? `Strike detected ${miles} mi away · the clock restarts on every new strike` : s.reason
 
   return (
@@ -97,10 +100,13 @@ export default function AlarmState({ s }: { s: Snapshot }) {
             <div className="mt-auto flex items-start gap-3 border-t pt-4" style={{ borderColor: 'rgb(245 247 237 / 0.15)' }}>
               <KeyRound className="mt-0.5 size-5 shrink-0" style={{ color: color.accent }} />
               <p className="text-[14px]">
-                <b>Release:</b> after the countdown, a supervisor presses OK, the four digit PIN, and OK on the beacon remote.
-                <span className="mt-1 block opacity-70">This screen cannot be dismissed here.</span>
+                <b>Release:</b> a supervisor presses OK, the four digit PIN, and OK on the beacon remote, or uses the PIN here.
+                <span className="mt-1 block opacity-70">Nothing else dismisses this screen.</span>
               </p>
             </div>
+            <button onClick={() => setRelease(true)} className="flex h-12 items-center justify-center gap-2 rounded-md text-[16px] font-bold" style={{ background: color.accent, color: color.accentInk }}>
+              <KeyRound className="size-5" /> Supervisor release
+            </button>
           </section>
         </div>
       </main>
@@ -109,6 +115,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
         <span className="flex items-center gap-2"><ShieldAlert className="size-3.5" /> STOP WORK IS ENFORCED BY THE BEACON, ONLINE OR OFFLINE</span>
         <span>{s.online ? 'BEACON ONLINE' : 'LOCAL RULES ACTIVE'}</span>
       </footer>
+      {release && <ReleaseDialog alertId={s.alert_id} site={s.site.name} onClose={() => setRelease(false)} />}
     </div>
   )
 }

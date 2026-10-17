@@ -13,6 +13,7 @@ export type Snapshot = {
   led: 'green' | 'yellow' | 'red' | 'strobe'
   countdown: number
   reason: string
+  alert_id?: number // the open alert behind alert_type, for the supervisor release (POST /alerts/{id}/clear)
   alert_type: 'stopwork' | 'heat_danger' | 'flood_confirmed' | 'beacon_unsafe' | 'estop' | 'flood_warning' | 'heat_warning' | ''
   interlock: 'running' | 'locked'
   awaiting_clear: boolean

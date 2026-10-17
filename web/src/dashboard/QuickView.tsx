@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, ChevronRight, MapPin, OctagonAlert, ShieldCheck, TriangleAlert, Users } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronRight, KeyRound, MapPin, OctagonAlert, ShieldCheck, TriangleAlert, Users } from 'lucide-react'
 import type { SiteRow } from '@/api'
 import { formatCountdown, useSite } from '@/site/store'
 import { buildFactors, isHazard } from '@/site/factors'
@@ -9,6 +9,8 @@ import { isTakeover } from '@/site/types'
 import { alertHazard, color, hazard, indexColor } from '@/tokens'
 import type { HazardKey } from '@/tokens'
 import { Chip } from './RankedList'
+import { useDash } from './store'
+import ReleaseDialog from '@/site/ReleaseDialog'
 
 // The dashboard's left column: the selected site at a glance, for quick action and nothing
 // detailed. Rank, hazard index, workers on site, the immediate hazards (each opens its factor in
@@ -31,6 +33,8 @@ export default function QuickView({ site, rank, total, distance }: Props) {
   useEffect(() => connect(site.site_id), [connect, site.site_id])
 
   const s = snapshot?.site.id === site.site_id ? snapshot : null
+  const [release, setRelease] = useState(false)
+  const stopAlert = site.alerts.find((a) => a.type === 'stopwork')
   const order = { danger: 0, caution: 1 } as Record<string, number>
   const hazards = s ? buildFactors(s).filter(isHazard).sort((a, b) => order[a.status] - order[b.status]) : []
   const crewIn = s ? s.crew.filter((c) => c.in).length : site.crew_on_site
@@ -62,17 +66,30 @@ export default function QuickView({ site, rank, total, distance }: Props) {
       </section>
 
       {stop && (
-        <Link to={hubHref(site.site_id)} className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: hazard.stopwork, color: '#fff' }}>
-          <OctagonAlert className="size-6 shrink-0" />
-          <span className="min-w-0 flex-1">
-            <b className="block text-[15px] tracking-wide uppercase">Stop work</b>
-            <span className="block text-[13px] opacity-90">
-              {s?.reason ? `${s.reason.toLowerCase().replace(/^./, (c) => c.toUpperCase())} · ` : ''}
-              {s && s.countdown > 0 ? `${formatCountdown(s.countdown)} left` : s?.awaiting_clear ? 'waiting for the supervisor PIN' : 'equipment locked'}
+        <div className="flex items-stretch overflow-hidden rounded-md" style={{ background: hazard.stopwork, color: '#fff' }}>
+          <Link to={hubHref(site.site_id)} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+            <OctagonAlert className="size-6 shrink-0" />
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px] tracking-wide uppercase">Stop work</b>
+              <span className="block text-[13px] opacity-90">
+                {s?.reason ? `${s.reason.toLowerCase().replace(/^./, (c) => c.toUpperCase())} · ` : ''}
+                {s && s.countdown > 0 ? `${formatCountdown(s.countdown)} left` : s?.awaiting_clear ? 'waiting for the supervisor PIN' : 'equipment locked'}
+              </span>
             </span>
-          </span>
-          <ChevronRight className="size-5" />
-        </Link>
+            <ChevronRight className="size-5" />
+          </Link>
+          <button onClick={() => setRelease(true)} className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 text-[11px] font-bold tracking-wide uppercase" style={{ background: 'rgb(0 0 0 / 0.18)' }} title="Supervisor release with PIN">
+            <KeyRound className="size-5" /> Release
+          </button>
+        </div>
+      )}
+      {release && (
+        <ReleaseDialog
+          alertId={stopAlert?.alert_id ?? s?.alert_id}
+          site={site.name}
+          onClose={() => setRelease(false)}
+          onReleased={() => new URLSearchParams(location.search).has('fake') && stopAlert && useDash.getState().released(stopAlert.alert_id)}
+        />
       )}
 
       <Card title="Immediate hazards" icon={<TriangleAlert className="size-4" />} right={kinds.length > 0 && <span className="flex gap-1">{kinds.map((k) => <Chip key={k} k={k} />)}</span>}>

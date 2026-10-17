@@ -16,6 +16,7 @@ type DashStore = {
   selected: number | null
   picked: boolean // a person chose `selected`; automatic picks (device location, beacon site) never override it
   select: (id: number | null, auto?: boolean) => void
+  released: (alertId: number) => void // mark an alert cleared right away (fake mode; live waits for the websocket)
   connect: () => () => void
 }
 
@@ -40,6 +41,8 @@ export const useDash = create<DashStore>((set, getState) => ({
   error: '',
   selected: null,
   picked: false,
+  released: (alertId) =>
+    set({ sites: getState().sites.map((s) => ({ ...s, alerts: s.alerts.filter((a) => a.alert_id !== alertId) })) }),
   select: (selected, auto = false) => {
     if (auto && getState().picked) return
     set({ selected, picked: getState().picked || !auto })
