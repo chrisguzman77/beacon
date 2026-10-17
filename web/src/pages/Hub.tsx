@@ -5,7 +5,9 @@ import { isTakeover } from '@/site/types'
 import { useFactorHistory } from '@/sweet-treats/useFactorHistory'
 import HubBoard from '@/site/HubBoard'
 import AlarmState from '@/site/AlarmState'
-import { Scan } from 'lucide-react'
+import { RotateCcw, Scan } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { useSlow } from '@/lib/useSlow'
 import { color } from '@/tokens'
 import { beaconSiteId } from '@/site/fakeGateway'
 import { useDash } from '@/dashboard/store'
@@ -27,13 +29,24 @@ export default function Hub() {
   useEffect(() => connect(id), [connect, id])
 
   const history = useFactorHistory(id, snapshot)
+  const slow = useSlow(!snapshot, 8000, id)
 
   if (!snapshot)
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3" style={{ background: color.bg, color: color.text }}>
-        <Scan className="size-10 animate-beacon-pulse" style={{ color: color.accent }} strokeWidth={2} />
-        <p className="text-[22px] font-semibold">Reading the site</p>
-        <p className="text-[14px]" style={{ color: color.muted }}>Waiting for the first reading from the backend.</p>
+        <Scan className={`size-10 ${slow ? '' : 'animate-beacon-pulse'}`} style={{ color: color.accent }} strokeWidth={2} />
+        <p className="text-[22px] font-semibold">{slow ? 'The site is not answering' : 'Reading the site'}</p>
+        <p className="max-w-md px-6 text-center text-[14px]" style={{ color: color.muted }}>
+          {slow ? 'No reading from the backend yet. Check the connection and retry; the beacon keeps enforcing stop work on its own.' : 'Waiting for the first reading from the backend.'}
+        </p>
+        {slow && (
+          <div className="mt-2 flex gap-3">
+            <button onClick={() => location.reload()} className="press flex h-11 items-center gap-2 rounded-md px-5 text-[15px] font-semibold" style={{ background: color.accent, color: color.accentInk }}>
+              <RotateCcw className="size-4" /> Retry
+            </button>
+            <Link to="/dashboard" className="press flex h-11 items-center rounded-md px-5 text-[15px] font-semibold" style={{ boxShadow: `inset 0 0 0 1.5px ${color.border}` }}>Dashboard</Link>
+          </div>
+        )}
       </div>
     )
 

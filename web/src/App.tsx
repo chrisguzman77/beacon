@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Hub from './pages/Hub'
 import FieldView from './sweet-treats/field-view/FieldView'
 import Crew from './pages/Crew'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const env = import.meta.env
 
@@ -30,6 +31,7 @@ export default function App() {
   return (
     <Auth>
       <BrowserRouter>
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/crew" element={<Crew />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </Auth>
   )

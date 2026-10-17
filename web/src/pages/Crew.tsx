@@ -7,6 +7,7 @@ import { useDash } from '@/dashboard/store'
 import { formatCountdown, useSite } from '@/site/store'
 import { isTakeover } from '@/site/types'
 import { authOn, useAuth } from '@/lib/auth'
+import { useSlow } from '@/lib/useSlow'
 import { miles, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { color, hazard } from '@/tokens'
 
@@ -63,7 +64,7 @@ type Tag = { tag: string; description: string; confidence: number }
 
 export default function Crew() {
   const auth = useAuth()
-  const { sites, connect: connectSites } = useDash()
+  const { sites, status, connect: connectSites } = useDash()
   const [siteId, setSiteId] = useState(() => Number(query.get('site') ?? load(SITE_KEY)) || 0)
   const [name, setName] = useState(() => query.get('name') ?? load(NAME_KEY))
   const [picking, setPicking] = useState(false)
@@ -98,6 +99,7 @@ export default function Crew() {
         ) : !ready || picking ? (
           <Setup
             sites={sites}
+            failed={status === 'error'}
             siteId={siteId}
             name={name}
             onDone={(id, n) => {
@@ -126,7 +128,7 @@ function SignIn({ onSignIn }: { onSignIn: () => void }) {
   )
 }
 
-function Setup({ sites, siteId, name, onDone }: { sites: SiteRow[]; siteId: number; name: string; onDone: (id: number, name: string) => void }) {
+function Setup({ sites, failed, siteId, name, onDone }: { sites: SiteRow[]; failed: boolean; siteId: number; name: string; onDone: (id: number, name: string) => void }) {
   const here = useDeviceLocation()
   const [n, setN] = useState(name)
   const [id, setId] = useState(siteId)
@@ -149,7 +151,12 @@ function Setup({ sites, siteId, name, onDone }: { sites: SiteRow[]; siteId: numb
       </label>
       <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{here ? 'Nearest sites first' : 'Pick your site'}</span>
       <ul className="flex max-h-[45dvh] flex-col gap-2 overflow-y-auto">
-        {!sites.length && <li className="text-[15px]" style={{ color: color.muted }}>Loading sites…</li>}
+        {!sites.length && (
+          <li className="flex items-center justify-between gap-3 text-[15px]" style={{ color: failed ? hazard.stopwork : color.muted }}>
+            {failed ? 'The site list did not load. Check the signal.' : 'Loading sites…'}
+            {failed && <button onClick={() => location.reload()} className="font-semibold underline">Retry</button>}
+          </li>
+        )}
         {list.map((s) => (
           <li key={s.site_id}>
             <button
@@ -181,6 +188,7 @@ function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () 
   useEffect(() => connect(site.site_id), [connect, site.site_id])
 
   const s = snapshot?.site.id === site.site_id ? snapshot : null
+  const lost = useSlow(!s, 8000, site.site_id)
   const [fakeIn, setFakeIn] = useState(false)
   const [busy, setBusy] = useState<'in' | 'out' | null>(null)
   const [error, setError] = useState('')
@@ -226,7 +234,8 @@ function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () 
       ) : (
         <section className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: color.raised }}>
           <ShieldCheck className="size-6 shrink-0" style={{ color: color.signal }} />
-          <span className="text-[15px] font-semibold">{s ? 'All clear on site' : 'Connecting to the site…'}</span>
+          <span className="flex-1 text-[15px] font-semibold">{s ? 'All clear on site' : lost ? 'Not connected to the site yet' : 'Connecting to the site…'}</span>
+          {!s && lost && <button onClick={() => location.reload()} className="text-[14px] font-semibold underline">Retry</button>}
         </section>
       )}
 
