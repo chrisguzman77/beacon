@@ -5,7 +5,7 @@ import { color } from '@/tokens'
 // Top level sections. Keeps the current query string (?fake=1) when switching.
 const tabs = [
   { to: '/dashboard', label: 'Dashboard', code: '01' },
-  { to: '/web', label: 'Web', code: '02' },
+  { to: '/hub', label: 'Hub', code: '02' },
 ]
 
 export default function AppNav() {

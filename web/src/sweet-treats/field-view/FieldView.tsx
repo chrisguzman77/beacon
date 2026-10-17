@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useSite } from '@/site/store'
-import { isTakeover } from '@/site/types'
-import { buildFactors, isHazard } from '@/site/factors'
-import { useIdle } from '@/sweet-treats/useIdle'
-import { useFactorHistory } from '@/sweet-treats/useFactorHistory'
-import SiteBoard from '@/site/SiteBoard'
-import AlarmState from '@/site/AlarmState'
-import CautionScreen from '@/site/CautionScreen'
+import { useSite } from './store'
+import { isTakeover } from './types'
+import { buildFactors, isHazard } from './factors'
+import { useIdle } from './useIdle'
+import { useFactorHistory } from './useFactorHistory'
+import SiteBoard from './SiteBoard'
+import AlarmState from './AlarmState'
+import CautionScreen from './CautionScreen'
 import AppNav from '@/components/AppNav'
-import { beaconSiteId } from '@/site/fakeGateway'
+import { beaconSiteId } from './fakeGateway'
 
 const FLASH_EVERY_MS = 10_000
 const FLASH_FOR_MS = 3_000
 
-// WEB: the live factor web for one site (default: the beacon site), with the idle caution
+// FIELD VIEW (stored in sweet treats): frozen copy of the WEB page as of 2026-10-17. Self-contained;
+// HUB continues from the same code in src/site. The live factor web for one site (default: the beacon site), with the idle caution
 // screen and the full screen alarm state during stop work.
-export default function Web() {
+export default function FieldView() {
   const id = Number(useParams().id ?? beaconSiteId)
   const snapshot = useSite((s) => s.snapshot)
   const live = useSite((s) => s.live)

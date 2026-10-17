@@ -6,7 +6,7 @@ import { LiveBadge } from '@/dashboard/RankedList'
 import { rank, useDash } from '@/dashboard/store'
 import { color, indexColor } from '@/tokens'
 
-// Header control that switches WEB to any site. Lists sites ranked like the dashboard.
+// Header control that switches HUB to any site. Lists sites ranked like the dashboard.
 export default function SitePicker({ current, name }: { current: number; name: string }) {
   const { sites, status, connect } = useDash()
   const [open, setOpen] = useState(false)
@@ -69,7 +69,7 @@ export default function SitePicker({ current, name }: { current: number; name: s
                     onClick={() => {
                       setOpen(false)
                       setQ('')
-                      go(`/web/${s.site_id}${location.search.replace(/[?&]step=\d+/, '')}`)
+                      go(`/hub/${s.site_id}${location.search.replace(/[?&]step=\d+/, '')}`)
                     }}
                     className="grid w-full grid-cols-[40px_1fr_auto] items-center gap-3 px-2 py-2 text-left hover:bg-raised"
                     style={{ background: s.site_id === current ? color.raised : undefined }}

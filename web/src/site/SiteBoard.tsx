@@ -34,7 +34,7 @@ export default function SiteBoard({ s, live, idle, history }: Props) {
       <header className="flex items-center justify-between gap-6">
         <div className="flex items-center gap-6">
           <div className="flex flex-col gap-1 whitespace-nowrap">
-            <Label>PlanIT Beacon · Web</Label>
+            <Label>PlanIT Beacon · Hub</Label>
             <SitePicker current={s.site.id} name={s.site.name} />
           </div>
           <AppNav />
