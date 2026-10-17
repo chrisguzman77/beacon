@@ -1,0 +1,51 @@
+{
+  "_comment": "Fake gateway for dev, replayed by fakeGateway.ts. Each frame patches the snapshot at second `at`; countdown ticks down from the last value a frame set, like the UNO's COUNT lines. Loops every loop_s seconds.",
+  "loop_s": 70,
+  "base": {
+    "kind": "snapshot",
+    "site": { "id": 1, "name": "Crystal River" },
+    "online": true,
+    "led": "green",
+    "countdown": 0,
+    "reason": "",
+    "alert_type": "",
+    "interlock": "running",
+    "awaiting_clear": false,
+    "presence": false,
+    "zone_clear": true,
+    "index": 4,
+    "index_reason": "Heat index 98, scattered storms after 2 PM",
+    "heat_index_f": 98.4, "temp_c": 31.2, "humidity": 64,
+    "water_pct": 0, "tilt": 0, "light": 512,
+    "radar": { "d": 0, "s": 0, "m": 0 },
+    "last_flash_ts": "",
+    "crew": [
+      { "id": 1, "name": "Alice Moreno", "in": true },
+      { "id": 2, "name": "Bob Tran", "in": true },
+      { "id": 3, "name": "Carlos Diaz", "in": true },
+      { "id": 4, "name": "Dana Whit", "in": false },
+      { "id": 5, "name": "Eli Park", "in": false }
+    ],
+    "briefing": { "english": "Tomorrow: heat index peaks at 106 around 3 PM. Storms likely after 2 PM.", "spanish": "Mañana: el índice de calor llega a 106 alrededor de las 3 PM. Tormentas probables después de las 2 PM.", "for_date": "2026-10-18" },
+    "next_briefing": "18:00",
+    "reports": [],
+    "report_url": "https://example.invalid/crew?site=1",
+    "demo_scale": 1
+  },
+  "frames": [
+    { "at": 0, "patch": {} },
+    { "at": 5, "patch": { "led": "yellow", "alert_type": "heat_danger", "reason": "HEAT INDEX 104", "heat_index_f": 104.2, "index": 7, "index_reason": "Heat index 104, storms forecast after 2 PM" } },
+    { "at": 12, "patch": { "led": "red", "countdown": 1800, "reason": "LIGHTNING 8 MI", "alert_type": "stopwork", "interlock": "locked", "presence": true, "zone_clear": false, "index": 9, "index_reason": "Lightning 8 mi west", "radar": { "d": 182, "s": 41, "m": 12 }, "last_flash_ts": "2026-10-17T14:02:11Z" } },
+    { "at": 24, "patch": { "presence": false, "zone_clear": true, "radar": { "d": 0, "s": 0, "m": 0 }, "crew": [
+      { "id": 1, "name": "Alice Moreno", "in": false },
+      { "id": 2, "name": "Bob Tran", "in": true },
+      { "id": 3, "name": "Carlos Diaz", "in": false },
+      { "id": 4, "name": "Dana Whit", "in": false },
+      { "id": 5, "name": "Eli Park", "in": false } ] } },
+    { "at": 30, "patch": { "countdown": 1800, "reason": "LIGHTNING 6 MI", "index_reason": "Lightning 6 mi west" } },
+    { "at": 40, "patch": { "countdown": 6, "online": false } },
+    { "at": 46, "patch": { "countdown": 0, "awaiting_clear": true } },
+    { "at": 54, "patch": { "awaiting_clear": false, "interlock": "running", "led": "green", "reason": "", "alert_type": "", "index": 5, "index_reason": "Storm cell moving east" } },
+    { "at": 62, "patch": { "online": true } }
+  ]
+}
