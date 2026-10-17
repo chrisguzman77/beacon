@@ -32,7 +32,7 @@ export default function Kiosk() {
 function Connecting({ gateway }: { gateway: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4">
-      <div className="size-4 rounded-full bg-dim animate-beacon-pulse" />
+      <div className="size-4 bg-signal animate-beacon-pulse" />
       <p className="text-heading font-semibold">Connecting to the beacon</p>
       <p className="text-body text-dim">
         {gateway ? 'Waiting for the first reading from the sensors.' : 'Looking for the gateway on this device.'}

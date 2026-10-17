@@ -1,5 +1,6 @@
 import { Check, KeyRound, OctagonX } from 'lucide-react'
 import { takeover } from '@/tokens'
+import Panel from '@/components/Panel'
 import KioskButton from './KioskButton'
 import { formatCountdown } from './store'
 import type { Snapshot } from './types'
@@ -49,16 +50,20 @@ export default function StopWorkScreen({ s, onSupervisor }: Props) {
 
       <footer className="flex items-center gap-4">
         {s.zone_clear ? (
-          <div className="flex h-14 shrink-0 items-center gap-2 rounded-xl bg-black/25 px-5 text-body font-bold tracking-wide">
+          <Panel className="h-14 shrink-0" size={12} edge="rgb(255 255 255 / 0.6)" fill="rgb(0 0 0 / 0.35)" inner="flex items-center gap-2 px-5 text-body font-bold tracking-wide">
             <Check className="size-6" strokeWidth={3} /> ZONE CLEAR
-          </div>
+          </Panel>
         ) : (
-          <div
-            className="flex h-14 shrink-0 items-center gap-3 rounded-xl bg-white px-5 text-body font-black tracking-wide"
+          <Panel
+            className="h-14 shrink-0"
+            size={12}
+            edge="white"
+            fill="white"
+            inner="flex items-center gap-3 px-5 text-body font-black tracking-wide"
             style={{ color: unsafe ? takeover.unsafe : takeover.stopwork }}
           >
-            <span className="size-3 rounded-full bg-current animate-beacon-pulse" /> ZONE OCCUPIED
-          </div>
+            <span className="size-3 bg-current animate-beacon-pulse" /> ZONE OCCUPIED
+          </Panel>
         )}
         <div className="min-w-0 flex-1">
           <p className="text-label font-semibold tracking-[0.18em] text-white/70">
@@ -69,11 +74,11 @@ export default function StopWorkScreen({ s, onSupervisor }: Props) {
           </p>
         </div>
         {!s.online && (
-          <p className="shrink-0 rounded-lg bg-black/25 px-3 py-2 text-right text-label leading-tight font-semibold tracking-wide">
+          <Panel className="shrink-0" size={10} edge="rgb(255 255 255 / 0.6)" fill="rgb(0 0 0 / 0.35)" inner="px-3 py-2 text-right font-mono text-label leading-tight font-bold tracking-wide">
             OFFLINE
             <br />
             LOCAL RULES ACTIVE
-          </p>
+          </Panel>
         )}
       </footer>
     </div>

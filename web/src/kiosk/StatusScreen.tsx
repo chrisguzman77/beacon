@@ -1,5 +1,6 @@
 import { BookOpen, Camera, KeyRound, Users } from 'lucide-react'
-import { alertHazard, hazard, indexColor, indexStops } from '@/tokens'
+import Panel from '@/components/Panel'
+import { alertHazard, color, hazard, indexColor, indexStops } from '@/tokens'
 import KioskButton from './KioskButton'
 import type { Screen } from './Kiosk'
 import type { Snapshot } from './types'
@@ -15,25 +16,28 @@ export default function StatusScreen({ s, gateway, go }: Props) {
     <div className="flex h-full flex-col gap-3 p-4">
       <header className="flex h-12 items-center justify-between">
         <div>
-          <p className="text-label font-medium uppercase tracking-[0.18em] text-dim">PlanIT Beacon</p>
+          <Label>PlanIT Beacon</Label>
           <h1 className="text-[28px] leading-tight font-semibold tracking-tight">{s.site.name}</h1>
         </div>
         <Connection online={s.online} gateway={gateway} />
       </header>
 
       {alertColor && (
-        <div
-          className="flex h-12 items-center gap-3 rounded-xl border-l-8 px-4 text-body font-semibold"
-          style={{ borderColor: alertColor, backgroundColor: `color-mix(in srgb, ${alertColor} 32%, transparent)` }}
+        <Panel
+          className="h-12"
+          size={12}
+          edge={alertColor}
+          fill={`color-mix(in srgb, ${alertColor} 28%, ${color.bg})`}
+          inner="flex items-center gap-3 px-4 text-body font-bold tracking-wide"
         >
-          <span className="size-3 rounded-full animate-beacon-pulse" style={{ backgroundColor: alertColor }} />
+          <span className="size-3 animate-beacon-pulse" style={{ backgroundColor: alertColor }} />
           {s.reason}
-        </div>
+        </Panel>
       )}
 
       <main className="grid min-h-0 flex-1 grid-cols-[1.15fr_1fr] gap-3">
-        <section className="flex flex-col justify-between rounded-2xl border-2 border-line bg-surface p-5">
-          <p className="text-label font-medium uppercase tracking-[0.18em] text-dim">Hazard index</p>
+        <Panel size={20} inner="flex flex-col justify-between p-5">
+          <Label>Hazard index</Label>
           <div className="flex items-baseline gap-2">
             <span className="text-display leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>
               {s.index}
@@ -42,7 +46,7 @@ export default function StatusScreen({ s, gateway, go }: Props) {
           </div>
           <IndexBar index={s.index} />
           <p className="line-clamp-2 text-body leading-snug">{s.index_reason}</p>
-        </section>
+        </Panel>
 
         <section className="grid grid-rows-3 gap-3">
           <Stat label="Heat index" value={`${Math.round(s.heat_index_f)}°F`} color={heatDanger ? hazard.heat : undefined} />
@@ -61,35 +65,46 @@ export default function StatusScreen({ s, gateway, go }: Props) {
   )
 }
 
+function Label({ children }: { children: string }) {
+  return (
+    <p className="flex items-center gap-2 text-label font-semibold uppercase tracking-[0.18em] text-dim">
+      <span className="size-1.5 bg-signal" />
+      {children}
+    </p>
+  )
+}
+
 function Connection({ online, gateway }: { online: boolean; gateway: boolean }) {
   const ok = online && gateway
+  const tint = ok ? color.online : color.offline
   const text = !gateway ? 'NO GATEWAY' : online ? 'ONLINE' : 'OFFLINE · LOCAL RULES ACTIVE'
   return (
-    <div
-      className={`flex items-center gap-2 rounded-full px-4 py-2 text-label font-semibold tracking-wide ${ok ? 'bg-online/15 text-online' : 'bg-offline/15 text-offline'}`}
+    <Panel
+      size={10}
+      edge={tint}
+      fill={`color-mix(in srgb, ${tint} 14%, ${color.bg})`}
+      inner="flex items-center gap-2 px-4 py-2 font-mono text-label font-bold tracking-wider"
+      style={{ color: tint }}
     >
-      <span className={`size-2.5 rounded-full ${ok ? 'bg-online' : 'bg-offline animate-beacon-pulse'}`} />
+      <span className={`size-2.5 ${ok ? '' : 'animate-beacon-pulse'}`} style={{ backgroundColor: tint }} />
       {text}
-    </div>
+    </Panel>
   )
 }
 
 function IndexBar({ index }: { index: number }) {
   return (
-    <div className="relative h-2 rounded-full" style={{ background: `linear-gradient(90deg, ${indexStops.low}, ${indexStops.mid}, ${indexStops.high})` }}>
-      <div
-        className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-bg bg-ink"
-        style={{ left: `${(index / 10) * 100}%` }}
-      />
+    <div className="relative h-2" style={{ background: `linear-gradient(90deg, ${indexStops.low}, ${indexStops.mid}, ${indexStops.high})` }}>
+      <div className="absolute -top-1.5 h-5 w-1.5 -translate-x-1/2 bg-ink outline-2 outline-bg" style={{ left: `${(index / 10) * 100}%` }} />
     </div>
   )
 }
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border-2 border-line bg-surface px-5">
-      <span className="text-label font-medium uppercase tracking-[0.18em] text-dim">{label}</span>
+    <Panel size={14} inner="flex items-center justify-between px-5">
+      <Label>{label}</Label>
       <span className="text-[40px] leading-none font-semibold" style={{ color }}>{value}</span>
-    </div>
+    </Panel>
   )
 }
