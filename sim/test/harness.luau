@@ -4,7 +4,8 @@
 -- fails here the way it fails in Studio. The engine pieces Lune does not have (the frame clock, signals, terrain
 -- fills, tweens, raycasts) are small stand-ins below. Then it builds the swamp, plays scenarios frame by frame,
 -- and checks what the demo needs.
---   lune run sim/test/harness.luau
+--   lune run sim/test/harness.luau                               the bundles in an empty place, World builds its own swamp
+--   lune run sim/test/harness.luau sim/place/PlanITSwampMerged.rbxl  the scripts saved inside that place, run against its scenery
 local roblox = require("@lune/roblox")
 local luau = require("@lune/luau")
 local fs = require("@lune/fs")
@@ -153,14 +154,23 @@ local Random = {
 
 ---------------------------------------------------------------- the place
 
-local game = Instance.new("DataModel")
+local PLACE = process.args[1]
+local game = PLACE and roblox.deserializePlace(fs.readFile(PLACE)) or Instance.new("DataModel")
 local workspace = game:GetService("Workspace")
-local terrain = Instance.new("Terrain"); terrain.Name = "Terrain"; terrain.Parent = workspace
-local baseplate = Instance.new("Part"); baseplate.Name = "Baseplate"; baseplate.Parent = workspace
+if not PLACE then
+	local terrain = Instance.new("Terrain"); terrain.Name = "Terrain"; terrain.Parent = workspace
+	local baseplate = Instance.new("Part"); baseplate.Name = "Baseplate"; baseplate.Parent = workspace
+end
+local MERGED = workspace:FindFirstChild("PlanITSite") ~= nil
 -- Lune has no default for Sound.SoundId, so the Thunder sound starts with one, as it does once set in Studio
-local thunder = Instance.new("Sound"); thunder.Name = "Thunder"; thunder.SoundId = "rbxassetid://0"
-thunder.Parent = game:GetService("ReplicatedStorage")
-local sps = Instance.new("StarterPlayerScripts"); sps.Parent = game:GetService("StarterPlayer")
+local thunder = game:GetService("ReplicatedStorage"):FindFirstChild("Thunder")
+if not thunder then
+	thunder = Instance.new("Sound"); thunder.Name = "Thunder"; thunder.Parent = game:GetService("ReplicatedStorage")
+end
+thunder.SoundId = "rbxassetid://0"
+if not game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts") then
+	Instance.new("StarterPlayerScripts").Parent = game:GetService("StarterPlayer")
+end
 LOCAL_PLAYER = Instance.new("Player"); LOCAL_PLAYER.Name = "Slavik"
 local playerGui = Instance.new("PlayerGui"); playerGui.Parent = LOCAL_PLAYER
 LOCAL_PLAYER.Parent = game:GetService("Players")
@@ -175,13 +185,16 @@ local env = {
 	LOCAL_PLAYER = LOCAL_PLAYER, task = task, typeof = typeof, warn = function(...) print("WARN", ...) end,
 }
 local scriptErrors = 0
-local function run(path)
+local function run(path, inPlace)
+	-- a place under test runs the scripts saved inside it, otherwise the bundle files
+	local src = inPlace and inPlace.Source or fs.readFile(path)
 	-- Lune cannot set Players.LocalPlayer, so the client reads the test player directly
-	local src = fs.readFile(path):gsub("Players%.LocalPlayer", "LOCAL_PLAYER")
+	src = src:gsub("Players%.LocalPlayer", "LOCAL_PLAYER")
 	local fn = luau.load(src, { debugName = path, environment = setmetatable(env, { __index = _G }) })
 	return fn()
 end
 
+local function site_floating() return workspace.Site.Floating:GetChildren() end
 local failures = 0
 local function check(ok, what)
 	print((ok and "  PASS  " or "  FAIL  ") .. what)
@@ -217,16 +230,32 @@ end
 ---------------------------------------------------------------- run
 
 print("== server bundle")
-run("sim/place/PlanITServer.server.lua")
+if PLACE then
+	local n = 0
+	for _, d in ipairs(game:GetDescendants()) do if d:IsA("LuaSourceContainer") then n += 1 print("  script in place: " .. d:GetFullName()) end end
+	assert(n == 2, "the place should hold exactly our two scripts, found " .. n)
+end
+run("sim/place/PlanITServer.server.lua", PLACE and game:GetService("ServerScriptService"):FindFirstChild("PlanITServer"))
 print("== client bundle")
-run("sim/place/PlanITClient.client.lua")
+run("sim/place/PlanITClient.client.lua", PLACE and game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts"):FindFirstChild("PlanITClient"))
 task.wait(0.2)
 
 print("== build")
 local site = workspace:FindFirstChild("Site")
+if MERGED then
+	local scene = workspace.PlanITSite
+	check(scene:FindFirstChild("Beacon") == nil and scene:FindFirstChild("RainSheet") == nil, "old beacon and rain retired")
+	local bp = workspace.Beacon.Base.CFrame.Position
+	check(math.abs(bp.Y - 9.4) < 0.01 and math.abs(bp.X + 6) < 0.01, ("our beacon stands on the platform deck (post center %.1f, %.1f, %.1f)"):format(bp.X, bp.Y, bp.Z))
+	local sp = scene:FindFirstChildOfClass("SpawnLocation").CFrame.Position
+	check(sp.X < -30, ("spawn out on the boardwalk, outside the zone (x %.0f)"):format(sp.X))
+	check(#site_floating() >= 160, "their lily pads and boat ride the flood (" .. #site_floating() .. ")")
+	check(scene:FindFirstChild("Boardwalk") and scene:FindFirstChild("Trees") and scene:FindFirstChild("StaffGauge"), "their boardwalk, cypress, and staff gauge kept")
+else
 check(workspace:FindFirstChild("Baseplate") == nil, "baseplate removed")
 check(site ~= nil, "Site folder built")
 check(terrainOps.FillCylinder >= 15 and terrainOps.FillBlock >= 4, ("terrain filled (%d blocks, %d cylinders)"):format(terrainOps.FillBlock, terrainOps.FillCylinder))
+end
 local wild = site and site:FindFirstChild("Wildlife")
 local gators, egrets = 0, 0
 for _, m in ipairs(wild and wild:GetChildren() or {}) do
@@ -238,10 +267,12 @@ local cypress, moss = 0, 0
 for _, d in ipairs(site:GetChildren()) do
 	if d.Name == "Trunk" then cypress += 1 elseif d.Name == "Moss" then moss += 1 end
 end
-check(cypress >= 100 and moss >= 200, ("cypress and pine trunks %d, moss strands %d"):format(cypress, moss))
+if not MERGED then
+	check(cypress >= 100 and moss >= 200, ("cypress and pine trunks %d, moss strands %d"):format(cypress, moss))
+end
 local beacon = workspace:FindFirstChild("Beacon")
 check(beacon and beacon:GetAttribute("Led") == "green" and beacon:FindFirstChild("Light"), "beacon with its nine attributes")
-check(workspace:FindFirstChild("ZonePart") and workspace:FindFirstChild("FloodWater") and workspace:FindFirstChild("SpawnLocation"), "zone, flood plane, spawn")
+check(workspace:FindFirstChild("ZonePart") and workspace:FindFirstChild("FloodWater") and (MERGED or workspace:FindFirstChild("SpawnLocation")), "zone, flood plane, spawn")
 check(game:GetService("ServerStorage"):FindFirstChild("Gator") ~= nil, "gator scenario template")
 local rs = game:GetService("ReplicatedStorage")
 check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs:FindFirstChild("FlashEvent"), "SimEvents (4) and FlashEvent for the Bridge contract")
@@ -302,9 +333,10 @@ step(40, 0.25)
 check(workspace.FloodWater.CFrame.Position.Y > 1, "flash flood rises")
 
 print("== free play bearing")
-rs.StrikeHere.OnServerEvent:Fire(LOCAL_PLAYER, Vector3.new(-800, 0, 0))
+local o = workspace.Beacon:GetPivot().Position
+rs.StrikeHere.OnServerEvent:Fire(LOCAL_PLAYER, Vector3.new(o.X - 240, 0, o.Z))
 local last = fired.strike[#fired.strike]
-check(math.abs(last[1] - 270) < 0.5 and math.abs(last[2] - 2) < 0.01, ("click 800 studs west -> bearing %.0f, %.1f mi"):format(last[1], last[2]))
+check(math.abs(last[1] - 270) < 0.5 and math.abs(last[2] - 2) < 0.01, ("click 240 studs west -> bearing %.0f, %.1f mi"):format(last[1], last[2]))
 
 print(failures == 0 and "ALL CHECKS PASSED" or (failures .. " CHECK(S) FAILED"))
 process.exit(failures == 0 and 0 or 1)

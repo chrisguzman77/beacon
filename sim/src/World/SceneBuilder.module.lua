@@ -506,24 +506,22 @@ local function egretModel(parent, cf)
 end
 
 -- gators swim loops in the ponds or bask on the banks, egrets wade in the shallows. Wildlife.server.lua animates them.
-local function wildlife(parent)
+-- layout.swims: { x, z, radius, studs per second } loops; layout.basks: { x, y, z, bearing } still gators
+local function wildlife(parent, layout)
 	local wild = Instance.new("Folder")
 	wild.Name = "Wildlife"
 	wild.Parent = parent
-	local swims = { { 1, 0.55, 3.2 }, { 2, 0.6, 2.6 }, { 4, 0.5, 3.6 }, { 2, 0.3, 2.2 } } -- pond, radius fraction, studs per second
-	for i, s in ipairs(swims) do
-		local c, r = SWAMP[s[1]][1], SWAMP[s[1]][2] * s[2]
-		local g = gatorModel(wild, "SwampGator", CFrame.new(c.X + r, WATER_Y - 0.6, c.Z))
-		g:SetAttribute("CX", c.X); g:SetAttribute("CZ", c.Z); g:SetAttribute("R", r)
-		g:SetAttribute("Y", WATER_Y - 0.6); g:SetAttribute("Speed", s[3]); g:SetAttribute("Phase", i * 1.7)
+	for i, s in ipairs(layout.swims) do
+		local g = gatorModel(wild, "SwampGator", CFrame.new(s[1] + s[3], WATER_Y - 0.6, s[2]))
+		g:SetAttribute("CX", s[1]); g:SetAttribute("CZ", s[2]); g:SetAttribute("R", s[3])
+		g:SetAttribute("Y", WATER_Y - 0.6); g:SetAttribute("Speed", s[4]); g:SetAttribute("Phase", i * 1.7)
 	end
-	-- two on the mud bank facing the water, the nearer one in plain sight from the spawn
-	for _, b in ipairs({ { 72, -20, 63 }, { 100, 140, 98 } }) do
-		local pos = Vector3.new(b[1], 1, b[2])
-		local g = gatorModel(wild, "SwampGator", CFrame.lookAt(pos, pos + Vector3.new(math.sin(math.rad(b[3])), 0, -math.cos(math.rad(b[3])))))
+	for _, b in ipairs(layout.basks) do
+		local pos = Vector3.new(b[1], b[2], b[3])
+		local g = gatorModel(wild, "SwampGator", CFrame.lookAt(pos, pos + Vector3.new(math.sin(math.rad(b[4])), 0, -math.cos(math.rad(b[4])))))
 		g:SetAttribute("Bask", true)
 	end
-	for _ = 1, 8 do
+	for _ = 1, layout.egrets and 8 or 0 do
 		local s = SWAMP[rng:NextInteger(1, #SWAMP)]
 		local a = rng:NextNumber(0, math.pi * 2)
 		local x, z = s[1].X + math.cos(a) * (s[2] - 4), s[1].Z + math.sin(a) * (s[2] - 4)
@@ -555,8 +553,7 @@ local function floodGauge(parent)
 	end
 end
 
-local function billboard(parent)
-	local cf = CFrame.new(-28, 0, 70)
+local function billboard(parent, cf)
 	for _, x in ipairs({ -6, 6 }) do
 		column(parent, "SignPost", 12, 0.6, (cf * CFrame.new(x, 0, -0.4)).Position, C.steel, Enum.Material.Metal)
 	end
@@ -568,12 +565,14 @@ local function billboard(parent)
 	status.TextXAlignment, status.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
 end
 
-local function markers()
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name, spawn.Anchored, spawn.Neutral, spawn.Duration = "SpawnLocation", true, true, 0
-	spawn.Size, spawn.CFrame = Vector3.new(10, 0.4, 10), CFrame.new(0, 0.2, 100) -- faces -Z, toward the zone
-	spawn.Color, spawn.Material = C.concrete, Enum.Material.Concrete
-	spawn.Parent = workspace
+local function markers(gatorSpot, withSpawn)
+	if withSpawn then
+		local spawn = Instance.new("SpawnLocation")
+		spawn.Name, spawn.Anchored, spawn.Neutral, spawn.Duration = "SpawnLocation", true, true, 0
+		spawn.Size, spawn.CFrame = Vector3.new(10, 0.4, 10), CFrame.new(0, 0.2, 100) -- faces -Z, toward the zone
+		spawn.Color, spawn.Material = C.concrete, Enum.Material.Concrete
+		spawn.Parent = workspace
+	end
 
 	local rainPart = ghost(part(workspace, "RainEmitter", Vector3.new(400, 1, 400), CFrame.new(0, 150, 0), C.white))
 	local rain = Instance.new("ParticleEmitter")
@@ -586,7 +585,7 @@ local function markers()
 	rain.WindAffectsDrag, rain.Drag = true, 0.6
 	rain.Parent = rainPart
 
-	ghost(part(workspace, "GatorSpot", Vector3.new(4, 1, 4), CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), C.green)) -- crawls toward the zone
+	ghost(part(workspace, "GatorSpot", Vector3.new(4, 1, 4), gatorSpot, C.green)) -- the gator scenario's gator crawls forward from here
 	-- flood plane over the whole site, hidden under the ground until WeatherFx raises it
 	local flood = ghost(part(workspace, "FloodWater", Vector3.new(1400, 0.4, 1400), CFrame.new(100, -1.2, 0), Color3.fromRGB(62, 76, 50), Enum.Material.Glass))
 	flood.Reflectance = 0.08
@@ -608,6 +607,36 @@ end
 
 ---------------------------------------------------------------- build
 
+-- The boardwalk swamp (workspace.PlanITSite, a hand made scene): deck top 4.4, open water everywhere at -0.6,
+-- a 28 x 24 research platform at the origin, the boardwalk running west to the truck at x -300.
+-- Our beacon stands on the platform facing the boardwalk, the work zone is around the platform, crews spawn
+-- out on the boardwalk and walk in, gators swim beside the walkway. Its own beacon, rain, and scripts are retired.
+local DECK_Y = 4.4
+local function adopt(scene, site)
+	for _, n in ipairs({ "Beacon", "RainSheet", "Bolts" }) do
+		local x = scene:FindFirstChild(n)
+		if x then x:Destroy() end
+	end
+	local spawn = scene:FindFirstChildOfClass("SpawnLocation")
+	if spawn then
+		spawn.CFrame = CFrame.new(-90, DECK_Y + 0.15, 0) * CFrame.Angles(0, math.rad(-90), 0) -- facing east, toward the platform
+	end
+	-- its lily pads and boat ride our flood, its egrets flush with our storm
+	for _, n in ipairs({ "Pads" }) do
+		local f = scene:FindFirstChild(n)
+		if f then for _, c in ipairs(f:GetChildren()) do c.Parent = floating end end
+	end
+	local boat = scene:FindFirstChild("Boat")
+	if boat then boat.Parent = floating end
+	local birds = scene:FindFirstChild("Birds")
+	if birds then
+		for _, b in ipairs(birds:GetChildren()) do
+			b.Name = "Egret"
+			b.Parent = site.Wildlife
+		end
+	end
+end
+
 function Builder.build()
 	rng = Random.new(42)
 	for _, child in ipairs(workspace:GetChildren()) do
@@ -621,27 +650,46 @@ function Builder.build()
 	floating = Instance.new("Folder")
 	floating.Name = "Floating"
 	floating.Parent = site
+	local scene = workspace:FindFirstChild("PlanITSite")
 
 	plumbing()
-	terrain()
 	beacon()
 	zone()
-	excavator(CFrame.new(-16, 0, -12) * CFrame.Angles(0, math.rad(30), 0))
-	truck(site, CFrame.new(24, 0, 46))
-	for _, x in ipairs({ -22, -15, 15, 22 }) do
-		barrier(site, CFrame.new(x, 0, 31.5))
+	if scene then
+		-- the beacon pivots on its post, whose center is 5 studs up
+		workspace.Beacon:PivotTo(CFrame.new(-6, DECK_Y, -6) * CFrame.Angles(0, math.rad(-90), 0) * CFrame.new(0, 5, 0)) -- faces west, down the boardwalk
+		powerLine(site)
+		wildlife(site, {
+			swims = { { 40, -60, 30, 3.2 }, { -100, 50, 25, 2.6 }, { 120, 80, 40, 3.6 }, { -200, -60, 30, 2.2 } },
+			basks = { { -70, WATER_Y - 0.4, -12, 90 }, { 30, WATER_Y - 0.4, 22, 300 } }, -- lurking by the walkway
+		})
+		adopt(scene, site)
+		billboard(site, CFrame.new(-50, 0, 9) * CFrame.Angles(0, math.pi, 0))
+		markers(CFrame.lookAt(Vector3.new(-60, DECK_Y + 1, 0), Vector3.new(0, DECK_Y + 1, 0)), false)
+	else
+		terrain()
+		excavator(CFrame.new(-16, 0, -12) * CFrame.Angles(0, math.rad(30), 0))
+		truck(site, CFrame.new(24, 0, 46))
+		for _, x in ipairs({ -22, -15, 15, 22 }) do
+			barrier(site, CFrame.new(x, 0, 31.5))
+		end
+		trailer(site, CFrame.new(42, 0, 95))
+		powerLine(site)
+		trees(site)
+		marsh(site)
+		dock(site)
+		local swims = {}
+		for _, s in ipairs({ { 1, 0.55, 3.2 }, { 2, 0.6, 2.6 }, { 4, 0.5, 3.6 }, { 2, 0.3, 2.2 } }) do -- pond, radius fraction, speed
+			local c, r = SWAMP[s[1]][1], SWAMP[s[1]][2] * s[2]
+			table.insert(swims, { c.X, c.Z, r, s[3] })
+		end
+		wildlife(site, { swims = swims, basks = { { 72, 1, -20, 63 }, { 100, 1, 140, 98 } }, egrets = true }) -- one bask in sight of the spawn
+		floodGauge(site)
+		billboard(site, CFrame.new(-28, 0, 70))
+		markers(CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), true) -- gator crawls toward the zone
 	end
-	trailer(site, CFrame.new(42, 0, 95))
-	powerLine(site)
-	trees(site)
-	marsh(site)
-	dock(site)
-	wildlife(site)
-	floodGauge(site)
-	billboard(site)
-	markers()
 	lighting()
-	print("[SceneBuilder] site built. File > Save, then publish.")
+	print("[SceneBuilder] site built" .. (scene and " into the boardwalk swamp" or "") .. ". File > Save, then publish.")
 end
 
 return Builder

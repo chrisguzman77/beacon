@@ -8,7 +8,7 @@ local events = ReplicatedStorage:WaitForChild("SimEvents")
 local flashEvent = ReplicatedStorage:WaitForChild("FlashEvent")
 
 local Lightning = {}
-Lightning.STUDS_PER_MILE = 400
+Lightning.STUDS_PER_MILE = 120 -- a 15 mile bolt lands 1800 studs out, near enough to see through the haze
 local CLOUD_HEIGHT = 900
 local BOLT_COLOR = Color3.fromRGB(225, 235, 255)
 local BASE_EXPOSURE = Lighting.ExposureCompensation
