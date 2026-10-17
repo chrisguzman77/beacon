@@ -89,7 +89,7 @@ function Entry({ a }: { a: Alert }) {
               <Zap className="size-3.5 shrink-0" style={{ color: hazard.heat }} />
               <span className="font-mono">{hhmm(k.ts)}</span>
               <span>{mi(k.distance_m) || 'strike'}</span>
-              <span style={{ color: color.muted }}>{i === 0 ? 'started the stop' : 'reset the clock to 30 min'}{k.source === 'sim' ? ' · simulated' : ''}</span>
+              <span style={{ color: color.muted }}>{i === 0 ? 'started the stop work' : 'restarted the 30 minute clock'}{k.source === 'sim' ? ' · simulated' : ''}</span>
             </li>
           ))}
         </ul>

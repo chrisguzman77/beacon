@@ -17,7 +17,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
   const title = unsafe ? 'Stop work. Make the equipment safe.' : 'Stop work. Clear the zone.'
   const miles = s.reason.match(/(\d+)\s*MI/)?.[1]
   const [release, setRelease] = useState(() => new URLSearchParams(location.search).has('release'))
-  const sub = unsafe ? s.reason || 'Equipment power is cut' : miles ? `Strike detected ${miles} mi away · the clock restarts on every new strike` : s.reason
+  const sub = unsafe ? s.reason || 'Equipment power is cut' : miles ? `Lightning strike ${miles} mi away · every new strike restarts the 30 minute clock` : s.reason
 
   return (
     <div className="flex min-h-dvh flex-col lg:h-full lg:min-h-0" style={{ background: color.chrome, color: color.text }}>
@@ -27,7 +27,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
           <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
           <span className="font-mono text-[12px] opacity-70">/ SITE UNIT {String(s.site.id).padStart(2, '0')}</span>
         </div>
-        <span className="text-[13px] font-semibold tracking-wide" style={{ color: color.accent }}>{s.online ? 'STOP WORK IN EFFECT' : 'OFFLINE · LOCAL RULES ACTIVE'}</span>
+        <span className="text-[13px] font-semibold tracking-wide" style={{ color: color.accent }}>{s.online ? 'STOP WORK IN EFFECT' : 'BEACON OFFLINE · LOCAL RULES ACTIVE'}</span>
       </header>
 
       <main className="flex flex-1 flex-col gap-5 rounded-sm px-4 py-5 lg:min-h-0 lg:px-7 lg:py-6" style={{ background: color.bg }}>
@@ -105,7 +105,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
               </p>
             </div>
             <button onClick={() => setRelease(true)} className="flex h-12 items-center justify-center gap-2 rounded-md text-[16px] font-bold" style={{ background: color.accent, color: color.accentInk }}>
-              <KeyRound className="size-5" /> Supervisor release
+              <KeyRound className="size-5" /> Release stop work
             </button>
           </section>
         </div>
@@ -113,7 +113,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
 
       <footer className="flex shrink-0 items-center justify-between px-7 py-2 font-mono text-[10px] tracking-[0.06em]" style={{ color: color.chromeText, opacity: 0.7 }}>
         <span className="flex items-center gap-2"><ShieldAlert className="size-3.5" /> STOP WORK IS ENFORCED BY THE BEACON, ONLINE OR OFFLINE</span>
-        <span>{s.online ? 'BEACON ONLINE' : 'LOCAL RULES ACTIVE'}</span>
+        <span>{s.online ? 'BEACON ONLINE' : 'BEACON OFFLINE · LOCAL RULES ACTIVE'}</span>
       </footer>
       {release && <ReleaseDialog alertId={s.alert_id} site={s.site.name} onClose={() => setRelease(false)} />}
     </div>

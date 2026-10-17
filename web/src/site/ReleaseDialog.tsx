@@ -70,7 +70,7 @@ export default function ReleaseDialog({ alertId, site, onClose, onReleased }: Pr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgb(23 34 29 / 0.6)' }} onClick={onClose}>
-      <div className="w-full max-w-[360px] rounded-lg p-6" style={{ background: color.surface, color: color.text, boxShadow: '0 24px 60px rgb(0 0 0 / 0.35)' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Supervisor release">
+      <div className="w-full max-w-[360px] rounded-lg p-6" style={{ background: color.surface, color: color.text, boxShadow: '0 24px 60px rgb(0 0 0 / 0.35)' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Release stop work">
         <header className="mb-4 flex items-start justify-between">
           <div>
             <p className="font-mono text-[11px] tracking-[0.12em] uppercase" style={{ color: color.muted }}>{site}</p>

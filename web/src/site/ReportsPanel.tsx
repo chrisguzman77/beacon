@@ -53,7 +53,7 @@ export default function ReportsPanel({ s }: { s: Snapshot }) {
   const ringLabel = (ft: number) => (ft >= 2640 ? `${ft / 5280} mi` : `${ft} ft`)
 
   return (
-    <Fold id="hub.reports" title="Reports" defaultOpen summary={reports.length ? `${reports.length} · ${pretty(latest.tag)}` : 'NONE'}>
+    <Fold id="hub.reports" title="Hazard reports" defaultOpen summary={reports.length ? `${reports.length} · ${pretty(latest.tag)}` : 'NONE'}>
       <div className="flex flex-col gap-3">
         <svg viewBox={`${-R - 14} ${-R - 14} ${2 * R + 28} ${2 * R + 28}`} className="mx-auto w-full max-w-[260px]" role="img" aria-label="Site plot with report pins">
           <circle r={R + 10} fill={color.raised} />
@@ -83,7 +83,7 @@ export default function ReportsPanel({ s }: { s: Snapshot }) {
         </svg>
 
         {!reports.length && <p className="text-label text-dim">No hazard reports yet. Crew send them from the crew page with REPORT HAZARD.</p>}
-        {reports.length > pinned.length && <p className="text-label text-dim">{reports.length - pinned.length} report{reports.length - pinned.length > 1 ? 's' : ''} had no GPS and {reports.length - pinned.length > 1 ? 'are' : 'is'} listed only.</p>}
+        {reports.length > pinned.length && <p className="text-label text-dim">{reports.length - pinned.length} hazard report{reports.length - pinned.length > 1 ? 's' : ''} had no GPS and {reports.length - pinned.length > 1 ? 'are' : 'is'} listed only.</p>}
 
         <ul className="flex flex-col gap-2">
           {reports.map((r) => {

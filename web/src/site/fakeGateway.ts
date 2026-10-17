@@ -36,10 +36,10 @@ const fakeLog = (siteId: number) => [
 ]
 // What the site twin's storm scenario sent, for the scenario panel.
 const fakeSim: Snapshot['sim'] = [
-  { ts: at(162), kind: 'strike', text: 'Strike 4 mi from the site' },
-  { ts: at(176), kind: 'strike', text: 'Strike 6 mi from the site' },
+  { ts: at(162), kind: 'strike', text: 'Lightning strike 4 mi away' },
+  { ts: at(176), kind: 'strike', text: 'Lightning strike 6 mi away' },
   { ts: at(180), kind: 'weather', text: '88°F, 74% humidity, gusts 31 mph, 6 mm rain' },
-  { ts: at(190), kind: 'strike', text: 'Strike 8 mi from the site' },
+  { ts: at(190), kind: 'strike', text: 'Lightning strike 8 mi away' },
 ]
 const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s), alert_log: s.alert_log ?? fakeLog(s.site.id), sim: s.sim ?? fakeSim })
 

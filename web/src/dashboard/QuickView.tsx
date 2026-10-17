@@ -54,8 +54,8 @@ export default function QuickView({ site, rank, total, distance }: Props) {
         <p className="text-[13px] opacity-75">{site.county} County, {site.state} · {site.tech}</p>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat label="Rank" value={`#${rank}`} sub={`of ${total}`} />
-          <Stat label="Index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
-          <Stat label="Workers" value={String(crewIn)} sub={s ? (s.zone_clear ? 'zone clear' : 'in the zone') : 'on site'} />
+          <Stat label="Hazard index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
+          <Stat label="Crew" value={String(crewIn)} sub={s ? (s.zone_clear ? 'work zone clear' : 'work zone occupied') : 'checked in'} />
         </div>
         <Link to={`/about${location.search}`} className="mt-3 inline-block text-[12px] underline opacity-75 hover:opacity-100">How the index works</Link>
       </section>
@@ -73,7 +73,7 @@ export default function QuickView({ site, rank, total, distance }: Props) {
             </span>
             <ChevronRight className="size-5" />
           </Link>
-          <button onClick={() => setRelease(true)} className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 text-[11px] font-bold tracking-wide uppercase" style={{ background: 'rgb(0 0 0 / 0.18)' }} title="Supervisor release with PIN">
+          <button onClick={() => setRelease(true)} className="flex shrink-0 flex-col items-center justify-center gap-0.5 px-4 text-[11px] font-bold tracking-wide uppercase" style={{ background: 'rgb(0 0 0 / 0.18)' }} title="Release stop work with the supervisor PIN">
             <KeyRound className="size-5" /> Release
           </button>
         </div>

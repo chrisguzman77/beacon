@@ -30,7 +30,7 @@ export const steps: Step[] = [
   { name: 'Wildlife', patch: () => ({ reports: alligator(), index: 6, index_reason: 'Alligator reported near the north gate' }) },
   { name: 'Lightning', patch: () => ({ crew: [...base.crew, { id: 9, name: 'Judge1', in: true, twin: true }], alert_type: 'stopwork', reason: 'LIGHTNING 8 MI', led: 'red', presence: true, zone_clear: false, radar: { d: 182, s: 41, m: 12 }, last_flash_ts: now(), index: 9, index_reason: 'Lightning 8 mi west' }) },
   { name: 'Beacon unsafe', patch: () => ({ alert_type: 'beacon_unsafe', reason: 'BEACON TILTED', led: 'strobe', tilt: 22, index: 7, index_reason: 'Beacon tilted 22°, check the mount' }) },
-  { name: 'Offline', patch: () => ({ online: false, index: 3, index_reason: 'Cloud link lost, local rules active' }) },
+  { name: 'Offline', patch: () => ({ online: false, index: 3, index_reason: 'Beacon offline, local rules active' }) },
   {
     name: 'Combined',
     patch: () => ({ alert_type: 'heat_danger', reason: 'HEAT INDEX 106', heat_index_f: 106, temp_c: 36, water_pct: 8, wind_gust_mph: 27, soil_pct: 74, reports: alligator(), online: false, index: 9, index_reason: 'Heat, standing water and wildlife together' }),

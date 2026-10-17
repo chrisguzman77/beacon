@@ -23,7 +23,7 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
 
       {!s.online && (
         <div className="rounded-md px-4 py-3" style={{ background: color.accentPale, borderLeft: `4px solid ${color.offline}` }}>
-          <p className="text-[14px] font-semibold">Offline · local rules active</p>
+          <p className="text-[14px] font-semibold">Beacon offline · local rules active</p>
           <p className="text-[13px]" style={{ color: color.muted }}>Showing the last state the beacon sent. It keeps enforcing stop work on its own.</p>
         </div>
       )}
@@ -46,8 +46,8 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
       <dl className="grid grid-cols-2 gap-3">
         <Fact icon={<Fan className={`size-5 ${locked ? '' : 'animate-spin'}`} style={{ animationDuration: '1.2s' }} />} label="Equipment" value={locked ? 'Locked out' : 'Running'} tint={locked ? hazard.stopwork : color.signal} />
         <Fact icon={<Radar className="size-5" />} label="Work zone" value={s.zone_clear ? 'Clear' : 'Occupied'} tint={s.zone_clear ? color.signal : s.alert_type === 'stopwork' ? hazard.stopwork : color.text} />
-        <Fact icon={<Users className="size-5" />} label="Crew in" value={`${crewIn} of ${s.crew.length}`} />
-        <Fact icon={<span className="block size-2.5 rounded-full" style={{ background: s.online ? color.online : color.offline }} />} label="Link" value={s.online ? 'Online' : 'Offline'} tint={s.online ? color.online : color.offline} />
+        <Fact icon={<Users className="size-5" />} label="Crew checked in" value={`${crewIn} of ${s.crew.length}`} />
+        <Fact icon={<span className="block size-2.5 rounded-full" style={{ background: s.online ? color.online : color.offline }} />} label="Cloud link" value={s.online ? 'Online' : 'Offline'} tint={s.online ? color.online : color.offline} />
       </dl>
      </div>
     </Fold>

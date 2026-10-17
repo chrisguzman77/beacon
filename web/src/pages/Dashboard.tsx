@@ -25,7 +25,7 @@ const has = (s: SiteRow, k: HazardKey) => s.alerts.some((a) => alertHazard[a.typ
 
 type Sort = 'rank' | 'index' | 'crew' | 'name'
 type Group = 'none' | 'state' | 'hazard' | 'risk'
-const sorts: Record<Sort, string> = { rank: 'Rank', index: 'Hazard index', crew: 'Workers', name: 'Name' }
+const sorts: Record<Sort, string> = { rank: 'Rank', index: 'Hazard index', crew: 'Crew checked in', name: 'Name' }
 const groupings: Record<Group, string> = { none: 'No grouping', state: 'State', hazard: 'Hazard', risk: 'Risk level' }
 
 function sortBy(sites: SiteRow[], by: Sort) {
@@ -94,7 +94,7 @@ export default function Dashboard() {
         hubTo={selected ? `/hub/${selected}` : '/hub'}
         status={
           <>
-            <span className="flex items-center gap-2"><Users className="size-4" /> <b>{crew}</b> on site</span>
+            <span className="flex items-center gap-2"><Users className="size-4" /> <b>{crew}</b> crew checked in</span>
             <LoginButton />
           </>
         }
@@ -230,9 +230,9 @@ function Legend({ located }: { located: boolean }) {
       </span>
       <span className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">{dot(indexColor(2), `0 0 0 2px ${color.text}`)} Beacon</span>
-        <span className="flex items-center gap-1.5">{dot('transparent', `inset 0 0 0 2px ${color.signal}`)} Crew on site</span>
+        <span className="flex items-center gap-1.5">{dot('transparent', `inset 0 0 0 2px ${color.signal}`)} Crew checked in</span>
         <span className="flex items-center gap-1.5">
-          <svg width="10" height="13" viewBox="-6 -15 12 15" aria-hidden><path d="M0 0 C -6 -8 -6 -15 0 -15 C 6 -15 6 -8 0 0 Z" fill={hazard.wildlife} /></svg> Report, 24 h
+          <svg width="10" height="13" viewBox="-6 -15 12 15" aria-hidden><path d="M0 0 C -6 -8 -6 -15 0 -15 C 6 -15 6 -8 0 0 Z" fill={hazard.wildlife} /></svg> Hazard report, 24 h
         </span>
         {located && <span className="flex items-center gap-1.5">{dot(color.text)} You</span>}
       </span>

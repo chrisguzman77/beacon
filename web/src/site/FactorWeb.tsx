@@ -127,7 +127,7 @@ export default function FactorWeb({ s, focus, onFocus, history }: Props) {
               <span className="min-w-0">
                 <span className="block text-[19px] leading-tight font-bold">{g.label}</span>
                 <span className="block text-[13px]" style={{ color: hot(st.status) ? st.tint : color.muted }}>
-                  {n ? `${n} need${n > 1 ? '' : 's'} attention` : `${kids.length} factor${kids.length > 1 ? 's' : ''} normal`}
+                  {n ? `${n} need${n > 1 ? '' : 's'} attention` : `${kids.length} condition${kids.length > 1 ? 's' : ''} normal`}
                 </span>
               </span>
             </span>
@@ -148,7 +148,7 @@ export default function FactorWeb({ s, focus, onFocus, history }: Props) {
           <Icon className="size-10" style={{ color: hot(st.status) ? st.tint : color.text }} strokeWidth={1.5} />
           <span className="text-[30px] leading-none font-bold">{g.label}</span>
           <StatusLine status={st.status} tint={st.tint} />
-          <span className="text-[13px]" style={{ color: color.muted }}>{kids.length} factors · click one to see its readings</span>
+          <span className="text-[13px]" style={{ color: color.muted }}>{kids.length} conditions · click one to see its readings</span>
         </span>
       </Lit>
     )
@@ -184,7 +184,7 @@ export default function FactorWeb({ s, focus, onFocus, history }: Props) {
     const cards: { key: string; title: string; body: ReactNode }[] = []
     if (factor.bands && factor.raw !== undefined) cards.push({ key: 'limits', title: '', body: <BandBar v={factor.raw} b={factor.bands} tint={factor.tint ?? color.muted} /> })
     if (factor.raw !== undefined) cards.push({ key: 'trend', title: 'Trend and forecast', body: <Trend points={pts} bands={factor.bands} tint={factor.tint ?? color.text} unit={factor.bands?.unit ?? ''} /> })
-    cards.push({ key: 'crew', title: 'What it means for the crew', body: <p className="text-[15px] leading-snug">{factor.guide}</p> })
+    cards.push({ key: 'crew', title: 'What to do', body: <p className="text-[15px] leading-snug">{factor.guide}</p> })
     cards.push({
       key: 'stored', title: 'Readings stored',
       body: vs.length ? (

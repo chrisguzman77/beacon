@@ -75,7 +75,7 @@ function Row({ s, rank, active, onSelect }: { s: SiteRow; rank: number; active: 
         </span>
       </span>
       <span className="relative flex items-center gap-2">
-        <span className="flex items-center gap-1 font-mono text-[12px] font-semibold" style={{ color: s.crew_on_site ? color.text : color.muted }} title="Workers on site">
+        <span className="flex items-center gap-1 font-mono text-[12px] font-semibold" style={{ color: s.crew_on_site ? color.text : color.muted }} title="Crew checked in">
           <Users className="size-4" /> {s.crew_on_site}
         </span>
         <Link to={`/hub/${s.site_id}${location.search}`} className="relative z-10 rounded-sm p-1 hover:bg-raised" style={{ color: color.muted }} aria-label={`Open ${s.name} in HUB`} title="Open in HUB">

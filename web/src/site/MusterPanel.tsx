@@ -20,7 +20,7 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
       summary={`${crewIn} of ${crew.length} in`}
       edge={!s.zone_clear && stop ? hazard.stopwork : undefined}
       badge={
-        <Pill tint={zoneTint} solid={!s.zone_clear && stop}>Zone {s.zone_clear ? 'clear' : 'occupied'}</Pill>
+        <Pill tint={zoneTint} solid={!s.zone_clear && stop}>Work zone {s.zone_clear ? 'clear' : 'occupied'}</Pill>
       }
     >
      <div className="flex flex-col gap-3">

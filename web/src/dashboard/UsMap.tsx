@@ -152,11 +152,11 @@ export default function UsMap({ sites, selected, onSelect, here, fitSignal, repo
 
         {label && lp && (
           <g transform={`translate(${lp[0]} ${lp[1]}) scale(${1 / view.k})`} className="pointer-events-none">
-            <rect x={18} y={-15} rx={4} height={30} width={label.name.length * 7.4 + 54 + (reports[label.site_id]?.length ? 86 : 0)} fill={color.chrome} />
+            <rect x={18} y={-15} rx={4} height={30} width={label.name.length * 7.4 + 54 + (reports[label.site_id]?.length ? 140 : 0)} fill={color.chrome} />
             <text x={28} y={5} fontSize={13} fontWeight={600} fill={color.chromeText} fontFamily="Space Grotesk Variable, sans-serif">
               {label.name}
               <tspan dx={8} fill={color.accent} fontFamily="JetBrains Mono Variable, monospace" fontSize={12}>{label.index ?? '–'}</tspan>
-              {reports[label.site_id]?.length ? <tspan dx={10} fontSize={12} fontWeight={500} fill={color.chromeText} opacity={0.8}>{reports[label.site_id].length} report{reports[label.site_id].length > 1 ? 's' : ''}</tspan> : null}
+              {reports[label.site_id]?.length ? <tspan dx={10} fontSize={12} fontWeight={500} fill={color.chromeText} opacity={0.8}>{reports[label.site_id].length} hazard report{reports[label.site_id].length > 1 ? 's' : ''}</tspan> : null}
             </text>
           </g>
         )}

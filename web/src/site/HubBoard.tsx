@@ -28,7 +28,7 @@ type Props = { s: Snapshot; live: boolean; history: Record<string, Point[]> }
 
 function headline(s: Snapshot, level: 'clear' | 'caution' | 'danger') {
   if (s.alert_type === 'stopwork' || s.interlock === 'locked') return { crumb: 'URGENT WARNING', text: 'Stop work' }
-  if (level === 'danger') return { crumb: 'HAZARD WARNING', text: 'Act now' }
+  if (level === 'danger') return { crumb: 'DANGER', text: 'Act now' }
   if (level === 'caution') return { crumb: 'CAUTION', text: 'Stay alert' }
   return { crumb: 'SITE OVERVIEW', text: 'All clear' }
 }
@@ -73,12 +73,12 @@ export default function HubBoard({ s, live, history }: Props) {
             <Radio className="size-4" />
             {!live ? 'No feed' : s.online ? 'Beacon online' : 'Beacon offline'}
           </span>
-          <span className="flex items-center gap-2"><Users className="size-4" /> <b>{crewIn}</b> on site</span>
+          <span className="flex items-center gap-2"><Users className="size-4" /> <b>{crewIn}</b> crew checked in</span>
         </>
       }
       footer={[
         fake ? 'Demo readings for the prototype. Not for real-world safety decisions.' : 'Live readings from the site.',
-        `${fake ? 'DEMO FEED' : 'LIVE FEED'} / ${s.online ? 'BEACON ONLINE' : 'LOCAL RULES ACTIVE'}`,
+        `${fake ? 'DEMO FEED' : 'LIVE FEED'} / ${s.online ? 'BEACON ONLINE' : 'BEACON OFFLINE · LOCAL RULES ACTIVE'}`,
       ]}
     >
       <div className="flex items-end justify-between gap-6">
@@ -98,11 +98,11 @@ export default function HubBoard({ s, live, history }: Props) {
         <div className="flex flex-col items-start justify-between gap-2 rounded-sm py-3 pr-5 pl-4 sm:flex-row sm:items-center sm:gap-4" style={{ background: color.accentPale, borderLeft: `4px solid ${color.text}` }}>
           <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[15px]">
             <TriangleAlert className="size-5 shrink-0" />
-            <b className="whitespace-nowrap uppercase">{top.label} {top.status === 'danger' ? 'warning' : 'caution'}</b>
+            <b className="whitespace-nowrap uppercase">{top.label} · {top.status === 'danger' ? 'danger' : 'caution'}</b>
             <span className="sm:truncate">{top.note}{hazards.length > 1 ? ` · ${hazards.length - 1} more` : ''}</span>
           </span>
           <button onClick={() => setFocus({ group: top.group, factor: top.id })} className="flex shrink-0 items-center gap-1 text-[15px]">
-            View protective actions <ArrowRight className="size-4" />
+            What to do <ArrowRight className="size-4" />
           </button>
         </div>
       )}
@@ -124,9 +124,9 @@ export default function HubBoard({ s, live, history }: Props) {
           <div className="pointer-events-none absolute bottom-0 left-0 hidden max-w-[30%] lg:block" style={{ display: factor ? 'none' : undefined }}>
             <p className="text-[24px] leading-tight font-semibold">{s.site.name}</p>
             <p className="text-[13px]" style={{ color: color.muted }}>
-              {hazards.length ? `${hazards.length} factor${hazards.length > 1 ? 's need' : ' needs'} attention` : 'All monitored factors normal'}
+              {hazards.length ? `${hazards.length} condition${hazards.length > 1 ? 's need' : ' needs'} attention` : 'Every condition normal'}
               <br />
-              {focus.group ? 'Click a factor to see its readings' : 'Click a category to open it'}
+              {focus.group ? 'Click a condition to see its readings' : 'Click a category to open it'}
             </p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function HubBoard({ s, live, history }: Props) {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Tile icon={<Gauge className="size-5" />} label="Hazard index" value={`${s.index} / 10`} tint={indexColor(s.index)} sub={s.index_reason} link={{ to: `/about${location.search}`, text: 'How the index works' }} />
-        <Tile icon={<Users className="size-5" />} label="Crew on site" value={`${crewIn} of ${s.crew.length}`} sub={`Work zone ${s.zone_clear ? 'clear' : 'occupied'}`} />
+        <Tile icon={<Users className="size-5" />} label="Crew checked in" value={`${crewIn} of ${s.crew.length}`} sub={`Work zone ${s.zone_clear ? 'clear' : 'occupied'}`} />
         <Tile icon={<BookOpen className="size-5" />} label="Next briefing" value={s.next_briefing} sub="English and Spanish · site time" />
       </div>
     </Frame>

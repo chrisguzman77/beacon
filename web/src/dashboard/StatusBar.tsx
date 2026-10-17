@@ -89,7 +89,7 @@ export default function StatusBar({ sites }: { sites: SiteRow[] }) {
       </Pill>
       {beacon && (
         <Pill icon={<Radio className="size-4" />} tint={linked === undefined ? undefined : linked ? color.signal : color.offline}>
-          Beacon {linked === undefined ? '…' : linked ? 'connected' : 'offline · local rules'}
+          Beacon {linked === undefined ? '…' : linked ? 'online' : 'offline · local rules active'}
         </Pill>
       )}
       {left !== null && (

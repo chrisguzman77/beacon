@@ -52,7 +52,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
   // Strikes the twin sent, read from the alerts (each stop work keeps its strikes with their source).
   const simStrikes = (alerts: Alert[]) =>
     alerts.flatMap((a) => ((a.payload.history as { ts: string; source?: string; distance_m?: number }[] | undefined) ?? []).filter((h) => h.source === 'sim'))
-      .forEach((h) => simAdd({ ts: h.ts, kind: 'strike', text: h.distance_m ? `Strike ${Math.round(h.distance_m / 1609)} mi from the site` : 'Strike near the site' }))
+      .forEach((h) => simAdd({ ts: h.ts, kind: 'strike', text: h.distance_m ? `Lightning strike ${Math.round(h.distance_m / 1609)} mi away` : 'Lightning strike nearby' }))
 
   const emit = () => {
     if (!detail) return
