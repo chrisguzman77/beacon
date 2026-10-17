@@ -77,7 +77,7 @@ local function grid(columns, height)
 	f.AutomaticSize = Enum.AutomaticSize.Y
 	local g = Instance.new("UIGridLayout")
 	g.CellPadding = UDim2.fromOffset(6, 6)
-	g.CellSize = UDim2.new(1 / columns, -6 * (columns - 1) / columns, 0, height)
+	g.CellSize = UDim2.new(1 / columns, math.floor(-6 * (columns - 1) / columns), 0, height)
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.Parent = f
 	return add(f)

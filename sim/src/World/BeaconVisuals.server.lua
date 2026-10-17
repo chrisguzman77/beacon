@@ -215,8 +215,8 @@ local function applyPresence()
 		if attr("Presence", false) ~= true then m:Destroy() return end
 		local hum = m:FindFirstChildOfClass("Humanoid")
 		if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-		local floorY = zone.Position.Y - zone.Size.Y / 2
-		local pos = Vector3.new(zone.Position.X + 8, floorY + 3, zone.Position.Z + 6)
+		local floorY = zone.CFrame.Position.Y - zone.Size.Y / 2
+		local pos = Vector3.new(zone.CFrame.Position.X + 8, floorY + 3, zone.CFrame.Position.Z + 6)
 		m:PivotTo(CFrame.lookAt(pos, Vector3.new(beacon:GetPivot().X, pos.Y, beacon:GetPivot().Z)))
 		if m:FindFirstChild("HumanoidRootPart") then m.HumanoidRootPart.Anchored = true end
 		m.Parent = workspace

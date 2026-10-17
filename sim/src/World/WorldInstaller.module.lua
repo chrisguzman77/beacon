@@ -40,7 +40,7 @@ function Lightning.fromPosition(pos)
 	local o = origin()
 	local dx, dz = pos.X - o.X, pos.Z - o.Z
 	local miles = math.sqrt(dx * dx + dz * dz) / Lightning.STUDS_PER_MILE
-	local bearing = (math.deg(math.atan(dx, -dz)) + 360) % 360
+	local bearing = (math.deg(math.atan2(dx, -dz)) + 360) % 360
 	return bearing, miles
 end
 
@@ -823,7 +823,7 @@ local function wildlife(parent)
 		local x, z = s[1].X + math.cos(a) * (s[2] - 4), s[1].Z + math.sin(a) * (s[2] - 4)
 		if not (math.abs(x) < 75 and math.abs(z) < 75) then
 			local e = egretModel(wild, CFrame.new(x, WATER_Y + 1, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
-			e:SetAttribute("Dir", math.atan(z, x)) -- flushes away from the site
+			e:SetAttribute("Dir", math.atan2(z, x)) -- flushes away from the site
 		end
 	end
 	-- the gator scenario's template, spawned at GatorSpot by WeatherFx
@@ -1020,7 +1020,7 @@ function WeatherFx.setWater(depth_mm, instant)
 	if not water then return end
 	local goal = {
 		Transparency = depth_mm > 0 and 0.28 or 1,
-		CFrame = CFrame.new(water.Position.X, top - water.Size.Y / 2, water.Position.Z),
+		CFrame = CFrame.new(water.CFrame.Position.X, top - water.Size.Y / 2, water.CFrame.Position.Z),
 	}
 	if instant then
 		for name, v in pairs(goal) do water[name] = v end
@@ -1283,8 +1283,8 @@ local function applyPresence()
 		if attr("Presence", false) ~= true then m:Destroy() return end
 		local hum = m:FindFirstChildOfClass("Humanoid")
 		if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-		local floorY = zone.Position.Y - zone.Size.Y / 2
-		local pos = Vector3.new(zone.Position.X + 8, floorY + 3, zone.Position.Z + 6)
+		local floorY = zone.CFrame.Position.Y - zone.Size.Y / 2
+		local pos = Vector3.new(zone.CFrame.Position.X + 8, floorY + 3, zone.CFrame.Position.Z + 6)
 		m:PivotTo(CFrame.lookAt(pos, Vector3.new(beacon:GetPivot().X, pos.Y, beacon:GetPivot().Z)))
 		if m:FindFirstChild("HumanoidRootPart") then m.HumanoidRootPart.Anchored = true end
 		m.Parent = workspace
@@ -1496,7 +1496,7 @@ local function grid(columns, height)
 	f.AutomaticSize = Enum.AutomaticSize.Y
 	local g = Instance.new("UIGridLayout")
 	g.CellPadding = UDim2.fromOffset(6, 6)
-	g.CellSize = UDim2.new(1 / columns, -6 * (columns - 1) / columns, 0, height)
+	g.CellSize = UDim2.new(1 / columns, math.floor(-6 * (columns - 1) / columns), 0, height)
 	g.SortOrder = Enum.SortOrder.LayoutOrder
 	g.Parent = f
 	return add(f)
@@ -1717,7 +1717,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-0403, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-0420, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

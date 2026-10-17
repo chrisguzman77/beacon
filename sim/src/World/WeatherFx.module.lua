@@ -78,7 +78,7 @@ function WeatherFx.setWater(depth_mm, instant)
 	if not water then return end
 	local goal = {
 		Transparency = depth_mm > 0 and 0.28 or 1,
-		CFrame = CFrame.new(water.Position.X, top - water.Size.Y / 2, water.Position.Z),
+		CFrame = CFrame.new(water.CFrame.Position.X, top - water.Size.Y / 2, water.CFrame.Position.Z),
 	}
 	if instant then
 		for name, v in pairs(goal) do water[name] = v end

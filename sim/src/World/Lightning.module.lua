@@ -35,7 +35,7 @@ function Lightning.fromPosition(pos)
 	local o = origin()
 	local dx, dz = pos.X - o.X, pos.Z - o.Z
 	local miles = math.sqrt(dx * dx + dz * dz) / Lightning.STUDS_PER_MILE
-	local bearing = (math.deg(math.atan(dx, -dz)) + 360) % 360
+	local bearing = (math.deg(math.atan2(dx, -dz)) + 360) % 360
 	return bearing, miles
 end
 

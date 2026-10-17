@@ -529,7 +529,7 @@ local function wildlife(parent)
 		local x, z = s[1].X + math.cos(a) * (s[2] - 4), s[1].Z + math.sin(a) * (s[2] - 4)
 		if not (math.abs(x) < 75 and math.abs(z) < 75) then
 			local e = egretModel(wild, CFrame.new(x, WATER_Y + 1, z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
-			e:SetAttribute("Dir", math.atan(z, x)) -- flushes away from the site
+			e:SetAttribute("Dir", math.atan2(z, x)) -- flushes away from the site
 		end
 	end
 	-- the gator scenario's template, spawned at GatorSpot by WeatherFx
