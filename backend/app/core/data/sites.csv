@@ -21,7 +21,7 @@ site_id,name,state,county,lat,lon,tz,tech,mw,coastal,river
 20,Cape Canaveral,FL,Brevard,28.4698,-80.7644,America/New_York,Natural Gas Fired Combined Cycle,1295.0,False,False
 21,Riviera,FL,Palm Beach,26.7653,-80.0525,America/New_York,Natural Gas Fired Combined Cycle,1295.0,False,False
 22,Stanton Energy Center,FL,Orange,28.4822,-81.1678,America/New_York,Conventional Steam Coal,1262.0,False,False
-23,Lauderdale,FL,Broward,26.0686,-80.1984,America/New_York,Natural Gas Fired Combustion Turbine,1215.9,True,False
+23,Oleander Power Project LP,FL,Brevard,28.3661,-80.7947,America/New_York,Natural Gas Fired Combustion Turbine,994.4,False,False
 24,Intercession City,FL,Osceola,28.262778,-81.54861,America/New_York,Natural Gas Fired Combustion Turbine,1197.3,False,False
 25,Anclote,FL,Pasco,28.184444,-82.78861,America/New_York,Natural Gas Steam Turbine,1112.4,False,False
 26,Vogtle,GA,Burke,33.1427,-81.7625,America/New_York,Nuclear,4658.0,False,True
