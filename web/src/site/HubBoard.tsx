@@ -19,7 +19,7 @@ import type { Snapshot } from './types'
 // opens the readings), the right column of cards and the sage stat tiles, inside the shared Frame.
 // Every word comes from the site's own conditions, so it reads right for any weather or place.
 
-type Props = { s: Snapshot; live: boolean; idle: boolean; history: Record<string, Point[]> }
+type Props = { s: Snapshot; live: boolean; history: Record<string, Point[]> }
 
 function headline(s: Snapshot, level: 'clear' | 'caution' | 'danger') {
   if (s.alert_type === 'stopwork' || s.interlock === 'locked') return { crumb: 'URGENT WARNING', text: 'Stop work' }
@@ -30,7 +30,7 @@ function headline(s: Snapshot, level: 'clear' | 'caution' | 'danger') {
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
-export default function HubBoard({ s, live, idle, history }: Props) {
+export default function HubBoard({ s, live, history }: Props) {
   // What the web has open. ?node=heat (the dashboard's Act links) opens that factor, ?node=weather a category.
   const [focus, setFocus] = useState<Focus>(() => {
     const node = new URLSearchParams(location.search).get('node')
@@ -56,10 +56,6 @@ export default function HubBoard({ s, live, idle, history }: Props) {
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [focus])
-  // Left alone, the web returns to the overview.
-  useEffect(() => {
-    if (idle) setFocus({})
-  }, [idle])
   const groupLabel = focus.group && groups.find((g) => g.id === focus.group)?.label
 
   return (
@@ -124,7 +120,7 @@ export default function HubBoard({ s, live, idle, history }: Props) {
           <div className="pointer-events-none absolute bottom-0 left-0 max-w-[30%]" style={{ display: factor ? 'none' : undefined }}>
             <p className="text-[24px] leading-tight font-semibold">{s.site.name}</p>
             <p className="text-[13px]" style={{ color: color.muted }}>
-              {hazards.length ? `${hazards.length} factor${hazards.length > 1 ? 's' : ''} need attention` : 'All monitored factors normal'}
+              {hazards.length ? `${hazards.length} factor${hazards.length > 1 ? 's need' : ' needs'} attention` : 'All monitored factors normal'}
               <br />
               {focus.group ? 'Click a factor to see its readings' : 'Click a category to open it'}
             </p>

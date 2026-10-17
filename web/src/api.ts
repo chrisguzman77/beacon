@@ -38,3 +38,18 @@ export async function get<T>(path: string): Promise<T> {
   if (!r.ok) throw new Error(`${path} answered ${r.status}`)
   return r.json()
 }
+
+// POST with the person's token. `body` is JSON, or FormData for uploads.
+export async function post<T>(path: string, body: unknown, token: string | null): Promise<T> {
+  const form = body instanceof FormData
+  const r = await fetch(`${API}${path}`, {
+    method: 'POST',
+    headers: { ...(token && { Authorization: `Bearer ${token}` }), ...(!form && { 'Content-Type': 'application/json' }) },
+    body: form ? body : JSON.stringify(body),
+  })
+  if (!r.ok) {
+    const detail = await r.json().then((j) => j.detail).catch(() => '')
+    throw new Error(r.status === 401 ? 'Sign in first' : detail || `${path} answered ${r.status}`)
+  }
+  return r.json()
+}

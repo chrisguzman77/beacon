@@ -15,6 +15,11 @@ function Auth({ children }: { children: ReactNode }) {
       domain={env.VITE_AUTH0_DOMAIN}
       clientId={env.VITE_AUTH0_CLIENT_ID}
       authorizationParams={{ redirect_uri: window.location.origin, audience: env.VITE_AUTH0_AUDIENCE }}
+      // Back to the page the person signed in from (the crew page), not the root.
+      onRedirectCallback={(state) => {
+        history.replaceState(null, '', state?.returnTo ?? '/')
+        dispatchEvent(new PopStateEvent('popstate'))
+      }}
     >
       {children}
     </Auth0Provider>

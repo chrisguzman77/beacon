@@ -9,20 +9,17 @@ import type { Snapshot } from './types'
 type SiteStore = {
   snapshot: Snapshot | null
   live: boolean // a feed is connected
-  setSimPaused: (paused: boolean) => void // fake only: the showcase advances while idle
   connect: (siteId: number) => () => void
 }
 
 export const useSite = create<SiteStore>((set) => ({
   snapshot: null,
   live: false,
-  setSimPaused: () => {},
   connect: (siteId) => {
     const mode = new URLSearchParams(location.search).get('fake')
     set({ snapshot: null, live: false })
     if (mode === null) return startLiveSite(siteId, (snapshot) => set({ snapshot }), (live) => set({ live }))
     const fake = startFakeGateway((snapshot) => set({ snapshot, live: true }), mode, siteId)
-    set({ setSimPaused: fake.setPaused })
     return fake.stop
   },
 }))

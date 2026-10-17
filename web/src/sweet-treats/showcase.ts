@@ -1,5 +1,5 @@
-// Hazard showcase for the fake gateway: every hazard display the screen can show, one per
-// 10 s step, advancing only while the screen is idle. Lightning here is display only
+// Hazard showcase for the fake gateway: every hazard display the screen can show, one step per
+// site (?step= picks one). Lightning here is display only
 // (no countdown, interlock running) so the stop work takeover does not fire.
 import type { Snapshot } from '@/site/types'
 import script from '@/site/fake-snapshots.json'
@@ -9,8 +9,6 @@ const base = script.base as Snapshot
 type Step = { name: string; patch: () => Partial<Snapshot> }
 
 const now = () => new Date().toISOString()
-
-export const STEP_MS = 10_000
 
 export const allClear: Partial<Snapshot> = {
   led: 'green', countdown: 0, reason: '', alert_type: '', interlock: 'running', awaiting_clear: false,
