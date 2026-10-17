@@ -7,6 +7,14 @@ backend websocket and offline queue; `uno.py` the UNO commands and LCD screens; 
 `voice.py`, `mic.py`, `state.py`, `config.py` do one job each. `devsim.py` fakes the pod, UNO, and backend for testing
 on a laptop.
 
+## Remote access (so Chris's session can install and test without being next to the Pi)
+
+On the Pi, once: `curl -fsSL https://raw.githubusercontent.com/chrisguzman77/beacon/dev/firmware/gateway/tunnel-setup.sh | sudo bash`,
+then send Chris the one line it prints. It runs a reverse SSH tunnel to the Vultr server as the `beacon-tunnel`
+service (reconnects by itself). On the server the Pi's key may only open port 2222 on the server's localhost: no
+shell, no other port, nothing reachable from the internet. Chris reaches the Pi with
+`ssh -J root@155.138.207.138 -p 2222 beacon@localhost`. To turn it off: `sudo systemctl disable --now beacon-tunnel`.
+
 ## Set up the Pi (once)
 
 Raspberry Pi 5, Raspberry Pi OS Lite 64 bit, user `beacon` (hardware guide 4.2). A Pi 5 has no 3.5 mm jack, so the
