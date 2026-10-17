@@ -24,7 +24,7 @@ export default function StatusScreen({ s, gateway, go }: Props) {
       {alertColor && (
         <div
           className="flex h-12 items-center gap-3 rounded-xl border-l-8 px-4 text-body font-semibold"
-          style={{ borderColor: alertColor, backgroundColor: `color-mix(in srgb, ${alertColor} 18%, transparent)` }}
+          style={{ borderColor: alertColor, backgroundColor: `color-mix(in srgb, ${alertColor} 32%, transparent)` }}
         >
           <span className="size-3 rounded-full animate-beacon-pulse" style={{ backgroundColor: alertColor }} />
           {s.reason}
@@ -32,7 +32,7 @@ export default function StatusScreen({ s, gateway, go }: Props) {
       )}
 
       <main className="grid min-h-0 flex-1 grid-cols-[1.15fr_1fr] gap-3">
-        <section className="flex flex-col justify-between rounded-2xl bg-surface p-5">
+        <section className="flex flex-col justify-between rounded-2xl border-2 border-line bg-surface p-5">
           <p className="text-label font-medium uppercase tracking-[0.18em] text-dim">Hazard index</p>
           <div className="flex items-baseline gap-2">
             <span className="text-display leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>
@@ -87,7 +87,7 @@ function IndexBar({ index }: { index: number }) {
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-surface px-5">
+    <div className="flex items-center justify-between rounded-2xl border-2 border-line bg-surface px-5">
       <span className="text-label font-medium uppercase tracking-[0.18em] text-dim">{label}</span>
       <span className="text-[40px] leading-none font-semibold" style={{ color }}>{value}</span>
     </div>
@@ -98,7 +98,7 @@ function NavButton({ icon: Icon, label, detail, onClick }: { icon: LucideIcon; l
   return (
     <button
       onClick={onClick}
-      className="flex h-[84px] flex-col items-center justify-center gap-1 rounded-2xl bg-raised text-body font-semibold uppercase tracking-wide active:bg-line"
+      className="flex h-[84px] flex-col items-center justify-center gap-1 rounded-2xl border-2 border-line bg-raised text-body font-semibold uppercase tracking-wide active:bg-line"
     >
       <span className="flex items-center gap-2">
         <Icon className="size-6" /> {label}

@@ -2,30 +2,31 @@
 // CSS variables, index.css maps those into the Tailwind theme, and JS (the map,
 // charts) imports the same values. Never type a raw color anywhere else.
 
+// Dark navy with bright, saturated accents so the kiosk reads in sun, glare, rain and at night.
 export const color = {
-  bg: '#0B1220',
-  surface: '#131C2E',
-  raised: '#1C2840',
-  border: '#2A3753',
-  text: '#F1F5F9',
-  muted: '#8FA0BA',
-  online: '#22C55E',
-  offline: '#F59E0B',
+  bg: '#0A1A3A',
+  surface: '#112650',
+  raised: '#1A3466',
+  border: '#2E4F8A',
+  text: '#FFFFFF',
+  muted: '#B4C6E6',
+  online: '#00E676',
+  offline: '#FFB300',
 }
 
 // One color per hazard type, used identically on every screen.
 export const hazard = {
-  stopwork: '#EF4444', // lightning and stop work
-  heat: '#F59E0B',
-  flood: '#3B82F6',
-  wildlife: '#10B981',
-  unsafe: '#A855F7', // beacon tilt, e-stop
+  stopwork: '#FF3B30', // lightning and stop work
+  heat: '#FFB300',
+  flood: '#00D4FF', // cyan, a plain blue disappears on the navy
+  wildlife: '#00E676',
+  unsafe: '#D17BFF', // beacon tilt, e-stop
 }
 
-// Full screen takeover backgrounds: deeper than the hazard color so white text holds contrast.
+// Full screen takeover backgrounds: saturated but deep enough that white text holds contrast.
 export const takeover = {
-  stopwork: '#B91C1C',
-  unsafe: '#6B21A8',
+  stopwork: '#D50000',
+  unsafe: '#7B1FA2',
 }
 
 export type HazardKey = keyof typeof hazard
@@ -40,7 +41,7 @@ export const alertHazard: Record<string, HazardKey> = {
 }
 
 // Hazard index 0 to 10, green through yellow to red. The only gradient in the app.
-export const indexStops = { low: '#22C55E', mid: '#EAB308', high: '#EF4444' }
+export const indexStops = { low: '#00E676', mid: '#FFD600', high: '#FF3B30' }
 
 export function indexColor(index: number): string {
   if (index <= 3) return indexStops.low
