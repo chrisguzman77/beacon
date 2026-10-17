@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Gauge, Radio, TriangleAlert, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
@@ -139,7 +140,7 @@ export default function HubBoard({ s, live, history }: Props) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Tile icon={<Gauge className="size-5" />} label="Hazard index" value={`${s.index} / 10`} tint={indexColor(s.index)} sub={s.index_reason} />
+        <Tile icon={<Gauge className="size-5" />} label="Hazard index" value={`${s.index} / 10`} tint={indexColor(s.index)} sub={s.index_reason} link={{ to: `/about${location.search}`, text: 'How the index works' }} />
         <Tile icon={<Users className="size-5" />} label="Crew on site" value={`${crewIn} of ${s.crew.length}`} sub={`Work zone ${s.zone_clear ? 'clear' : 'occupied'}`} />
         <Tile icon={<BookOpen className="size-5" />} label="Next briefing" value={s.next_briefing} sub="English and Spanish · site time" />
       </div>
@@ -155,12 +156,15 @@ function Chip({ children, className = '' }: { children: ReactNode; className?: s
   )
 }
 
-function Tile({ icon, label, value, sub, tint }: { icon: ReactNode; label: string; value: string; sub: string; tint?: string }) {
+function Tile({ icon, label, value, sub, tint, link }: { icon: ReactNode; label: string; value: string; sub: string; tint?: string; link?: { to: string; text: string } }) {
   return (
     <Panel size={12} depth={0} edge={color.raised} fill={color.raised} inner="flex items-start gap-3 px-5 py-3">
       <span className="mt-0.5" style={{ color: color.muted }}>{icon}</span>
       <span className="min-w-0">
-        <span className="block text-[11px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>{label}</span>
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="block text-[11px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>{label}</span>
+          {link && <Link to={link.to} className="text-[12px] underline" style={{ color: color.muted }}>{link.text}</Link>}
+        </span>
         <span className="block text-[22px] leading-tight" style={{ color: tint ?? color.text }}>{value}</span>
         <span className="line-clamp-2 block text-[13px] leading-snug" style={{ color: color.muted }}>{sub}</span>
       </span>

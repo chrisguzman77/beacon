@@ -57,6 +57,7 @@ export default function QuickView({ site, rank, total, distance }: Props) {
           <Stat label="Index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
           <Stat label="Workers" value={String(crewIn)} sub={s ? (s.zone_clear ? 'zone clear' : 'in the zone') : 'on site'} />
         </div>
+        <Link to={`/about${location.search}`} className="mt-3 inline-block text-[12px] underline opacity-75 hover:opacity-100">How the index works</Link>
       </section>
 
       {stop && (

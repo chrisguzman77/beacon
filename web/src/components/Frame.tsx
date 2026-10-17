@@ -19,7 +19,7 @@ export function useClock() {
   return { now, time: `${pad2(now.getHours())}:${pad2(now.getMinutes())}`, date: now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase() }
 }
 
-type Props = { unit: string; status: ReactNode; active: 'dashboard' | 'hub'; footer: [string, string]; hubTo?: string; children: ReactNode }
+type Props = { unit: string; status: ReactNode; active: 'dashboard' | 'hub' | 'about'; footer: [string, string]; hubTo?: string; children: ReactNode }
 
 export default function Frame({ unit, status, active, footer, hubTo = '/hub', children }: Props) {
   const { time } = useClock()
