@@ -14,4 +14,4 @@ Suggested: pyserial, websockets, gpiozero, pygame or aplay for audio. Pre render
 Guide: docs/hardware-guide.md. Appendix D is the gateway program map and its local rules. The beacon LCD lines and the IR key meanings are in contracts/serial.md.
 
 ## Decisions
-- Gateway BACKEND_URL is the full websocket URL including the site, e.g. wss://<public host>/ws/gateway/12, and SITE_ID=12 (Seminole). The token is appended as ?token=GATEWAY_TOKEN. Public host is a Cloudflare quick tunnel and can change, so it lives only in the Pi's .env. (Slavik)
+- Gateway BACKEND_URL is the full websocket URL including the site: wss://api.omnirisking-it-all-at-swamphacks.us/ws/gateway/12, with SITE_ID=12 (Seminole) and GATEWAY_TOKEN from Chris by DM. The token is appended as ?token=GATEWAY_TOKEN. These live only in firmware/gateway/.env on the Pi. (Slavik)
