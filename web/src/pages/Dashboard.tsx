@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import LoginButton from '@/components/LoginButton'
+import AppNav from '@/components/AppNav'
 import MapView from '@/components/MapView'
 import Panel from '@/components/Panel'
 import { rank, useDash } from '@/dashboard/store'
@@ -24,11 +25,14 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen flex-col gap-4 bg-bg p-5 text-ink">
       <header className="flex items-center justify-between gap-6">
-        <div>
-          <p className="flex items-center gap-2 text-label font-semibold tracking-[0.18em] text-dim uppercase">
-            <span className="size-1.5 bg-signal" /> PlanIT Beacon
-          </p>
-          <h1 className="text-heading leading-tight font-semibold tracking-tight">Site hazard board</h1>
+        <div className="flex items-center gap-6">
+          <div>
+            <p className="flex items-center gap-2 text-label font-semibold tracking-[0.18em] text-dim uppercase">
+              <span className="size-1.5 bg-signal" /> PlanIT Beacon
+            </p>
+            <h1 className="text-heading leading-tight font-semibold tracking-tight">Site hazard board</h1>
+          </div>
+          <AppNav />
         </div>
         <div className="flex items-center gap-3">
           <Stat label="Sites" value={String(sites.length)} />

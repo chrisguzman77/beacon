@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Scan } from 'lucide-react'
 import Panel from '@/components/Panel'
 import ControlButton from '@/components/ControlButton'
+import AppNav from '@/components/AppNav'
 import { color } from '@/tokens'
 import FactorWeb from './FactorWeb'
 import type { FactorWebHandle } from './FactorWeb'
@@ -15,19 +16,22 @@ export default function SiteBoard({ s, live, idle }: { s: Snapshot; live: boolea
   return (
     <div className="flex h-full flex-col gap-4 p-5">
       <header className="flex items-center justify-between gap-6">
-        <div>
-          <Label>PlanIT Beacon</Label>
-          <h1 className="text-heading leading-tight font-semibold tracking-tight">{s.site.name}</h1>
+        <div className="flex items-center gap-6">
+          <div className="whitespace-nowrap">
+            <Label>PlanIT Beacon · Web</Label>
+            <h1 className="text-heading leading-tight font-semibold tracking-tight">{s.site.name}</h1>
+          </div>
+          <AppNav />
         </div>
-        <Legend />
         <div className="flex items-center gap-4">
-          <ControlButton className="h-tap w-52" icon={Scan} label="Recenter" detail="Fit the web" onClick={() => web.current?.fit()} />
+          <ControlButton className="h-tap w-52 shrink-0" icon={Scan} label="Recenter" detail="Fit the web" onClick={() => web.current?.fit()} />
           <Connection online={s.online} gateway={live} />
         </div>
       </header>
 
       <Panel className="min-h-0 flex-1" size={22} fill={color.bg} depth={2}>
         <FactorWeb ref={web} s={s} tour={idle} />
+        <Legend />
       </Panel>
     </div>
   )
@@ -50,14 +54,18 @@ function Legend() {
     { label: 'Info', c: color.border },
   ]
   return (
-    <div className="flex items-center gap-5 font-mono text-label font-semibold uppercase tracking-wider text-dim">
-      {items.map((i) => (
-        <span key={i.label} className="flex items-center gap-2">
-          <span className="size-3 border-2" style={{ borderColor: i.c, background: i.fill ? i.c : undefined }} />
-          {i.label}
+    <div className="pointer-events-none absolute bottom-4 left-4">
+      <Panel size={10} depth={2} fill={`color-mix(in srgb, ${color.bg} 88%, transparent)`} inner="flex flex-col gap-2 px-4 py-3 font-mono text-[11px] font-bold tracking-wider text-dim uppercase">
+        <span className="flex items-center gap-4">
+          {items.map((i) => (
+            <span key={i.label} className="flex items-center gap-1.5">
+              <span className="size-3 border-2" style={{ borderColor: i.c, background: i.fill ? i.c : undefined }} />
+              {i.label}
+            </span>
+          ))}
         </span>
-      ))}
-      <span className="normal-case tracking-normal">· drag to pan · scroll to zoom</span>
+        <span className="normal-case tracking-normal">Drag to pan · scroll to zoom</span>
+      </Panel>
     </div>
   )
 }
@@ -71,7 +79,7 @@ function Connection({ online, gateway }: { online: boolean; gateway: boolean }) 
       size={10}
       edge={tint}
       fill={`color-mix(in srgb, ${tint} 14%, ${color.bg})`}
-      inner="flex items-center gap-2 px-4 py-2 font-mono text-label font-bold tracking-wider"
+      inner="flex items-center gap-2 whitespace-nowrap px-4 py-2 font-mono text-label font-bold tracking-wider"
       style={{ color: tint }}
     >
       <span className={`size-2.5 ${ok ? '' : 'animate-beacon-pulse'}`} style={{ backgroundColor: tint }} />

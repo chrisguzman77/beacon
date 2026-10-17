@@ -7,12 +7,15 @@ import { useIdle } from '@/site/useIdle'
 import SiteBoard from '@/site/SiteBoard'
 import AlarmState from '@/site/AlarmState'
 import CautionScreen from '@/site/CautionScreen'
+import AppNav from '@/components/AppNav'
 
 const FLASH_EVERY_MS = 10_000
 const FLASH_FOR_MS = 3_000
 
-export default function Site() {
-  const id = Number(useParams().id)
+// WEB: the live factor web for one site (default: the beacon site), with the idle caution
+// screen and the full screen alarm state during stop work.
+export default function Web() {
+  const id = Number(useParams().id ?? 0)
   const snapshot = useSite((s) => s.snapshot)
   const live = useSite((s) => s.live)
   const connect = useSite((s) => s.connect)
@@ -45,8 +48,9 @@ export default function Site() {
   if (!snapshot)
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <AppNav />
         <div className="size-4 animate-beacon-pulse bg-signal" />
-        <p className="text-heading font-semibold">Loading site {id}</p>
+        <p className="text-heading font-semibold">Loading the web</p>
         <p className="text-body text-dim">Waiting for the first reading. Add ?fake=1 to the URL to use demo data.</p>
       </div>
     )
