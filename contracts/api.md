@@ -6,6 +6,7 @@ GET  /health                                   any         fetcher health, last 
 GET  /sites                                    any         all sites with index, alert summary, last conditions, crew_on_site
 GET  /sites/{id}                               any         detail: conditions 48h, alerts, reports, briefing, index with top_features
 GET  /sites/{id}/conditions?hours=48           any         from site_hourly, both sources
+GET  /sites/{id}/index/explain                 any         latest index: {site_id, for_date, index, probability, top_features: [{feature, shap, value, label}], sentence, source}  (intel router)
 GET  /sites/{id}/device                        any         last device state from the gateway (for Roblox polling and the dashboard)
 GET  /sites/{id}/muster                        any         crew in, out, zone_clear
 POST /checkin                                  crew/sup    {site_id, action, lat, lon, via}
