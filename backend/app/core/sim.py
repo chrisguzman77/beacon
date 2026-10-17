@@ -4,7 +4,7 @@ import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from . import gateway, rules
+from . import db, gateway, hub, muster, rules
 from .config import settings
 from .sites import SITES
 
@@ -64,3 +64,63 @@ async def sim_bang(body: BangIn):
     if d < rules.STOPWORK_RADIUS_M:
         await gateway._local_stopwork(body.site_id, {"distance_m": round(d), "flash_ts_us": flash, "bang_ts_us": body.ts_us})
     return {"relayed": relayed, "paired": True, "distance_m": round(d)}
+
+
+class WeatherIn(BaseModel):
+    site_id: int
+    temp_c: float | None = None
+    humidity: float | None = None
+    precip_mm: float | None = None
+    gust: float | None = None  # km/h
+
+
+def _site(site_id):
+    if site_id not in SITES:
+        raise HTTPException(404, "unknown site")
+
+
+@router.post("/weather")
+async def sim_weather(body: WeatherIn):
+    _site(body.site_id)
+    hi = rules.heat_index_f(body.temp_c, body.humidity)
+    c = {"temp_c": body.temp_c, "humidity": body.humidity, "heat_index_f": hi, "precip_mm": body.precip_mm,
+         "wind_gust_kmh": body.gust}
+    await db.execute(
+        "INSERT INTO conditions (ts,site_id,source,temp_c,humidity,heat_index_f,precip_mm,wind_gust_kmh)"
+        " VALUES (now(),$1,'sim',$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING", body.site_id, *c.values())
+    await hub.publish(body.site_id, {"type": "conditions", "source": "sim", **c})
+    await rules.evaluate_heat(body.site_id, hi)
+    await rules.evaluate_flood(body.site_id)
+    return {"heat_index_f": hi}
+
+
+class WaterIn(BaseModel):
+    site_id: int
+    depth_mm: float
+
+
+@router.post("/water")
+async def sim_water(body: WaterIn):
+    _site(body.site_id)
+    await db.execute("INSERT INTO conditions (ts,site_id,source,water_depth_mm) VALUES (now(),$1,'sim',$2)"
+                     " ON CONFLICT DO NOTHING", body.site_id, body.depth_mm)
+    await db.execute("INSERT INTO events VALUES (now(),$1,'sim','water',$2)", body.site_id, {"depth_mm": body.depth_mm})
+    await hub.publish(body.site_id, {"type": "conditions", "source": "sim", "water_depth_mm": body.depth_mm})
+    await rules.evaluate_flood(body.site_id)
+    return {"ok": True}
+
+
+class PresenceIn(BaseModel):
+    site_id: int
+    count: int
+    users: list[str] = []
+
+
+@router.post("/presence")
+async def sim_presence(body: PresenceIn):
+    _site(body.site_id)
+    await db.execute("INSERT INTO events VALUES (now(),$1,'sim','presence',$2)", body.site_id,
+                     {"count": body.count, "users": body.users})
+    muster.set_presence(body.site_id, "sim", body.count)
+    await muster.roblox_presence(body.site_id, body.users)
+    return await muster.roster(body.site_id)

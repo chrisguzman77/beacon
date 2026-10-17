@@ -1,7 +1,7 @@
 """REST and the site websocket. contracts/api.md."""
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket
 
-from . import db, gateway, hub
+from . import db, gateway, hub, muster
 from .rules import alert_json
 from .sites import SITES
 
@@ -19,11 +19,15 @@ async def list_sites():
     alerts = await db.fetch("SELECT * FROM alerts WHERE cleared IS NULL")
     idx = await db.fetch("SELECT DISTINCT ON (site_id) site_id, index FROM hazard_index ORDER BY site_id, for_date DESC")
     idx = {r["site_id"]: r["index"] for r in idx}
+    crew_in = await db.fetch(
+        "SELECT site_id, count(*) AS n FROM (SELECT DISTINCT ON (crew_id) site_id, action FROM checkins"
+        " WHERE ts > now() - interval '24 hours' ORDER BY crew_id, ts DESC) k WHERE action='in' GROUP BY site_id")
+    crew_in = {r["site_id"]: r["n"] for r in crew_in}
     out = []
     for s in SITES.values():
         out.append({**s, "index": idx.get(s["site_id"]),
                     "alerts": [alert_json(a) for a in alerts if a["site_id"] == s["site_id"]],
-                    "crew_on_site": 0})
+                    "crew_on_site": crew_in.get(s["site_id"], 0)})
     return out
 
 
@@ -51,6 +55,11 @@ async def site_device(site_id: int):
     return gateway.last_state.get(site_id, {"online": False})
 
 
+@router.get("/sites/{site_id}/muster")
+async def site_muster(site_id: int):
+    return await muster.roster(site_id)
+
+
 @router.websocket("/ws/site/{site_id}")
 async def site_ws(ws: WebSocket, site_id: int, token: str = ""):
     await ws.accept()
@@ -60,7 +69,7 @@ async def site_ws(ws: WebSocket, site_id: int, token: str = ""):
             await ws.send_json({"type": "device", **gateway.last_state[site_id]})
         while True:
             await ws.receive_text()  # clients do not send anything; this just waits for disconnect
-    except WebSocketDisconnect:
+    except Exception:  # WebSocketDisconnect, or Starlette's not-connected error after a failed send
         pass
     finally:
         hub.unsubscribe(site_id, ws)
