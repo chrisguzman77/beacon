@@ -16,8 +16,8 @@ import { buildFactors, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
 // HUB, built to Cam's MARSH Figma screens: breadcrumb and headline, the amber warning banner,
-// the factor web in a circular window (nodes show only their name and condition; a click opens
-// the readings), the right column of cards and the sage stat tiles, inside the shared Frame.
+// the factor web on the page itself with depth (nodes show only their name and condition; a click
+// opens the readings), the right column of cards and the sage stat tiles, inside the shared Frame.
 // Every word comes from the site's own conditions, so it reads right for any weather or place.
 
 type Props = { s: Snapshot; live: boolean; idle: boolean; history: Record<string, Point[]> }
@@ -97,19 +97,9 @@ export default function HubBoard({ s, live, idle, history }: Props) {
       )}
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_380px] grid-rows-[minmax(0,1fr)] gap-4">
-        {/* The web's cell: the circle sits in the middle, labels and the detail panel around it. */}
-        <div className="relative flex min-h-0 items-center justify-center" style={{ containerType: 'size' }}>
-          <div
-            className="relative overflow-hidden rounded-full"
-            style={{
-              width: 'min(100cqw, 100cqh)',
-              height: 'min(100cqw, 100cqh)',
-              background: color.chrome,
-              boxShadow: `0 0 0 8px ${color.surface}, 0 0 0 9px ${color.border}, 0 12px 32px rgb(0 0 0 / 0.18)`,
-            }}
-          >
-            <FactorWeb ref={web} s={s} tour={idle && !selected} selected={selected} onSelect={setSelected} backdrop={color.chrome} />
-          </div>
+        {/* The web lies straight on the page; labels and the detail panel float over its edges. */}
+        <div className="relative min-h-0">
+          <FactorWeb ref={web} s={s} tour={idle && !selected} selected={selected} onSelect={setSelected} backdrop={color.bg} />
           <Chip className="absolute top-0 left-0">FACTOR WEB / LIVE</Chip>
           <button onClick={() => web.current?.fit()} className="absolute top-0 right-0" aria-label="Recenter the web" title="Recenter" style={{ display: factor ? 'none' : undefined }}>
             <Chip><Navigation className="size-4" /> FIT</Chip>

@@ -15,9 +15,10 @@ import type { Snapshot } from './types'
 type Pt = { x: number; y: number }
 export type FactorWebHandle = { fit: () => void }
 
-const HUB_R = { x: 250, y: 250 }
+const HUB_R = { x: 430, y: 190 }
 const CELL = { w: 172, h: 52 } // factor node 160 x ~44 plus gap
-const COLS = 2
+// Clusters above and below the index spread wide (the web area is wide), side clusters stay narrow.
+const colsFor = (dir: Pt) => (Math.abs(dir.y) > 0.9 ? 4 : 2)
 
 // Hubs on an ellipse; each cluster's factors sit in a two column block just beyond its hub.
 function layout(factors: Factor[]) {
@@ -28,7 +29,7 @@ function layout(factors: Factor[]) {
     const hub = { x: HUB_R.x * dir.x, y: HUB_R.y * dir.y }
     pos[`hub:${g.id}`] = hub
     const kids = factors.filter((f) => f.group === g.id)
-    const cols = Math.min(COLS, kids.length)
+    const cols = Math.min(colsFor(dir), kids.length)
     const rows = Math.ceil(kids.length / cols)
     const bw = cols * CELL.w
     const bh = rows * CELL.h
@@ -44,9 +45,11 @@ function layout(factors: Factor[]) {
   return pos
 }
 
-// MARSH cards on the dark main panel: cream cards, a tinted face and edge when a hazard needs
-// attention, light links that take the hazard color when it does.
-const quiet = 'rgb(245 247 237 / 0.28)'
+// MARSH cards straight on the page: cream cards, a tinted face and edge when a hazard needs
+// attention, ink links that take the hazard color when it does.
+const quiet = 'rgb(29 40 34 / 0.22)'
+// Depth: shadows grow with how much a node matters, as if it floats higher off the floor.
+const shadow = (depth: number) => `drop-shadow(0 ${depth * 3}px ${depth * 4}px rgb(29 40 34 / ${0.06 + depth * 0.04}))`
 function look(status: Status, tint = color.border) {
   if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.surface})`, line: tint, depth: 2 }
   if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 8%, ${color.surface})`, line: tint, depth: 2 }
@@ -68,15 +71,18 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
   const fit = useCallback(() => {
     const el = box.current
     if (!el) return
-    // The window is round: fit the farthest node (plus its half width) inside the circle.
-    const far = Math.max(...Object.values(layout(buildFactors(s))).map((p) => Math.hypot(Math.abs(p.x) + 84, Math.abs(p.y) + 22)))
-    // Never smaller than 0.5 so node names stay readable; pan to reach the edges.
-    const k = Math.max(0.5, Math.min((Math.min(el.clientWidth, el.clientHeight) / 2 - 8) / far, 1.1))
-    setView({ x: 0, y: 0, k })
+    const pts = Object.values(layout(buildFactors(s)))
+    const xs = pts.map((p) => p.x)
+    const ys = pts.map((p) => p.y)
+    const w = Math.max(...xs) - Math.min(...xs) + 220
+    const h = Math.max(...ys) - Math.min(...ys) + 120
+    // Never smaller than 0.55 so node names stay readable; pan to reach the edges.
+    const k = Math.max(0.55, Math.min(el.clientWidth / w, el.clientHeight / h, 1.1))
+    setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
   }, [s])
   useImperativeHandle(ref, () => ({ fit }), [fit])
 
-  // Selecting a node glides it to the middle of the window (the detail panel sits beside the circle).
+  // Selecting a node glides it into view just left of the detail panel (about 400 px wide).
   const [glide, setGlide] = useState(false)
   useEffect(() => {
     if (!selected || !box.current) return
@@ -84,7 +90,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
     if (!p) return
     const k = Math.max(view.k, 0.9)
     setGlide(true)
-    setView({ k, x: -p.x * k, y: -p.y * k })
+    setView({ k, x: -p.x * k - 200, y: -p.y * k })
     const t = setTimeout(() => setGlide(false), 1200)
     return () => clearTimeout(t)
   }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -156,8 +162,10 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
       }}
       onWheel={wheel}
     >
-      <div className="absolute inset-0" style={grid(160, '22', 0.4)} />
-      <div className="absolute inset-0" style={grid(40, '12', 1)} />
+      {/* The floor: a plane tipped back in perspective, so the web reads as lying on a surface with depth. */}
+      <div className="absolute inset-0" style={{ transform: 'perspective(1800px) rotateX(14deg)', transformOrigin: '50% 60%' }}>
+      <div className="absolute -inset-[30%]" style={grid(160, '55', 0.4)} />
+      <div className="absolute -inset-[30%]" style={grid(40, '30', 1)} />
 
       <div
         className="absolute top-1/2 left-1/2"
@@ -167,7 +175,15 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
           transition: tour || glide ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
         }}
       >
+        {/* Soft pool of light under the hazard index, tinted by its level. */}
+        <div className="pointer-events-none absolute size-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ background: `radial-gradient(circle, color-mix(in srgb, ${indexColor(s.index)} 22%, transparent), transparent 65%)` }} />
         <svg className="pointer-events-none absolute overflow-visible" width="1" height="1">
+          <defs>
+            <filter id="web-lift" filterUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000">
+              <feDropShadow dx="0" dy="5" stdDeviation="3" floodColor="#1D2822" floodOpacity="0.18" />
+            </filter>
+          </defs>
+          <g filter="url(#web-lift)">
           {hubs.map((h) => {
             const hp = pos[`hub:${h.id}`]
             const hl = look(h.status, h.tint)
@@ -186,6 +202,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
               </g>
             )
           })}
+          </g>
         </svg>
 
         {factors.map((x) => {
@@ -200,7 +217,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
               style={{ left: p.x, top: p.y, zIndex: on ? 5 : undefined }}
               title={statusText[x.status] ? `${x.label}: ${statusText[x.status]}` : x.label}
             >
-              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} depth={on ? 3 : l.depth} inner="flex items-center gap-2 px-3 py-2">
+              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} style={{ filter: shadow(on ? 4 : l.depth + 1) }} inner="flex items-center gap-2 px-3 py-2">
                 {x.status === 'ok' ? (
                   <Check className="size-3.5 shrink-0" style={{ color: color.signal }} strokeWidth={3} />
                 ) : x.status === 'info' ? (
@@ -220,8 +237,8 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
           return (
             <div key={h.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
               <span
-                className="flex items-center gap-2 rounded-md px-4 py-2 text-[14px] font-bold whitespace-nowrap shadow-md"
-                style={{ background: hot ? color.accent : color.raised, color: color.accentInk, boxShadow: hot ? `inset 0 0 0 2px ${h.tint}` : undefined }}
+                className="flex items-center gap-2 rounded-md px-4 py-2 text-[15px] font-bold whitespace-nowrap"
+                style={{ background: hot ? color.accent : color.surface, color: color.accentInk, boxShadow: `${hot ? `inset 0 0 0 2px ${h.tint}, ` : `inset 0 0 0 1px ${color.border}, `}0 8px 16px rgb(29 40 34 / 0.18), 0 2px 4px rgb(29 40 34 / 0.12)` }}
               >
                 {hot && <TriangleAlert className="size-4" style={{ color: h.tint }} strokeWidth={2.5} />}
                 {h.label}
@@ -231,7 +248,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
         })}
 
         <div className="absolute w-[240px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
-          <Panel size={12} edge={indexColor(s.index)} fill={color.surface} depth={3} inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
+          <Panel size={12} edge={indexColor(s.index)} fill={color.surface} style={{ filter: 'drop-shadow(0 18px 24px rgb(29 40 34 / 0.22)) drop-shadow(0 4px 6px rgb(29 40 34 / 0.12))' }} inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
             <span className="text-[13px] font-bold tracking-[0.02em] uppercase" style={{ color: color.muted }}>Hazard index</span>
             <span className="flex items-baseline gap-1">
               <span className="text-[76px] leading-[0.95] font-semibold" style={{ color: indexColor(s.index) }}>{s.index}</span>
@@ -242,7 +259,10 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at center, transparent 64%, ${backdrop} 71%)` }} />
+      </div>
+
+      {/* Edges fade into the page so the web sits on it, not in a box. */}
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 62%, ${backdrop} 98%)` }} />
     </div>
   )
 })

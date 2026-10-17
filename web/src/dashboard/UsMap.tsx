@@ -149,7 +149,7 @@ export default function UsMap({ sites, selected, onSelect, here, fitSignal }: Pr
         {label && lp && (
           <g transform={`translate(${lp[0]} ${lp[1]}) scale(${1 / view.k})`} className="pointer-events-none">
             <rect x={18} y={-15} rx={4} height={30} width={label.name.length * 7.4 + 54} fill={color.chrome} />
-            <text x={28} y={5} fontSize={13} fontWeight={600} fill={color.chromeText} fontFamily="Inter Variable, sans-serif">
+            <text x={28} y={5} fontSize={13} fontWeight={600} fill={color.chromeText} fontFamily="Space Grotesk Variable, sans-serif">
               {label.name}
               <tspan dx={8} fill={color.accent} fontFamily="JetBrains Mono Variable, monospace" fontSize={12}>{label.index ?? '–'}</tspan>
             </text>

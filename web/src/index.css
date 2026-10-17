@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/jetbrains-mono";
 
 /* One theme (the MARSH design) for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
@@ -9,7 +9,7 @@
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Inter Variable', system-ui, sans-serif;
+    --font-sans: 'Space Grotesk Variable', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
     /* PlanIT tokens */
