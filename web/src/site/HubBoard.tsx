@@ -15,6 +15,7 @@ import BriefingPanel from './BriefingPanel'
 import ReportsPanel from './ReportsPanel'
 import CompliancePanel from './CompliancePanel'
 import ScenarioPanel from './ScenarioPanel'
+import ConditionsPanel from './ConditionsPanel'
 import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
@@ -133,6 +134,7 @@ export default function HubBoard({ s, live, history }: Props) {
           {s.site.beacon !== false && <DeviceCard s={s} />}
           {s.site.beacon !== false && <ScenarioPanel s={s} />}
           <MusterPanel s={s} />
+          <ConditionsPanel siteId={s.site.id} />
           <ReportsPanel s={s} />
           <BriefingPanel s={s} />
           <CompliancePanel s={s} />

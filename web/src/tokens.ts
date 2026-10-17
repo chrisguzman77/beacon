@@ -41,6 +41,10 @@ export const takeover = {
 // Replica of the beacon's own displays on the device card: LCD1602 backlight and the LED digits.
 export const device = { lcdBg: '#1E3FA8', lcdInk: '#E8F0FF', digit: '#FF2A1A', digitOff: '#2A0A08' }
 
+// Series colors for the conditions charts (one series per small multiple), validated with the
+// dataviz palette check on the card surface: heat amber and rain blue follow their hazards, gust green.
+export const chart = { heat: hazard.heat, rain: hazard.flood, gust: '#4E8A2A' }
+
 export type HazardKey = keyof typeof hazard
 
 export const alertHazard: Record<string, HazardKey> = {
