@@ -8,9 +8,12 @@ services:
   web:
     build:
       context: ../web
-      # VITE_* are baked in at build time (web/Dockerfile defaults VITE_API_URL to the api domain). Auth0 login stays
-      # off until all three are set together: domain dev-5vjivlkbfz7ozg5s.us.auth0.com, audience https://planit-beacon/api,
-      # and the SPA client id (public). Setting the domain alone breaks the login button.
+      # VITE_* are baked in at build time (web/Dockerfile defaults VITE_API_URL to the api domain). These three are public
+      # (they ship in the browser bundle) and must be set together; the domain alone breaks the login button.
+      args:
+        VITE_AUTH0_DOMAIN: dev-5vjivlkbfz7ozg5s.us.auth0.com
+        VITE_AUTH0_CLIENT_ID: WpuDp1QwoKxdg7a2Q8ygjcHB2LAfwyfc
+        VITE_AUTH0_AUDIENCE: https://planit-beacon/api
     ports: ["127.0.0.1:8080:80"]   # Caddy owns 80/443 and proxies the bare domain here
     restart: unless-stopped
 volumes:
