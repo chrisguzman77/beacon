@@ -9,6 +9,8 @@ import { isTakeover } from '@/site/types'
 import { authOn, useAuth } from '@/lib/auth'
 import { useSlow } from '@/lib/useSlow'
 import { useTitle } from '@/lib/useTitle'
+import { crewText, reasonIn, useCrewLang } from '@/sweet-treats/crewText'
+import type { CrewText, Lang } from '@/sweet-treats/crewText'
 import { miles, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { color, hazard } from '@/tokens'
 
@@ -16,7 +18,7 @@ import { color, hazard } from '@/tokens'
 // phone. A status strip mirrors the site's alerts, I'M ON SITE / I'M LEAVING post /checkin with the
 // phone's GPS, and REPORT HAZARD takes a photo, shrinks it to 1600 px and posts /reports, then shows
 // the AI tag for confirmation. ?site=12 (a QR code at the site) picks the site, &name= the name.
-// ?fake=1 simulates check in and reports with no login.
+// ?fake=1 simulates check in and reports with no login. English or Spanish (EN / ES in the header).
 
 const SITE_KEY = 'omnirisk.crew.site'
 const NAME_KEY = 'omnirisk.crew.name'
@@ -69,12 +71,14 @@ export default function Crew() {
   const [siteId, setSiteId] = useState(() => Number(query.get('site') ?? load(SITE_KEY)) || 0)
   const [name, setName] = useState(() => query.get('name') ?? load(NAME_KEY))
   const [picking, setPicking] = useState(false)
+  const [lang, setLang] = useCrewLang()
+  const t = crewText[lang]
   useEffect(() => connectSites(), [connectSites])
 
   const site = sites.find((s) => s.site_id === siteId)
   const ready = site && name.trim()
   const needSignIn = authOn && auth.ready && !auth.signedIn && !fake
-  useTitle(site ? `Crew · ${site.name}` : 'Crew')
+  useTitle(site ? `${t.crew} · ${site.name}` : t.crew)
 
   useEffect(() => {
     if (!name && auth.name) setName(auth.name)
@@ -86,20 +90,24 @@ export default function Crew() {
         <span className="flex items-center gap-2">
           <Scan className="size-5" style={{ color: color.accent }} strokeWidth={2.25} />
           <span className="text-[18px] font-bold tracking-tight">OmniRisk</span>
-          <span className="font-mono text-[11px] opacity-70">/ CREW</span>
+          <span className="font-mono text-[11px] uppercase opacity-70">/ {t.crew}</span>
         </span>
-        {ready && (
-          <button onClick={() => setPicking(true)} className="flex max-w-[55%] items-center gap-1 text-[13px] font-semibold">
-            <span className="truncate">{site.name}</span> <ChevronDown className="size-4 shrink-0" />
-          </button>
-        )}
+        <span className="flex min-w-0 items-center gap-3">
+          {ready && (
+            <button onClick={() => setPicking(true)} className="flex min-w-0 items-center gap-1 text-[13px] font-semibold">
+              <span className="truncate">{site.name}</span> <ChevronDown className="size-4 shrink-0" />
+            </button>
+          )}
+          <LangSwitch lang={lang} onChange={setLang} />
+        </span>
       </header>
 
       <main className="mx-auto flex max-w-md flex-col gap-4 p-4">
         {needSignIn ? (
-          <SignIn onSignIn={auth.signIn} />
+          <SignIn t={t} onSignIn={auth.signIn} />
         ) : !ready || picking ? (
           <Setup
+            t={t}
             sites={sites}
             failed={status === 'error'}
             siteId={siteId}
@@ -113,24 +121,24 @@ export default function Crew() {
             }}
           />
         ) : (
-          <OnSite site={site} name={name.trim()} token={auth.token} />
+          <OnSite t={t} lang={lang} site={site} name={name.trim()} token={auth.token} />
         )}
       </main>
     </div>
   )
 }
 
-function SignIn({ onSignIn }: { onSignIn: () => void }) {
+function SignIn({ t, onSignIn }: { t: CrewText; onSignIn: () => void }) {
   return (
     <section className="mt-6 flex flex-col gap-4">
-      <h1 className="text-[34px] leading-tight font-bold">Crew sign in</h1>
-      <p className="text-[16px]" style={{ color: color.muted }}>Sign in once and this phone remembers you.</p>
-      <BigButton onClick={onSignIn} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>Sign in</BigButton>
+      <h1 className="text-[34px] leading-tight font-bold">{t.signInTitle}</h1>
+      <p className="text-[16px]" style={{ color: color.muted }}>{t.signInBody}</p>
+      <BigButton onClick={onSignIn} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>{t.signIn}</BigButton>
     </section>
   )
 }
 
-function Setup({ sites, failed, siteId, name, onDone }: { sites: SiteRow[]; failed: boolean; siteId: number; name: string; onDone: (id: number, name: string) => void }) {
+function Setup({ t, sites, failed, siteId, name, onDone }: { t: CrewText; sites: SiteRow[]; failed: boolean; siteId: number; name: string; onDone: (id: number, name: string) => void }) {
   const here = useDeviceLocation()
   const [n, setN] = useState(name)
   const [id, setId] = useState(siteId)
@@ -139,24 +147,24 @@ function Setup({ sites, failed, siteId, name, onDone }: { sites: SiteRow[]; fail
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-[30px] leading-tight font-bold">Your site</h1>
+      <h1 className="text-[30px] leading-tight font-bold">{t.yourSite}</h1>
       <label className="flex flex-col gap-1">
-        <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>Your name</span>
+        <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{t.yourName}</span>
         <input
           value={n}
           onChange={(e) => setN(e.target.value)}
-          placeholder="First name"
+          placeholder={t.firstName}
           autoComplete="given-name"
           className="h-14 rounded-md px-4 text-[18px] outline-none"
           style={{ background: color.surface, boxShadow: `inset 0 0 0 1.5px ${color.border}` }}
         />
       </label>
-      <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{here ? 'Nearest sites first' : 'Pick your site'}</span>
+      <span className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{here ? t.nearestFirst : t.pickSite}</span>
       <ul className="flex max-h-[45dvh] flex-col gap-2 overflow-y-auto">
         {!sites.length && (
           <li className="flex items-center justify-between gap-3 text-[15px]" style={{ color: failed ? hazard.stopwork : color.muted }}>
-            {failed ? 'The site list did not load. Check the signal.' : 'Loading sites…'}
-            {failed && <button onClick={() => location.reload()} className="font-semibold underline">Retry</button>}
+            {failed ? t.listFailed : t.loadingSites}
+            {failed && <button onClick={() => location.reload()} className="font-semibold underline">{t.retry}</button>}
           </li>
         )}
         {list.map((s) => (
@@ -178,13 +186,13 @@ function Setup({ sites, failed, siteId, name, onDone }: { sites: SiteRow[]; fail
         ))}
       </ul>
       <BigButton disabled={!id || !n.trim()} onClick={() => onDone(id, n.trim())} fill={color.accent} ink={color.accentInk} icon={<MapPin className="size-7" />}>
-        Use this site
+        {t.useSite}
       </BigButton>
     </section>
   )
 }
 
-function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () => Promise<string | null> }) {
+function OnSite({ t, lang, site, name, token }: { t: CrewText; lang: Lang; site: SiteRow; name: string; token: () => Promise<string | null> }) {
   const snapshot = useSite((s) => s.snapshot)
   const connect = useSite((s) => s.connect)
   useEffect(() => connect(site.site_id), [connect, site.site_id])
@@ -221,9 +229,9 @@ function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () 
         <section className="flex items-center gap-3 rounded-md px-4 py-4" style={{ background: hazard.stopwork, color: '#fff' }}>
           <OctagonAlert className="size-9 shrink-0" />
           <span className="min-w-0 flex-1">
-            <b className="block text-[24px] leading-tight">STOP WORK</b>
+            <b className="block text-[24px] leading-tight">{t.stopWork}</b>
             <span className="block text-[14px] opacity-90">
-              {s.reason ? `${s.reason.toLowerCase().replace(/^./, (c) => c.toUpperCase())} · ` : ''}Leave the work zone now
+              {s.reason ? `${reasonIn(s.reason, lang)} · ` : ''}{t.leaveZone}
             </span>
           </span>
           {s.countdown > 0 && <span className="font-mono text-[26px] font-bold">{formatCountdown(s.countdown)}</span>}
@@ -231,13 +239,13 @@ function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () 
       ) : s?.alert_type ? (
         <section className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: color.accentPale, borderLeft: `4px solid ${color.text}` }}>
           <TriangleAlert className="size-6 shrink-0" />
-          <span className="text-[15px] font-semibold">{s.reason.toLowerCase().replace(/^./, (c) => c.toUpperCase())}</span>
+          <span className="text-[15px] font-semibold">{reasonIn(s.reason, lang)}</span>
         </section>
       ) : (
         <section className="flex items-center gap-3 rounded-md px-4 py-3" style={{ background: color.raised }}>
           <ShieldCheck className="size-6 shrink-0" style={{ color: color.signal }} />
-          <span className="flex-1 text-[15px] font-semibold">{s ? 'All clear on site' : lost ? 'Not connected to the site yet' : 'Connecting to the site…'}</span>
-          {!s && lost && <button onClick={() => location.reload()} className="text-[14px] font-semibold underline">Retry</button>}
+          <span className="flex-1 text-[15px] font-semibold">{s ? t.allClear : lost ? t.notConnected : t.connecting}</span>
+          {!s && lost && <button onClick={() => location.reload()} className="text-[14px] font-semibold underline">{t.retry}</button>}
         </section>
       )}
 
@@ -245,29 +253,29 @@ function OnSite({ site, name, token }: { site: SiteRow; name: string; token: () 
         <p className="font-mono text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color: color.muted }}>{name}</p>
         <p className="mt-1 flex items-center gap-2 text-[24px] font-bold">
           <span className="size-3 rounded-full" style={{ background: checkedIn ? color.signal : color.muted }} />
-          {checkedIn ? 'On site' : 'Off site'}
+          {checkedIn ? t.onSite : t.offSite}
         </p>
         <p className="text-[14px]" style={{ color: color.muted }}>
-          {checkedIn ? (since ? `Checked in at ${since}` : 'Checked in') : 'Check in when you arrive so the beacon counts you'}
+          {checkedIn ? (since ? t.checkedInAt(since) : t.checkedIn) : t.checkInHint}
         </p>
       </section>
 
       <div className="flex flex-col gap-3">
         <BigButton onClick={() => checkin('in')} disabled={!!busy || checkedIn} busy={busy === 'in'} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>
-          I'M ON SITE
+          {t.imOn}
         </BigButton>
         <BigButton onClick={() => checkin('out')} disabled={!!busy || !checkedIn} busy={busy === 'out'} fill={color.chrome} ink={color.chromeText} icon={<LogOut className="size-7" />}>
-          I'M LEAVING
+          {t.imLeaving}
         </BigButton>
         {error && <p className="rounded-md px-4 py-3 text-[15px]" style={{ background: `color-mix(in srgb, ${hazard.stopwork} 12%, ${color.surface})`, color: hazard.stopwork }}>{error}</p>}
       </div>
 
-      <Report site={site} token={token} />
+      <Report t={t} site={site} token={token} />
     </>
   )
 }
 
-function Report({ site, token }: { site: SiteRow; token: () => Promise<string | null> }) {
+function Report({ t, site, token }: { t: CrewText; site: SiteRow; token: () => Promise<string | null> }) {
   const input = useRef<HTMLInputElement>(null)
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
@@ -322,14 +330,14 @@ function Report({ site, token }: { site: SiteRow; token: () => Promise<string | 
       <input ref={input} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
       {!photo ? (
         <BigButton onClick={() => input.current?.click()} fill={color.surface} ink={color.text} edge={color.text} icon={<Camera className="size-7" />}>
-          REPORT HAZARD
+          {t.reportHazard}
         </BigButton>
       ) : (
         <div className="flex flex-col gap-3 rounded-md p-3" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
           <div className="relative">
-            <img src={preview} alt="The hazard photo" className="max-h-[40dvh] w-full rounded-sm object-cover" />
+            <img src={preview} alt={t.photoAlt} className="max-h-[40dvh] w-full rounded-sm object-cover" />
             {!busy && (
-              <button onClick={reset} className="absolute top-2 right-2 rounded-full p-2" style={{ background: color.chrome, color: color.chromeText }} aria-label="Discard photo">
+              <button onClick={reset} className="absolute top-2 right-2 rounded-full p-2" style={{ background: color.chrome, color: color.chromeText }} aria-label={t.discard}>
                 <X className="size-5" />
               </button>
             )}
@@ -337,25 +345,25 @@ function Report({ site, token }: { site: SiteRow; token: () => Promise<string | 
           {result ? (
             <div className="flex flex-col gap-2 rounded-sm p-3" style={{ background: color.raised }}>
               <p className="flex items-center gap-2 text-[13px] font-bold tracking-[0.04em] uppercase" style={{ color: color.signal }}>
-                <Check className="size-4" strokeWidth={3} /> Saved and pinned to the site
+                <Check className="size-4" strokeWidth={3} /> {t.saved}
               </p>
               <p className="text-[22px] leading-tight font-bold capitalize">{result.tag}</p>
               <p className="text-[15px] leading-snug">{result.description}</p>
-              <p className="font-mono text-[11px]" style={{ color: color.muted }}>{Math.round(result.confidence * 100)}% SURE</p>
-              <BigButton onClick={reset} fill={color.accent} ink={color.accentInk} icon={<Camera className="size-7" />}>Report another</BigButton>
+              <p className="font-mono text-[11px]" style={{ color: color.muted }}>{t.sure(Math.round(result.confidence * 100))}</p>
+              <BigButton onClick={reset} fill={color.accent} ink={color.accentInk} icon={<Camera className="size-7" />}>{t.another}</BigButton>
             </div>
           ) : (
             <>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a note (optional)"
+                placeholder={t.note}
                 rows={2}
                 className="rounded-md px-4 py-3 text-[16px] outline-none"
                 style={{ background: color.bg, boxShadow: `inset 0 0 0 1.5px ${color.border}` }}
               />
               <BigButton onClick={send} disabled={busy} busy={busy} fill={color.accent} ink={color.accentInk} icon={<TriangleAlert className="size-7" />}>
-                {busy ? 'Sending…' : 'SEND REPORT'}
+                {busy ? t.sending : t.send}
               </BigButton>
             </>
           )}
@@ -377,5 +385,23 @@ function BigButton({ children, icon, onClick, disabled, busy, fill, ink, edge }:
       {busy ? <LoaderCircle className="size-7 animate-spin" /> : icon}
       {children}
     </button>
+  )
+}
+
+function LangSwitch({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  return (
+    <span className="flex shrink-0 rounded-md p-0.5" style={{ background: color.chromeSoft }} role="group" aria-label="Language / Idioma">
+      {(['en', 'es'] as Lang[]).map((l) => (
+        <button
+          key={l}
+          onClick={() => onChange(l)}
+          aria-pressed={lang === l}
+          className="rounded-[5px] px-2.5 py-1 text-[12px] font-bold uppercase"
+          style={{ background: lang === l ? color.accent : 'transparent', color: lang === l ? color.accentInk : color.chromeText }}
+        >
+          {l}
+        </button>
+      ))}
+    </span>
   )
 }
