@@ -11,3 +11,6 @@ Suggested: LightGBM. Alternative: sklearn HistGradientBoosting if LightGBM will 
 Never commit data/raw, data/processed, or model files. Commit the scripts and report/metrics.md.
 
 ## Decisions
+- sites.py sums EIA-860M generator rows per Plant ID before picking the top 25 FL and top 25 other (the sheet is per generator). Source file: august_generator2026.xlsx.
+- coastal = within 15 km of a NOAA CO-OPS water level station; river = Open-Meteo flood API 90 day mean discharge > 50 m3/s.
+- openpyxl added to requirements.txt (pandas needs it to read the EIA xlsx).
