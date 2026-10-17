@@ -18,3 +18,5 @@ Build order for core, because the Pi and the Roblox bridge need the backend befo
 
 ## Decisions
 (append one line per decision, newest last)
+- 2026-10-17 Viet: FastAPI + asyncpg for core (one language with intel).
+- 2026-10-17 Viet: Tiger Data as the database; local dev against the timescale/timescaledb Docker image until the Tiger service exists.
