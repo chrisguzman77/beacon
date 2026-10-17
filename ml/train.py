@@ -1,10 +1,10 @@
 """Train, evaluate against the rule baseline, calibrate, explain (ai-ml-guide 5).
 
-Writes model.joblib, calibrator.joblib, schema.json into backend/app/intel/model/ and report/metrics.md plus plots.
+Writes model.txt and schema.json (with the calibration curve) into backend/app/intel/model/ and report/metrics.md plus plots.
 """
 from pathlib import Path
 import json
-import joblib, lightgbm as lgb, numpy as np, pandas as pd, shap
+import lightgbm as lgb, numpy as np, pandas as pd, shap
 import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, precision_recall_curve, roc_auc_score
@@ -74,8 +74,14 @@ if __name__ == '__main__':
     plt.axhline(te.label.mean(), ls='--', color='gray', label='positive rate'); plt.xlabel('recall'); plt.ylabel('precision')
     plt.legend(); plt.tight_layout(); plt.savefig(REPORT / 'pr_curve.png', dpi=120); plt.close()
 
-    joblib.dump(m, MODEL / 'model.joblib'); joblib.dump(iso, MODEL / 'calibrator.joblib')
+    # Served without pickles or scikit-learn: LightGBM's own text format, and the isotonic curve as points for
+    # numpy.interp (what IsotonicRegression.predict does with out_of_bounds='clip'). Checked identical below.
+    m.booster_.save_model(str(MODEL / 'model.txt'), num_iteration=m.best_iteration_)
+    raw_va = m.predict_proba(va[feats])[:, 1]
+    assert np.allclose(lgb.Booster(model_file=str(MODEL / 'model.txt')).predict(va[feats]), raw_va)
+    assert np.allclose(np.interp(raw_va, iso.X_thresholds_, iso.y_thresholds_), iso.predict(raw_va))
     json.dump({'features': feats, 'cuts': cuts, 'best_iteration': int(m.best_iteration_ or m.n_estimators),
+               'calibration': {'x': iso.X_thresholds_.tolist(), 'y': iso.y_thresholds_.tolist()},
                'trained_on': '2016-2022', 'validated': 2023, 'tested': 2024, 'sites': int(df.site_id.nunique())},
               open(MODEL / 'schema.json', 'w'), indent=1)
 
