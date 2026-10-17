@@ -9,7 +9,7 @@ local fs = require("@lune/fs")
 local process = require("@lune/process")
 local Instance = roblox.Instance
 
-local BACKEND_URL = "https://wales-outlet-desired-winds.trycloudflare.com"
+local BACKEND_URL = "https://api.omnirisking-it-all-at-swamphacks.us"
 local SITE_ID = 12
 local SCENE = "sim/place/BoardwalkScene.rbxl"
 
