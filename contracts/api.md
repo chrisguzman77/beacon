@@ -8,7 +8,7 @@ GET  /sites/{id}                               any         detail: conditions 48
 GET  /sites/{id}/conditions?hours=48           any         from site_hourly, both sources
 GET  /sites/{id}/device                        any         last device state from the gateway (for Roblox polling and the dashboard)
 GET  /sites/{id}/muster                        any         crew in, out, zone_clear
-POST /checkin                                  crew/sup    {site_id, action, lat, lon, via}   (kiosk check ins arrive on the gateway websocket instead, see gateway-ws.md)
+POST /checkin                                  crew/sup    {site_id, action, lat, lon, via}
 POST /reports                                  crew/sup    multipart: photo, site_id, lat, lon, note  -> {report_id, tag, description, confidence}
 POST /alerts/{id}/clear                        supervisor  {pin}
 POST /briefings/{site_id}/run                  supervisor  generate now
