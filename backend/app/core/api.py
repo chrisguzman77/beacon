@@ -1,7 +1,7 @@
 """REST and the site websocket. contracts/api.md."""
 from fastapi import APIRouter, HTTPException, WebSocket
 
-from . import db, gateway, hub, muster
+from . import db, fetchers, gateway, hub, muster
 from .rules import alert_json
 from .sites import SITES
 
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/health")
 async def health():
     return {"ok": True, "gateway": {sid: gateway.connected(sid) for sid in SITES if SITES[sid]["beacon"]},
-            "fetchers": {}}
+            "fetchers": fetchers.health}
 
 
 @router.get("/sites")

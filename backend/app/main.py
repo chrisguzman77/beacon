@@ -6,9 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import intel
-from app.core import api, db, gateway, muster, rules, sim, sites
+from app.core import api, db, gateway, muster, rules, scheduler, sim, sites
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 
 @asynccontextmanager
@@ -17,7 +18,9 @@ async def lifespan(app: FastAPI):
     await db.init_schema()
     await sites.load()
     tasks = [asyncio.create_task(rules.expiry_loop()), asyncio.create_task(muster.zone_loop())]
+    scheduler.start()
     yield
+    scheduler.scheduler.shutdown(wait=False)
     for t in tasks:
         t.cancel()
     await db.close()
