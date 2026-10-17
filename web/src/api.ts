@@ -31,6 +31,7 @@ export type SiteRow = {
   index: number | null
   alerts: Alert[]
   crew_on_site: number
+  measured_hi?: number // the beacon's own heat index reading, beacon site only (site websocket conditions)
 }
 
 export async function get<T>(path: string): Promise<T> {

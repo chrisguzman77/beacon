@@ -70,6 +70,9 @@ export const useDash = create<DashStore>((set, getState) => ({
       ws.onmessage = (e) => {
         const m = JSON.parse(e.data)
         if (m.type === 'alert') set({ sites: upsertAlert(getState().sites, m.alert) })
+        // The beacon's measured heat index (pod readings, or the Roblox twin's weather) for its row.
+        if (m.type === 'conditions' && m.heat_index_f != null)
+          set({ sites: getState().sites.map((s) => (s.site_id === id ? { ...s, measured_hi: m.heat_index_f } : s)) })
         if (m.type === 'muster' && Array.isArray(m.in))
           set({ sites: getState().sites.map((s) => (s.site_id === id ? { ...s, crew_on_site: m.in.length } : s)) })
       }
@@ -92,7 +95,7 @@ export const useDash = create<DashStore>((set, getState) => ({
 
 type Set = (p: Partial<DashStore>) => void
 function fake(set: Set, getState: () => DashStore) {
-  set({ sites: fakeSites as SiteRow[], status: 'ready' })
+  set({ sites: (fakeSites as SiteRow[]).map((s) => (s.beacon ? { ...s, measured_hi: 96 } : s)), status: 'ready' })
   const beacon = (fakeSites as SiteRow[]).find((s) => s.beacon)!
   let n = 0
   const strike = () => {
