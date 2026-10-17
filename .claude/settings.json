@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(git *)", "Bash(gh *)",
+      "Bash(npm *)", "Bash(npx *)", "Bash(node *)",
+      "Bash(python *)", "Bash(python3 *)", "Bash(pip *)", "Bash(pip3 *)", "Bash(uvicorn *)", "Bash(pytest *)",
+      "Bash(docker *)", "Bash(curl *)", "Bash(websocat *)", "Bash(openssl rand *)",
+      "Bash(ssh *)", "Bash(scp *)", "Bash(mpremote *)", "Bash(arduino-cli *)",
+      "Bash(scripts/dev.sh *)", "Bash(cd *)", "Bash(source *)", "Bash(export *)",
+      "Bash(ls *)", "Bash(cat *)", "Bash(echo *)", "Bash(mkdir *)", "Bash(cp *)", "Bash(mv *)", "Bash(touch *)", "Bash(chmod *)",
+      "Bash(grep *)", "Bash(head *)", "Bash(tail *)", "Bash(wc *)", "Bash(which *)", "Bash(lsof *)", "Bash(kill *)", "Bash(pkill *)", "Bash(sleep *)", "Bash(unzip *)", "Bash(zip *)",
+      "WebFetch", "WebSearch"
+    ],
+    "ask": [
+      "Bash(sudo *)", "Bash(rm *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git push --force-with-lease *)",
+      "Bash(git push *main)", "Bash(git checkout main)", "Bash(git switch main)",
+      "Bash(git reset --hard *)", "Bash(git rebase *)", "Bash(git branch -D *)", "Bash(git clean *)"
+    ]
+  }
+}
