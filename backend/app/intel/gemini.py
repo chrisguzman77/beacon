@@ -12,7 +12,7 @@ log = logging.getLogger('intel.gemini')
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(str(Path(__file__).resolve().parents[3] / '.env'), '.env'), extra='ignore')
     gemini_api_key: str = ''
-    gemini_model: str = 'gemini-2.5-flash'
+    gemini_model: str = 'gemini-3.8-flash'
 
 
 settings = Settings()
@@ -77,7 +77,9 @@ async def briefing(payload: dict) -> tuple[dict, str]:
     prompt = ('Write a next day safety briefing for a utility field crew, plain language, 120 words or fewer, in English and '
               'in Spanish. Use only the numbers in this payload and add no others: no percentages, times, distances, or '
               'counts that are not written in it. Write times exactly as they appear in the payload. '
-              'Lead with the single biggest risk. Payload: ' + json.dumps(payload, ensure_ascii=False))
+              'Lead with the single biggest risk. It is read aloud to the crew, so write it the way a foreman talks: '
+              'say "tomorrow" instead of the date, never read out field names, and skip anything that is none or empty. '
+              'Payload: ' + json.dumps(payload, ensure_ascii=False))
     for attempt in range(2):
         try:
             out = await generate(prompt, BRIEFING_SCHEMA)

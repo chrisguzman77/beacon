@@ -18,3 +18,4 @@ Build order for core, because the Pi and the Roblox bridge need the backend befo
 
 ## Decisions
 (append one line per decision, newest last)
+- intel: GEMINI_MODEL is gemini-3.8-flash. The guide's gemini-2.5-flash returns 404 for new API keys (checked against the live model list).
