@@ -11,4 +11,6 @@ You cannot run hardware tests from here. For every step, tell the human exactly 
 
 Suggested: pyserial, websockets, gpiozero, FastAPI for the kiosk server, pygame or aplay for audio. Pre rendered WAV clips for the fixed voice lines.
 
+Guide: docs/hardware-guide.md. Appendix D is the gateway program map and its local rules. The kiosk page's messages are contracts/kiosk-ws.md, and Cam's kiosk build is copied to firmware/gateway/kiosk/ (gitignored, see below).
+
 ## Decisions

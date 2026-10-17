@@ -22,6 +22,6 @@ HttpService must be enabled in Game Settings and cannot reach localhost, so the 
 
 The demo runs the published experience in the Roblox client on Slavik's laptop. That laptop's screen is the flash source for the pod's photoresistor and its speakers are the thunder source for the mic listener.
 
-Guide: docs/simulator-guide.md (Roblox version) when it lands.
+Guide: docs/simulator-guide.md. Sections 1 to 3 and 5 to 7 are Slavik's, section 4 is Viet's. Viet's FakeBridge (section 4.2) is the first commit in src/Bridge so the World has attributes to react to.
 
 ## Decisions

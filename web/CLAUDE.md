@@ -9,7 +9,9 @@ Cam has been designing in Figma. Before building anything, ask Cam what is done 
 
 Suggested stack, discuss if Cam prefers otherwise: React with Tailwind and shadcn/ui (fastest path to a finished look), MapLibre GL with MapTiler tiles for the map, Recharts for charts, Auth0 React SDK, zustand for the websocket store. Alternatives: plain CSS modules if Cam dislikes Tailwind; Mapbox GL if a token exists.
 
-Fixed: the routes above, the API and websocket contracts in contracts/api.md, the kiosk's seven screens (status, crew, stop work, supervisor PIN, briefing, report, health) described in docs/hardware-guide.md Appendix C when it lands, and that the stop work screen cannot be dismissed by touch.
+Fixed: the routes above, the API and websocket contracts in contracts/api.md, the kiosk websocket in contracts/kiosk-ws.md, the kiosk's seven screens (status, crew, stop work, supervisor PIN, briefing, report, health) described in docs/web-guide.md section 9, and that the stop work screen cannot be dismissed by touch.
+
+Guide: docs/web-guide.md. Section 2 is the Figma conversation to have first.
 
 Polish matters here (the Easy On The Eyes prize). One dark theme shared by dashboard and kiosk, one accent per hazard type used identically everywhere, large type hierarchy, real loading and empty states, 20 mm tap targets on the kiosk. Design the kiosk screens first, judges look at them longest.
 

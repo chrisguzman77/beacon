@@ -2,7 +2,7 @@
 
 Two owners, one app. Viet owns app/core (database, sites loader, fetchers, rules engine, scheduler, websocket hub, Auth0, the gateway endpoint, sim ingest, main.py, deployment). Chris owns app/intel (hazard index scoring, the 6 PM briefing, Gemini photo tagging, the index explanation). The boundary is contracts/intel-interface.md: core calls three intel functions and includes one intel router, intel writes three tables that core created. Neither edits the other's folder.
 
-Guide: docs/platform-guide.md (core) and docs/ai-ml-guide.md section 6 and 7 (intel), when they land.
+Guide: docs/platform-guide.md (core, follow its Build order paragraph, not the section numbers) and docs/ai-ml-guide.md (intel). Viet's Roblox Bridge is docs/simulator-guide.md section 4.
 
 Suggested stack, with alternatives to discuss with the human if they prefer otherwise:
 - FastAPI with asyncpg and websockets. Alternative: Node with Fastify and ws, same contracts, if Viet is faster in TypeScript. Pros of FastAPI: the ML and Gemini code is Python, one language in this folder. Pros of Node: shared types with web.

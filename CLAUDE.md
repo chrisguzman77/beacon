@@ -46,6 +46,15 @@ Merging to main. Only the human merges `dev` into `main`, when the demo script r
 - contracts/intel-interface.md, how core calls intel
 - contracts/roblox-bridge.md, how the Roblox experience talks to the backend
 - contracts/env.md, every environment variable and who sets it
+- contracts/kiosk-ws.md, the Pi gateway to touchscreen kiosk page messages (Slavik and Cam)
+
+## Guides (read yours before your first task)
+
+- docs/platform-guide.md, backend core (Viet)
+- docs/ai-ml-guide.md, ml and backend intel (Chris)
+- docs/web-guide.md, dashboard, crew page, kiosk (Cam)
+- docs/hardware-guide.md, pod, control box, Pi gateway (Slavik)
+- docs/simulator-guide.md, Roblox World (Slavik) and Bridge (Viet)
 
 ## The demo script (what "working" means)
 
