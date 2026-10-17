@@ -158,7 +158,7 @@ local function terrain()
 	end
 	T:FillBlock(CFrame.new(0, -8, 0), Vector3.new(112, 16, 112), Enum.Material.Ground) -- work pad, stays dry
 	T:FillBlock(CFrame.new(0, -8, 520), Vector3.new(28, 16, 930), Enum.Material.Mud) -- access road
-	T.Decoration = true -- swaying grass blades
+	pcall(function() T.Decoration = true end) -- swaying grass; not scriptable in every Studio, tick Terrain > Decoration by hand
 	T.WaterColor = Color3.fromRGB(52, 66, 40)
 	T.WaterTransparency, T.WaterReflectance = 0.7, 0.35
 	T.WaterWaveSize, T.WaterWaveSpeed = 0.03, 3
