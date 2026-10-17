@@ -13,3 +13,4 @@ google-genai
 asyncpg
 python-dotenv
 timezonefinder
+openpyxl
