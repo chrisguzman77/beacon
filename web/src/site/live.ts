@@ -1,4 +1,4 @@
-// Live feed for HUB: GET /sites/{id} and /muster once, then the site websocket keeps the view
+// Live feed for HUB: GET /sites/{id}, /muster and /index/explain once, then the site websocket keeps the view
 // current (contracts/api.md, gateway-ws.md). Readings the backend has not sent yet stay NaN
 // and their factors are left out rather than shown as zero.
 import { get, WS } from '@/api'
@@ -7,19 +7,20 @@ import type { Snapshot } from './types'
 
 type Device = { led?: Snapshot['led']; countdown?: number; index?: number; interlock?: Snapshot['interlock']; presence?: boolean; online?: boolean; lcd?: string[] }
 type Muster = { in: string[]; out: string[]; zone_clear: boolean }
+type Explain = { index: number; top_features: { label: string }[]; sentence: string }
 type Detail = {
   site_id: number
   name: string
   beacon: boolean
   alerts: Alert[]
-  index: { index: number; top_features?: unknown } | null
+  index: { index: number; top_features?: { label: string }[] } | null
   briefing: { english: string; spanish: string; for_date: string; payload?: Record<string, number | string> } | null
   reports: { tag: string; description: string; ts: string }[]
   device: Device
 }
 
 // Highest priority open alert decides the alarm reason and color.
-const ORDER = ['stopwork', 'estop', 'beacon_unsafe', 'flood_confirmed', 'heat_danger']
+const ORDER = ['stopwork', 'estop', 'beacon_unsafe', 'flood_confirmed', 'heat_danger', 'flood_warning', 'heat_warning']
 
 function reasonOf(a?: Alert) {
   if (!a) return ''
@@ -27,6 +28,8 @@ function reasonOf(a?: Alert) {
   if (a.type === 'stopwork') return p.distance_m ? `LIGHTNING ${Math.round(p.distance_m / 1609)} MI` : 'LIGHTNING'
   if (a.type === 'heat_danger') return p.heat_index_f ? `HEAT INDEX ${Math.round(p.heat_index_f)}` : 'HEAT DANGER'
   if (a.type === 'flood_confirmed') return 'FLOOD CONFIRMED'
+  if (a.type === 'flood_warning') return 'FLOOD WARNING'
+  if (a.type === 'heat_warning') return p.heat_index_f ? `HEAT INDEX ${Math.round(p.heat_index_f)}` : 'HEAT WARNING'
   if (a.type === 'estop') return 'E-STOP PRESSED'
   return a.type.replace(/_/g, ' ').toUpperCase()
 }
@@ -39,6 +42,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
   let device: Device = {}
   let muster: Muster = { in: [], out: [], zone_clear: true }
   let cond: Partial<Snapshot> = {}
+  let explain: Explain | null = null
 
   const emit = () => {
     if (!detail) return
@@ -57,8 +61,9 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       awaiting_clear: alerts.some((a) => a.type === 'stopwork' && a.awaiting_clear),
       presence: device.presence ?? false,
       zone_clear: muster.zone_clear,
-      index: detail.index?.index ?? device.index ?? 0,
-      index_reason: top ? reasonOf(top).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'From the trained model, updated daily',
+      index: explain?.index ?? detail.index?.index ?? device.index ?? 0,
+      index_reason: explain?.sentence || (top ? reasonOf(top).toLowerCase().replace(/^./, (c) => c.toUpperCase()) : 'From the trained model, updated daily'),
+      index_reasons: (explain?.top_features ?? detail.index?.top_features ?? []).map((f) => f.label).slice(0, 3),
       heat_index_f: NaN, temp_c: NaN, humidity: NaN, water_pct: NaN, tilt: NaN, light: NaN,
       radar: { d: 0, s: 0, m: 0 },
       last_flash_ts: '',
@@ -102,10 +107,15 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
     }
   }
 
-  Promise.all([get<Detail>(`/sites/${siteId}`), get<Muster>(`/sites/${siteId}/muster`).catch(() => muster)])
-    .then(([d, m]) => {
+  Promise.all([
+    get<Detail>(`/sites/${siteId}`),
+    get<Muster>(`/sites/${siteId}/muster`).catch(() => muster),
+    get<Explain>(`/sites/${siteId}/index/explain`).catch(() => null),
+  ])
+    .then(([d, m, x]) => {
       if (stopped) return
       detail = d
+      explain = x
       device = d.device ?? {}
       muster = m
       emit()

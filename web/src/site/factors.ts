@@ -53,7 +53,7 @@ export function buildFactors(s: Snapshot): Factor[] {
   const heatB: Bands = { caution: 91, danger: 103, max: 130, unit: '°F' }
   if (Number.isFinite(hi)) out.push({
     id: 'heat', group: 'weather', label: 'Heat index', value: `${f(hi)}°F`, raw: hi, bands: heatB, tint: hazard.heat, note: `Heat index ${f(hi)}°F`,
-    status: s.alert_type === 'heat_danger' ? 'danger' : level(hi, heatB),
+    status: s.alert_type === 'heat_danger' ? 'danger' : s.alert_type === 'heat_warning' && level(hi, heatB) === 'ok' ? 'caution' : level(hi, heatB),
     guide: 'Above 91°F, water, rest and shade every hour. Above 103°F, heavy work stops in the hottest hours and buddies check each other every 15 minutes.',
   })
   const tempF = s.temp_c * 9 / 5 + 32
@@ -92,8 +92,9 @@ export function buildFactors(s: Snapshot): Factor[] {
     guide: 'Water at the beacon. Any water is a slip and electrical risk near equipment; above 30% treat it as flooding.',
   })
   out.push({
-    id: 'flood', group: 'water', label: 'Flood warning', value: s.alert_type === 'flood_confirmed' ? 'ACTIVE' : 'NONE',
-    status: s.alert_type === 'flood_confirmed' ? 'danger' : 'ok', tint: hazard.flood, note: 'Flood warning active',
+    id: 'flood', group: 'water', label: 'Flood warning', value: s.alert_type === 'flood_confirmed' ? 'CONFIRMED' : s.alert_type === 'flood_warning' ? 'WARNING' : 'NONE',
+    status: s.alert_type === 'flood_confirmed' ? 'danger' : s.alert_type === 'flood_warning' ? 'caution' : 'ok', tint: hazard.flood,
+    note: s.alert_type === 'flood_confirmed' ? 'Flood confirmed at the site' : 'Flood warning: heavy rain and a rising river',
     guide: 'A confirmed flood means moving equipment to high ground and keeping crews out of low areas.',
   })
   if (s.soil_pct !== undefined) {

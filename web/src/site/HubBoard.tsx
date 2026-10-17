@@ -150,7 +150,7 @@ function Tile({ icon, label, value, sub, tint }: { icon: ReactNode; label: strin
       <span className="min-w-0">
         <span className="block text-[11px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>{label}</span>
         <span className="block text-[22px] leading-tight" style={{ color: tint ?? color.text }}>{value}</span>
-        <span className="block truncate text-[13px]" style={{ color: color.muted }}>{sub}</span>
+        <span className="line-clamp-2 block text-[13px] leading-snug" style={{ color: color.muted }}>{sub}</span>
       </span>
     </Panel>
   )

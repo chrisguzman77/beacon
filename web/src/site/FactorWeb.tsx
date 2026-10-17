@@ -254,7 +254,15 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
               <span className="text-[76px] leading-[0.95] font-semibold" style={{ color: indexColor(s.index) }}>{s.index}</span>
               <span className="text-[24px]" style={{ color: color.muted }}>/10</span>
             </span>
-            <span className="line-clamp-2 text-[13px] leading-snug">{s.index_reason}</span>
+            {s.index_reasons?.length ? (
+              <span className="mt-1 flex flex-col items-center gap-1">
+                {s.index_reasons.map((r) => (
+                  <span key={r} className="rounded-sm px-2 py-0.5 text-[12px] font-medium" style={{ background: color.raised }}>{r}</span>
+                ))}
+              </span>
+            ) : (
+              <span className="line-clamp-2 text-[13px] leading-snug">{s.index_reason}</span>
+            )}
           </Panel>
         </div>
       </div>

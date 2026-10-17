@@ -48,6 +48,12 @@ export default function QuickView({ site, rank, total, distance }: Props) {
         </p>
         <h2 className="mt-1 text-[24px] leading-tight font-semibold">{site.name}</h2>
         <p className="text-[13px] opacity-75">{site.county} County, {site.state} · {site.tech}</p>
+        {s?.index_reasons?.length ? (
+          <p className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px]">
+            <span className="font-mono text-[10px] tracking-[0.1em] uppercase opacity-70">Why</span>
+            {s.index_reasons.map((r) => <span key={r} className="rounded-sm px-2 py-0.5" style={{ background: color.chromeSoft }}>{r}</span>)}
+          </p>
+        ) : null}
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat label="Rank" value={`#${rank}`} sub={`of ${total}`} />
           <Stat label="Index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
