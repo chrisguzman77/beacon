@@ -1,0 +1,6 @@
+site_id,name,state,county,lat,lon,tz,tech,mw,coastal,river
+1,Deerhaven Generating Station,FL,Alachua,29.7586,-82.3881,America/New_York,Natural Gas,452,false,false
+2,Crystal River Energy Complex,FL,Citrus,28.9656,-82.6981,America/New_York,Coal,1411,true,false
+3,Seminole Generating Station,FL,Putnam,29.7331,-81.6322,America/New_York,Coal,1300,false,true
+4,Big Bend Power Station,FL,Hillsborough,27.7947,-82.4036,America/New_York,Natural Gas,1500,true,false
+5,Northside Generating Station,FL,Duval,30.4211,-81.5500,America/New_York,Petroleum Coke,1300,true,true
