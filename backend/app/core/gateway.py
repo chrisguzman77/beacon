@@ -71,6 +71,8 @@ async def _pod(site_id, m):
         await db.execute(
             "INSERT INTO conditions (ts,site_id,source,temp_c,humidity,heat_index_f,water_depth_mm)"
             " VALUES ($1,$2,'beacon',$3,$4,$5,$6) ON CONFLICT DO NOTHING", ts, site_id, m.get("T"), m.get("H"), hi, m.get("W"))
+        await hub.publish(site_id, {"type": "conditions", "source": "beacon", "ts": ts.isoformat(), "temp_c": m.get("T"),
+                                    "humidity": m.get("H"), "heat_index_f": hi, "water_depth_mm": m.get("W")})
         await rules.evaluate_heat(site_id, hi)
         await rules.evaluate_flood(site_id)
 
