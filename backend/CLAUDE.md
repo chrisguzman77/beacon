@@ -22,3 +22,4 @@ Build order for core, because the Pi and the Roblox bridge need the backend befo
 - 2026-10-17 Viet: Tiger Data as the database; local dev against the timescale/timescaledb Docker image until the Tiger service exists.
 - intel: GEMINI_MODEL is gemini-3.8-flash. The guide's gemini-2.5-flash returns 404 for new API keys (checked against the live model list).
 - 2026-10-17 Viet: Open-Meteo forecast every 15 min and flood hourly, not 5 min, to stay under the free 10k calls a day with 50 sites.
+- deploy: public address is https://api.omnirisking-it-all-at-swamphacks.us (Caddy on the Vultr box, Let's Encrypt, config in deploy/Caddyfile), replacing the trycloudflare quick tunnel whose address changed on every restart. Bare domain is reserved for the web app.
