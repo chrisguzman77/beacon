@@ -37,6 +37,10 @@ def start():
                       max_instances=1, coalesce=True)
     scheduler.add_job(fetchers.fetch_flood_all, "interval", minutes=60, next_run_time=datetime.now(ZoneInfo("UTC")),
                       max_instances=1, coalesce=True)
+    scheduler.add_job(fetchers.fetch_nws_all, "interval", minutes=15, next_run_time=datetime.now(ZoneInfo("UTC")),
+                      max_instances=1, coalesce=True)
+    scheduler.add_job(fetchers.fetch_inat_all, "interval", hours=6, next_run_time=datetime.now(ZoneInfo("UTC")),
+                      max_instances=1, coalesce=True)
     scheduler.add_job(intel.score_all, CronTrigger(hour=5, minute=0, timezone="UTC"))
     for s in SITES.values():
         scheduler.add_job(briefing_job, CronTrigger(hour=18, minute=0, timezone=s["tz"]), args=[s["site_id"]],

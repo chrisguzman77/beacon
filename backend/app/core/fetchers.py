@@ -11,6 +11,8 @@ from .sites import SITES
 log = logging.getLogger("core.fetchers")
 FORECAST = "https://api.open-meteo.com/v1/forecast"
 FLOOD = "https://flood-api.open-meteo.com/v1/flood"
+NWS = "https://api.weather.gov/alerts/active"
+INAT = "https://api.inaturalist.org/v1/observations"
 STAGGER_S = 2
 
 # feed -> last success time, served by GET /health
@@ -73,9 +75,48 @@ async def fetch_flood(http, site):
     return today
 
 
+async def _new_event(site_id, type_, key, value):
+    """True if no event of this type with payload[key] == value exists for the site yet."""
+    return not await db.fetchval(
+        "SELECT 1 FROM events WHERE site_id=$1 AND type=$2 AND payload->>$3 = $4 LIMIT 1", site_id, type_, key, str(value))
+
+
+async def fetch_nws(http, site):
+    """Each active NWS alert once, as an nws_alert event."""
+    r = await http.get(NWS, params={"point": f"{site['lat']:.4f},{site['lon']:.4f}"})
+    r.raise_for_status()
+    n = 0
+    for f in r.json().get("features", []):
+        p = f["properties"]
+        if await _new_event(site["site_id"], "nws_alert", "id", p["id"]):
+            payload = {"id": p["id"], "event": p.get("event"), "severity": p.get("severity"), "headline": p.get("headline")}
+            await db.execute("INSERT INTO events VALUES (now(),$1,'feed','nws_alert',$2)", site["site_id"], payload)
+            await hub.publish(site["site_id"], {"type": "nws_alert", **payload})
+            n += 1
+    return n
+
+
+async def fetch_inat(http, site):
+    """Alligator sightings within 5 km in the last 30 days, each once, as a wildlife event."""
+    d1 = (rules.now() - timedelta(days=30)).date().isoformat()
+    r = await http.get(INAT, params=dict(taxon_name="Alligator mississippiensis", lat=site["lat"], lng=site["lon"],
+                                         radius=5, d1=d1, per_page=50))
+    r.raise_for_status()
+    n = 0
+    for o in r.json().get("results", []):
+        if not o.get("location") or not await _new_event(site["site_id"], "wildlife", "id", o["id"]):
+            continue
+        lat, lon = map(float, o["location"].split(","))
+        payload = {"id": o["id"], "species": o["taxon"]["name"], "observed_on": o.get("observed_on"), "lat": lat, "lon": lon}
+        await db.execute("INSERT INTO events VALUES (now(),$1,'feed','wildlife',$2)", site["site_id"], payload)
+        n += 1
+    return n
+
+
 async def run(feed, fn, sites):
     ok = 0
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "PlanITBeacon"}) as http:
+    # NWS requires a User-Agent that identifies the app
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "PlanITBeacon (github.com/chrisguzman77/beacon)"}) as http:
         for s in sites:
             try:
                 v = await fn(http, s)
@@ -94,3 +135,11 @@ async def fetch_forecast_all():
 
 async def fetch_flood_all():
     await run("flood", fetch_flood, [s for s in SITES.values() if s["river"]])
+
+
+async def fetch_nws_all():
+    await run("nws", fetch_nws, list(SITES.values()))
+
+
+async def fetch_inat_all():
+    await run("inaturalist", fetch_inat, list(SITES.values()))
