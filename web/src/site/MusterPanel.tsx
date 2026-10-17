@@ -1,5 +1,5 @@
 import { Gamepad2 } from 'lucide-react'
-import Panel from '@/components/Panel'
+import Fold from '@/components/Fold'
 import { color, hazard } from '@/tokens'
 import type { Snapshot } from './types'
 
@@ -12,13 +12,18 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
   const zoneTint = s.zone_clear ? color.signal : stop ? hazard.stopwork : color.text
 
   return (
-    <Panel size={14} depth={1} edge={!s.zone_clear && stop ? hazard.stopwork : undefined} inner="flex flex-col gap-3 p-5">
-      <header className="flex items-center justify-between">
-        <h2 className="text-body font-bold tracking-[0.12em] uppercase">Muster</h2>
-        <span className="px-2 py-1 font-mono text-label font-bold tracking-wider" style={{ color: zoneTint, boxShadow: `inset 0 0 0 1px ${zoneTint}` }}>
+    <Fold
+      id="hub.muster"
+      title="Muster"
+      summary={`IN ${crewIn} / ${crew.length}`}
+      edge={!s.zone_clear && stop ? hazard.stopwork : undefined}
+      badge={
+        <span className="px-2 py-0.5 font-mono text-[11px] font-bold tracking-wider" style={{ color: zoneTint, boxShadow: `inset 0 0 0 1px ${zoneTint}` }}>
           ZONE {s.zone_clear ? 'CLEAR' : 'OCCUPIED'}
         </span>
-      </header>
+      }
+    >
+     <div className="flex flex-col gap-3">
 
       <p className="flex items-baseline gap-2">
         <span className="font-mono text-label font-bold tracking-widest text-dim">IN</span>
@@ -43,6 +48,7 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
           ))}
         </ul>
       )}
-    </Panel>
+     </div>
+    </Fold>
   )
 }

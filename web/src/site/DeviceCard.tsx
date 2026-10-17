@@ -1,5 +1,6 @@
 import { Fan, Radar, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
+import Fold from '@/components/Fold'
 import { LiveBadge } from '@/dashboard/RankedList'
 import { color, device, hazard } from '@/tokens'
 import { formatCountdown } from './store'
@@ -17,11 +18,8 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
   const lcd = s.lcd ?? ['', '']
 
   return (
-    <Panel size={18} depth={2} edge={locked ? hazard.stopwork : color.border} inner="flex flex-col gap-4 p-5">
-      <header className="flex items-center justify-between">
-        <h2 className="text-body font-bold tracking-[0.12em] uppercase">Beacon</h2>
-        <LiveBadge />
-      </header>
+    <Fold id="hub.device" title="Beacon" defaultOpen badge={<LiveBadge />} edge={locked ? hazard.stopwork : undefined} summary={s.online ? (locked ? 'LOCKED' : 'RUNNING') : 'OFFLINE'}>
+     <div className="flex flex-col gap-4">
 
       {!s.online && (
         <Panel size={10} depth={0} edge={color.offline} fill={`color-mix(in srgb, ${color.offline} 14%, ${color.bg})`} inner="px-4 py-3 font-mono text-label font-bold tracking-wider" style={{ color: color.offline }}>
@@ -51,7 +49,8 @@ export default function DeviceCard({ s }: { s: Snapshot }) {
         <Fact icon={<Users className="size-5" />} label="Crew in" value={`${crewIn} of ${s.crew.length}`} />
         <Fact icon={<span className="size-2.5" style={{ background: s.online ? color.online : color.offline }} />} label="Link" value={s.online ? 'ONLINE' : 'OFFLINE'} tint={s.online ? color.online : color.offline} />
       </dl>
-    </Panel>
+     </div>
+    </Fold>
   )
 }
 

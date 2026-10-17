@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Play, RefreshCw, Square } from 'lucide-react'
-import Panel, { cut } from '@/components/Panel'
+import { cut } from '@/components/Panel'
+import Fold from '@/components/Fold'
 import { color } from '@/tokens'
 import type { Snapshot } from './types'
 
@@ -54,12 +55,10 @@ export default function BriefingPanel({ s }: { s: Snapshot }) {
   }
 
   return (
-    <Panel size={14} depth={1} inner="flex flex-col gap-3 p-5">
+    <Fold id="hub.briefing" title="Briefing" summary={date || 'NOT YET'}>
+     <div className="flex flex-col gap-3">
       <header className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-body font-bold tracking-[0.12em] uppercase">Briefing</h2>
-          {date && <p className="text-label text-dim">{lang === 'en' ? 'For' : 'Para'} {date}</p>}
-        </div>
+        <p className="text-label text-dim">{date ? `${lang === 'en' ? 'For' : 'Para'} ${date}` : ''}</p>
         <div className="flex" role="group" aria-label="Language">
           {(['en', 'es'] as Lang[]).map((l) => (
             <button
@@ -106,7 +105,8 @@ export default function BriefingPanel({ s }: { s: Snapshot }) {
           Run now
         </Action>
       </div>
-    </Panel>
+     </div>
+    </Fold>
   )
 }
 
