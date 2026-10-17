@@ -1,6 +1,6 @@
 import { Auth0Provider } from '@auth0/auth0-react'
 import type { ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Hub from './pages/Hub'
 import FieldView from './sweet-treats/field-view/FieldView'
@@ -9,6 +9,13 @@ import About from './pages/About'
 import ErrorBoundary from './components/ErrorBoundary'
 
 const env = import.meta.env
+
+// Redirects keep the query string: Auth0 returns to /?code=...&state=..., and dropping it before
+// Auth0Provider reads it loses the sign in (child effects run before the provider's).
+function Go({ to }: { to: string }) {
+  const { search } = useLocation()
+  return <Navigate to={to + search} replace />
+}
 
 function Auth({ children }: { children: ReactNode }) {
   if (!env.VITE_AUTH0_DOMAIN || !env.VITE_AUTH0_CLIENT_ID) return <>{children}</>
@@ -34,7 +41,7 @@ export default function App() {
       <BrowserRouter>
         <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Go to="/dashboard" />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/hub" element={<Hub />} />
           <Route path="/hub/:id" element={<Hub />} />
@@ -43,10 +50,10 @@ export default function App() {
           {/* Field View: the stored WEB version (sweet treats), reachable but not in the tabs. */}
           <Route path="/field-view" element={<FieldView />} />
           <Route path="/field-view/:id" element={<FieldView />} />
-          <Route path="/web/*" element={<Navigate to="/hub" replace />} />
+          <Route path="/web/*" element={<Go to="/hub" />} />
           <Route path="/crew" element={<Crew />} />
           <Route path="/about" element={<About />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Go to="/dashboard" />} />
         </Routes>
         </ErrorBoundary>
       </BrowserRouter>
