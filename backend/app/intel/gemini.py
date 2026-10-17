@@ -126,3 +126,24 @@ def template_briefing(p: dict) -> dict:
         en.append(f'Open hazard reports on site: {tags}.')
         es.append(f'Reportes de peligro abiertos en el sitio: {tags}.')
     return {'english': f"Briefing for {p['site']}. " + ' '.join(en), 'spanish': f"Informe para {p['site']}. " + ' '.join(es)}
+
+
+# --- 7.4 index explanation ----------------------------------------------------------
+
+async def explain(site_name: str, index: int, top_features: list[dict]) -> tuple[str, str]:
+    """One sentence a crew lead would say. Returns (sentence, source), source 'gemini' or 'template'."""
+    payload = {'site': site_name, 'index': index, 'scale': '0 to 10', 'reasons': [f['label'] for f in top_features]}
+    prompt = ('In one sentence a crew lead would say out loud, explain why this site scored this hazard index for tomorrow, '
+              'using only these reasons and only numbers that appear in the payload. Payload: ' + json.dumps(payload))
+    schema = {'type': 'object', 'properties': {'sentence': {'type': 'string'}}, 'required': ['sentence']}
+    for attempt in range(2):
+        try:
+            out = await generate(prompt, schema)
+        except Exception:
+            log.exception('explain call failed')
+            break
+        if not invented(out['sentence'], payload):
+            return out['sentence'], 'gemini'
+        prompt += ' Your last answer used a number that is not in the payload. Use only payload numbers.'
+    reasons = ', '.join(payload['reasons']) or 'no single weather factor'
+    return f"{site_name} scores {index} out of 10 for tomorrow, driven by {reasons}.", 'template'
