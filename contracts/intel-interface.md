@@ -16,4 +16,9 @@ How core uses them:
 - POST /reports handler calls intel.tag_photo before inserting
 - main.py: app.include_router(intel.router)
 
-Nothing else crosses the boundary. If intel needs data, it reads core's tables directly through the shared asyncpg pool (backend/app/core/db.py exposes get_pool()).
+What intel calls in core (imported inside the function, so intel still imports without core):
+- app.core.db.get_pool()                     reads core's tables, writes the three above
+- app.core.gateway.send(site_id, msg)        score_all sends {"cmd":"INDEX",...} to the beacon site
+- app.core.scheduler.briefing_job(site_id)   POST /briefings/{site_id}/run calls it, so an on-demand briefing is pushed to the dashboard and spoken by the beacon exactly like the 6 PM one
+
+Nothing else crosses the boundary.
