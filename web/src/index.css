@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+/* One dark theme for dashboard and kiosk. Values come from src/tokens.ts via applyTokens(). */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+
+    /* PlanIT tokens */
+    --color-bg: var(--t-bg);
+    --color-surface: var(--t-surface);
+    --color-raised: var(--t-raised);
+    --color-line: var(--t-border);
+    --color-ink: var(--t-text);
+    --color-dim: var(--t-muted);
+    --color-online: var(--t-online);
+    --color-offline: var(--t-offline);
+    --color-hz-stopwork: var(--hz-stopwork);
+    --color-hz-heat: var(--hz-heat);
+    --color-hz-flood: var(--hz-flood);
+    --color-hz-wildlife: var(--hz-wildlife);
+    --color-hz-unsafe: var(--hz-unsafe);
+    --color-takeover-stopwork: var(--takeover-stopwork);
+    --color-takeover-unsafe: var(--takeover-unsafe);
+    --text-countdown: var(--fs-countdown);
+    --text-display: var(--fs-display);
+    --text-heading: var(--fs-heading);
+    --text-body: var(--fs-body);
+    --text-label: var(--fs-label);
+    --spacing-tap: var(--tap);
+    --ease-ui: var(--motion-ease);
+
+    /* shadcn names, pointed at the same tokens */
+    --color-background: var(--t-bg);
+    --color-foreground: var(--t-text);
+    --color-card: var(--t-surface);
+    --color-card-foreground: var(--t-text);
+    --color-popover: var(--t-raised);
+    --color-popover-foreground: var(--t-text);
+    --color-primary: var(--t-text);
+    --color-primary-foreground: var(--t-bg);
+    --color-secondary: var(--t-raised);
+    --color-secondary-foreground: var(--t-text);
+    --color-muted: var(--t-raised);
+    --color-muted-foreground: var(--t-muted);
+    --color-accent: var(--t-raised);
+    --color-accent-foreground: var(--t-text);
+    --color-destructive: var(--hz-stopwork);
+    --color-border: var(--t-border);
+    --color-input: var(--t-border);
+    --color-ring: var(--t-muted);
+    --color-chart-1: var(--hz-stopwork);
+    --color-chart-2: var(--hz-heat);
+    --color-chart-3: var(--hz-flood);
+    --color-chart-4: var(--hz-wildlife);
+    --color-chart-5: var(--hz-unsafe);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --radius: 0.75rem;
+    color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@keyframes beacon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-beacon-pulse { animation: beacon-pulse 1.6s ease-in-out infinite; }

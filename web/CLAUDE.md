@@ -15,7 +15,7 @@ Guide: docs/web-guide.md. Section 2 is the Figma conversation to have first.
 
 Polish matters here (the Easy On The Eyes prize). One dark theme shared by dashboard and kiosk, one accent per hazard type used identically everywhere, large type hierarchy, real loading and empty states, 20 mm tap targets on the kiosk. Design the kiosk screens first, judges look at them longest.
 
-Run: scripts/dev.sh web.
+Run: scripts/dev.sh web. Kiosk in dev: `npm run dev:beacon` opens the kiosk against the fake gateway (`?fake=1`, add `&t=12` to jump to second 12 of src/kiosk/fake-snapshots.json).
 
 ## Decisions
 
@@ -25,3 +25,8 @@ Run: scripts/dev.sh web.
 - Handoff: tokens first, built directly in code, reviewed by Cam from browser screenshots at 800x480.
 - Design first: the kiosk; dashboard and crew page reuse its tokens and components.
 - Styling: Tailwind with shadcn/ui, no CSS modules.
+- Stack as of setup: Vite 8, React 19, TypeScript 6 (no baseUrl, it is deprecated; paths alone), Tailwind 4, shadcn radix-nova preset, Node 24 LTS.
+- Tokens: src/tokens.ts is the single source; applyTokens() writes CSS variables that index.css maps into Tailwind (bg-surface, text-hz-heat, text-countdown, h-tap...).
+- Typeface: Geist Variable via @fontsource (bundled, works offline), tabular figures on by default.
+- Countdown size: the guide's 80 mm digits cannot fit (the whole 480 px screen is about 86 mm tall); the countdown is 240 px, the largest thing on the device.
+- Beacon mode: VITE_MODE=beacon or `vite --mode beacon` renders only the kiosk; `?fake=1` swaps the gateway socket for the fake replay. Root .gitignore ignores .env.*, so no committed .env.beacon.
