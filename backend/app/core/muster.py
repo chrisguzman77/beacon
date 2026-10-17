@@ -34,6 +34,8 @@ async def roster(site_id):
         "  ORDER BY ts DESC LIMIT 1) k ON true WHERE c.site_id=$1 ORDER BY c.crew_id", site_id)
     return {"in": [r["name"] for r in rows if r["action"] == "in"],
             "out": [r["name"] for r in rows if r["action"] != "in"],
+            # Which names are Roblox players, so the dashboard can mark them
+            "roblox": [r["name"] for r in rows if (r["auth0_sub"] or "").startswith("roblox:")],
             "zone_clear": zone_clear(site_id)}
 
 

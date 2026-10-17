@@ -42,6 +42,8 @@ def site_static(sites: pd.DataFrame) -> pd.DataFrame:
 if __name__ == '__main__':
     sites = pd.read_parquet(OUT / 'sites.parquet')
     st = site_static(sites)
+    # Scoring needs the FEMA flag per site and has no access to ml/data, so ship it next to the model.
+    st.set_index('site_id')[['sfha', 'fld_zone']].to_json(ML.parent / 'backend/app/intel/model/site_static.json', orient='index', indent=1)
     w = pd.read_parquet(OUT / 'weather.parquet')
     lab = pd.read_parquet(OUT / 'labels.parquet')
     df = w.merge(lab, on=['site_id', 'date'], how='left')

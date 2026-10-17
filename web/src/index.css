@@ -1,16 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
 
-/* One dark theme for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
+/* One theme (the MARSH design) for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Space Grotesk Variable', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
-    /* PlanIT tokens */
+    /* OmniRisk tokens */
     --color-bg: var(--t-bg);
     --color-surface: var(--t-surface);
     --color-raised: var(--t-raised);
@@ -70,7 +72,7 @@
 
 :root {
     --radius: 0.75rem;
-    color-scheme: dark;
+    color-scheme: light;
 }
 
 @layer base {
@@ -97,3 +99,20 @@
   to { stroke-dashoffset: 40; }
 }
 .web-flow { animation: web-flow 0.8s linear infinite; }
+
+/* Reduced motion (bottom bar toggle, or the system setting): no pulses, glides or slides. */
+[data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Poise: every control answers the same way. A slight lift on hover, a small press on click,
+   a clear amber ring for keyboard focus (never for mouse clicks). */
+.press { transition: transform var(--motion-ms) var(--motion-ease), box-shadow var(--motion-ms) var(--motion-ease), background-color var(--motion-ms) var(--motion-ease), filter var(--motion-ms) var(--motion-ease); }
+.press:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.02); }
+.press:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+:focus-visible { outline: 2px solid var(--t-accent); outline-offset: 2px; border-radius: 6px; }
+button, a, select, input, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), a, select { cursor: pointer; }
+::selection { background: var(--t-accentPale); }
+* { scrollbar-width: thin; scrollbar-color: var(--t-border) transparent; }

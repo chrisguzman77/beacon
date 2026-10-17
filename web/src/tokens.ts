@@ -2,27 +2,34 @@
 // CSS variables, index.css maps those into the Tailwind theme, and JS (the map,
 // charts) imports the same values. Never type a raw color anywhere else.
 
-// Technical safety: near-black with green-tinted panels and a bright signal green for
-// edges and controls. High contrast so the room display and phones read in sun, glare and dim venues.
+// The MARSH design (Cam's Figma, web/design/marsh), colors sampled from the screens. MARSH is a
+// style example only; nothing here is tied to one place or climate.
 export const color = {
-  bg: '#040806',
-  surface: '#0A140F',
-  raised: '#102019',
-  border: '#2B6B48',
-  text: '#F0FFF6',
-  muted: '#8DB8A0',
-  signal: '#00FF88', // UI chrome: panel edges, control stripes, pressed state. Never a hazard meaning
-  online: '#00FF88',
-  offline: '#FFB300',
+  bg: '#E8EADF', // page
+  surface: '#F8F9F2', // cards
+  raised: '#DCE4D3', // sage tiles, table headers
+  border: '#D7DCD1',
+  text: '#1D2822', // ink
+  muted: '#5F6B62',
+  signal: '#3F7D4E', // OK and checks. Never a hazard meaning
+  online: '#3F7D4E',
+  offline: '#B7791F',
+  chrome: '#17221D', // top bar and dark panels
+  chromeSoft: '#27322B', // bottom bar and dark tabs
+  chromeText: '#F5F7ED',
+  accent: '#F4BD4F', // amber: active tab, primary action, urgent banner
+  accentPale: '#FAE7B6', // warning banners and callouts
+  accentInk: '#1D2822',
+  forest: '#465E3B',
 }
 
-// One color per hazard type, used identically on every screen.
+// One color per hazard type, used identically on every screen. Deep enough to read on paper.
 export const hazard = {
-  stopwork: '#FF3B30', // lightning and stop work
-  heat: '#FFB300',
-  flood: '#00D4FF',
-  wildlife: '#FF5FD2', // magenta, green is taken by the UI and means "safe"
-  unsafe: '#C77DFF', // beacon tilt, e-stop
+  stopwork: '#C8352B', // lightning and stop work
+  heat: '#C98A12',
+  flood: '#1F7FA8',
+  wildlife: '#B23C8E',
+  unsafe: '#7A4FC2', // beacon tilt, e-stop
 }
 
 // Full screen takeover backgrounds: saturated but deep enough that white text holds contrast.
@@ -31,19 +38,36 @@ export const takeover = {
   unsafe: '#7B1FA2',
 }
 
+// Replica of the beacon's own displays on the device card: LCD1602 backlight and the LED digits.
+export const device = { lcdBg: '#1E3FA8', lcdInk: '#E8F0FF', digit: '#FF2A1A', digitOff: '#2A0A08' }
+
+// Series colors for the conditions charts (one series per small multiple), validated with the
+// dataviz palette check on the card surface: heat amber and rain blue follow their hazards, gust green.
+export const chart = { heat: hazard.heat, rain: hazard.flood, gust: '#4E8A2A' }
+
 export type HazardKey = keyof typeof hazard
 
 export const alertHazard: Record<string, HazardKey> = {
   stopwork: 'stopwork',
   heat_danger: 'heat',
+  heat_warning: 'heat',
   flood_confirmed: 'flood',
+  flood_warning: 'flood',
   wildlife: 'wildlife',
   beacon_unsafe: 'unsafe',
   estop: 'unsafe',
 }
 
+export const hazardLabel: Record<HazardKey, string> = {
+  stopwork: 'Stop work',
+  heat: 'Heat',
+  flood: 'Flood',
+  wildlife: 'Wildlife',
+  unsafe: 'Beacon unsafe',
+}
+
 // Hazard index 0 to 10, green through yellow to red. The only gradient in the app.
-export const indexStops = { low: '#00FF88', mid: '#FFD600', high: '#FF3B30' }
+export const indexStops = { low: '#3F7D4E', mid: '#C98A12', high: '#C8352B' }
 
 export function indexColor(index: number): string {
   if (index <= 3) return indexStops.low
@@ -55,9 +79,9 @@ export function indexColor(index: number): string {
 export const type = {
   countdown: 240,
   display: 120,
-  heading: 32,
-  body: 20,
-  label: 14,
+  heading: 34,
+  body: 16,
+  label: 13,
 }
 
 export const size = {
@@ -65,6 +89,9 @@ export const size = {
 }
 
 export const motion = { ms: 200, ease: 'cubic-bezier(0.2, 0, 0, 1)' }
+
+// Corners and depth: soft 6 px rounding, light shadows, no glow (the MARSH cards).
+export const shape = { round: 6, shadow: 0.08 }
 
 export function applyTokens() {
   const s = document.documentElement.style

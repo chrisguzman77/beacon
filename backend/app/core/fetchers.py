@@ -116,7 +116,7 @@ async def fetch_inat(http, site):
 async def run(feed, fn, sites):
     ok = 0
     # NWS requires a User-Agent that identifies the app
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "PlanITBeacon (github.com/chrisguzman77/beacon)"}) as http:
+    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "OmniRisk (github.com/chrisguzman77/beacon)"}) as http:
         for s in sites:
             try:
                 v = await fn(http, s)

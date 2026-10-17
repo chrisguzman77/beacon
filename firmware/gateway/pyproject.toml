@@ -1,0 +1,17 @@
+[project]
+name = "beacon-gateway"
+version = "0.1.0"
+description = "PlanIT Beacon gateway on the Raspberry Pi (hardware guide Appendix C)"
+requires-python = ">=3.11"
+dependencies = [
+    "pyserial>=3.5",
+    "websockets>=13",
+    "gpiozero>=2.0",
+]
+
+[project.optional-dependencies]
+# Natural offline voice. Without it the gateway falls back to espeak-ng (apt) and still speaks.
+voice = ["piper-tts==1.8.0"]
+
+[tool.uv]
+package = false

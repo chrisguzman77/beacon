@@ -9,7 +9,7 @@ local fs = require("@lune/fs")
 local process = require("@lune/process")
 local Instance = roblox.Instance
 
-local BACKEND_URL = "https://wales-outlet-desired-winds.trycloudflare.com"
+local BACKEND_URL = "https://api.omnirisking-it-all-at-swamphacks.us"
 local SITE_ID = 12
 local SCENE = "sim/place/BoardwalkScene.rbxl"
 
@@ -63,6 +63,11 @@ bridge:SetAttribute("SIM_TOKEN", "")
 bridge.Parent = bridgeFolder
 
 game:GetService("HttpService").HttpEnabled = true
+-- settings scripts may not change at runtime: Future lighting and animated grass, saved into the place itself
+local okTech, errTech = pcall(function() game:GetService("Lighting").Technology = roblox.Enum.Technology.Future end)
+local terrain = game:GetService("Workspace"):FindFirstChildOfClass("Terrain")
+local okDeco, errDeco = pcall(function() if terrain then terrain.Decoration = true end end)
+print(("Lighting.Technology Future: %s, Terrain.Decoration: %s"):format(okTech and "set" or tostring(errTech), okDeco and "set" or tostring(errDeco)))
 
 fs.writeFile("sim/place/PlanITSwamp.rbxl", roblox.serializePlace(game))
 print("wrote sim/place/PlanITSwamp.rbxl")

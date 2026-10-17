@@ -1,26 +1,25 @@
 // The site page's live view. Components read the snapshot from here and never open sockets.
-// ?fake=1 (hazard showcase) or ?fake=storm feeds it from the fake; the site API and
-// websocket wiring replaces the empty branch when the site page is built.
+// ?fake=1 (hazard showcase) or ?fake=storm feeds it from the fake; otherwise the backend
+// (GET /sites/{id}, /muster and the site websocket, see live.ts).
 import { create } from 'zustand'
 import { startFakeGateway } from './fakeGateway'
+import { startLiveSite } from './live'
 import type { Snapshot } from './types'
 
 type SiteStore = {
   snapshot: Snapshot | null
   live: boolean // a feed is connected
-  setSimPaused: (paused: boolean) => void // fake only: the showcase advances while idle
   connect: (siteId: number) => () => void
 }
 
 export const useSite = create<SiteStore>((set) => ({
   snapshot: null,
   live: false,
-  setSimPaused: () => {},
-  connect: () => {
+  connect: (siteId) => {
     const mode = new URLSearchParams(location.search).get('fake')
-    if (mode === null) return () => {}
-    const fake = startFakeGateway((snapshot) => set({ snapshot, live: true }), mode)
-    set({ setSimPaused: fake.setPaused })
+    set({ snapshot: null, live: false })
+    if (mode === null) return startLiveSite(siteId, (snapshot) => set({ snapshot }), (live) => set({ live }))
+    const fake = startFakeGateway((snapshot) => set({ snapshot, live: true }), mode, siteId)
     return fake.stop
   },
 }))

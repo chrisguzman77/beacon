@@ -1,9 +1,9 @@
 # Installed at /etc/caddy/Caddyfile on the Vultr box (apt caddy, systemd). After editing: scp it there, then `systemctl reload caddy`.
-# Managed for PlanIT Beacon. api. is the backend (REST and websockets); the bare domain gets Cam's web app once it has a container.
+# Managed for PlanIT Beacon. api. is the backend (REST and websockets); the bare domain is Cam's web app (nginx container on 127.0.0.1:8080).
 api.omnirisking-it-all-at-swamphacks.us {
 	reverse_proxy localhost:8000
 }
 
 omnirisking-it-all-at-swamphacks.us {
-	respond "PlanIT Beacon. Dashboard coming soon; the API is at https://api.omnirisking-it-all-at-swamphacks.us" 200
+	reverse_proxy localhost:8080
 }

@@ -11,6 +11,7 @@ local TweenService = game:GetService("TweenService")
 
 local events = ReplicatedStorage:WaitForChild("SimEvents")
 local flashEvent = ReplicatedStorage:WaitForChild("FlashEvent")
+local strikeRadar = ReplicatedStorage:WaitForChild("StrikeRadar")
 
 local Lightning = {}
 Lightning.STUDS_PER_MILE = 120 -- a 15 mile bolt lands 1800 studs out, near enough to see through the haze
@@ -19,7 +20,12 @@ local BOLT_COLOR = Color3.fromRGB(225, 235, 255)
 local BASE_EXPOSURE = Lighting.ExposureCompensation
 local rng = Random.new()
 
+-- strikes are measured from the active setting's beacon: the main site, or the river crossing
 local function origin()
+	local river = workspace:FindFirstChild("RiverBeacon")
+	if workspace:GetAttribute("ActiveSite") == "river" and river then
+		return river:GetPivot().Position
+	end
 	return workspace.Beacon:GetPivot().Position
 end
 
@@ -31,7 +37,7 @@ function Lightning.groundPoint(bearing, miles)
 	local z = o.Z - math.cos(math.rad(bearing)) * r
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { workspace.Beacon }
+	params.FilterDescendantsInstances = { workspace.Beacon, workspace:FindFirstChild("RiverBeacon") }
 	local hit = workspace:Raycast(Vector3.new(x, 2000, z), Vector3.new(0, -4000, 0), params)
 	return hit and hit.Position or Vector3.new(x, 0, z)
 end
@@ -92,6 +98,7 @@ function Lightning.strike(bearing, miles)
 
 	-- 2. physical path: every client flashes white and schedules thunder
 	flashEvent:FireAllClients(miles)
+	strikeRadar:FireAllClients(bearing, miles)
 
 	-- 3. data path: the Bridge posts the strike
 	events.Strike:Fire(bearing, miles)
@@ -129,13 +136,23 @@ Engine.Changed = Instance.new("BindableEvent")
 local state = {
 	scenario = nil, key = nil, name = "", clockStart = "13:00",
 	simTime = 0, speed = 60, playing = false, fired = {}, note = "",
+	duration = 0, markers = {},
 }
 
+-- duration and markers let the panel draw a timeline with a tick for every strike, flood step, and briefing
 function Engine.snapshot()
 	return {
 		key = state.key, name = state.name, clockStart = state.clockStart,
 		simTime = state.simTime, speed = state.speed, playing = state.playing, note = state.note,
+		duration = state.duration, markers = state.markers,
 	}
+end
+
+-- the sun follows the scenario's clock, held between early morning and sunset so the site stays readable
+local function sun()
+	local h, m = state.clockStart:match("(%d+):(%d+)")
+	local hours = (tonumber(h) * 60 + tonumber(m) + state.simTime / 60) / 60
+	WeatherFx.setClock(math.clamp(hours % 24, 7.2, 18.6))
 end
 
 local function emit()
@@ -149,7 +166,16 @@ function Engine.load(key)
 	state.clockStart = sc.clockStart or "13:00"
 	state.simTime, state.speed, state.playing = 0, sc.speed or 60, false
 	state.fired, state.note = {}, ""
+	state.duration, state.markers = 0, {}
+	for _, e in ipairs(sc.events) do
+		state.duration = math.max(state.duration, e.t)
+		if e.type ~= "weather" then
+			table.insert(state.markers, { t = e.t, type = e.type, miles = e.miles })
+		end
+	end
+	state.duration += 300
 	WeatherFx.reset()
+	sun()
 	emit()
 end
 
@@ -163,7 +189,7 @@ function Engine.pause()
 end
 
 function Engine.setSpeed(s)
-	state.speed = math.clamp(s, 1, 600)
+	state.speed = math.clamp(s, 1, 1200)
 	emit()
 end
 
@@ -198,6 +224,7 @@ RunService.Heartbeat:Connect(function(dt)
 	acc += dt
 	if acc >= 0.5 then
 		acc = 0
+		sun()
 		emit()
 	end
 end)
@@ -207,7 +234,91 @@ return Engine
 	{ "Scenarios", "ModuleScript", [==[-- Scenarios (ModuleScript)
 local Scenarios = {}
 
-Scenarios.order = { "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
+Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
+
+-- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead
+-- with strikes down to 3 miles, and moves off east. Every strike inside 10 miles restarts the 30 minute all
+-- clear; the last one inside 10 is the 8 mile strike at 15:00, so the site is clear to work again at 15:30.
+Scenarios.lightning_cell = {
+	name = "Lightning cell passes over", clockStart = "14:00", speed = 120,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 33, humidity = 70, gust = 15 },
+		{ t = 1,    type = "note",    text = "14:00 a thunderstorm cell builds west of the site. Watch the radar: the red ring is 10 miles." },
+		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 32, humidity = 74, gust = 30 },
+		{ t = 600,  type = "strike",  bearing = 270, miles = 18 },
+		{ t = 900,  type = "strike",  bearing = 268, miles = 15 },
+		{ t = 1200, type = "strike",  bearing = 265, miles = 13 },
+		{ t = 1500, type = "strike",  bearing = 262, miles = 11 },
+		{ t = 1800, type = "strike",  bearing = 260, miles = 9 },
+		{ t = 1810, type = "note",    text = "14:30 strike 9 miles out, inside the ring. STOP WORK, the 30 minute all clear starts." },
+		{ t = 2100, type = "strike",  bearing = 255, miles = 7 },
+		{ t = 2400, type = "strike",  bearing = 250, miles = 5 },
+		{ t = 2600, type = "weather", clouds = 0.95, rain = 45, temp_c = 27, humidity = 94, gust = 42 },
+		{ t = 2700, type = "strike",  bearing = 240, miles = 3 },
+		{ t = 3000, type = "strike",  bearing = 120, miles = 4 },
+		{ t = 3300, type = "strike",  bearing = 100, miles = 6 },
+		{ t = 3600, type = "strike",  bearing = 90,  miles = 8 },
+		{ t = 3610, type = "note",    text = "15:00 strike 8 miles east, still inside 10. Every close strike restarts the 30 minutes." },
+		{ t = 4200, type = "strike",  bearing = 85,  miles = 12 },
+		{ t = 4200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 29, humidity = 85, gust = 15 },
+		{ t = 4800, type = "strike",  bearing = 80,  miles = 15 },
+		{ t = 5400, type = "strike",  bearing = 78,  miles = 19 },
+		{ t = 5460, type = "note",    text = "15:31 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
+	},
+}
+
+-- The brief's river example: a river site gets a flood risk warning after a night of heavy rain. The crossing sits
+-- behind a levee; the river climbs through the morning and overtops it. Plays at the Mississippi crossing setting.
+Scenarios.mississippi_flood = {
+	name = "Mississippi crossing, river flood", site = "river", clockStart = "05:00", speed = 240, soil = 0.75,
+	events = {
+		{ t = 0,    type = "weather", clouds = 0.85, rain = 30, temp_c = 22, humidity = 96, gust = 18 },
+		{ t = 1,    type = "note",    text = "05:00 after a night of heavy rain upstream. River sites get a flood risk warning before the crew mobilizes." },
+		{ t = 600,  type = "water",   depth_mm = 20 },
+		{ t = 1800, type = "water",   depth_mm = 50 },
+		{ t = 2400, type = "strike",  bearing = 200, miles = 12 },
+		{ t = 3000, type = "water",   depth_mm = 80 },
+		{ t = 3600, type = "note",    text = "06:00 the river is near the top of the levee. Equipment off the floodplain, the crossing work is postponed." },
+		{ t = 4200, type = "water",   depth_mm = 110 },
+		{ t = 4260, type = "note",    text = "06:11 the levee is overtopping. Flood confirmed on site: stop work, everyone to high ground." },
+		{ t = 5400, type = "water",   depth_mm = 130 },
+		{ t = 7200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 24, humidity = 90, gust = 10 },
+	},
+}
+
+-- The challenge brief, start to finish. 6:45 AM in August on a remote Everglades site where the crew is laying a
+-- temporary mat road for the equipment that will build a new transmission line. A week of rain has the ground at
+-- 82% saturation, so boots sink and trucks bog down. The heat index passes 110 F by noon. Thunderstorms build to
+-- the west after 1 PM and walk in to 6 miles. Someone saw a gator by the jobsite yesterday, today it is on the road.
+-- At 6 PM site time the next-day briefing goes out. t is simulated seconds after 06:45; 300x plays the day in
+-- under three minutes. soil is the starting saturation the Conditions board carries forward.
+Scenarios.everglades_day = {
+	name = "Everglades mat road, August", clockStart = "06:45", speed = 300, soil = 0.82,
+	events = {
+		{ t = 0,     type = "weather", clouds = 0.25, rain = 0, temp_c = 27, humidity = 94, gust = 6 },
+		{ t = 0,     type = "water",   depth_mm = 5 },
+		{ t = 1,     type = "note",    text = "06:45 go/no-go. A week of rain: soil 82% saturated, expect mud and stuck trucks. Heat index past 110 F by noon. Storms building west after 1 PM. Gator seen yesterday by the slough." },
+		{ t = 2700,  type = "wildlife", species = "American alligator" },
+		{ t = 2760,  type = "note",    text = "07:31 crew report: alligator on the mat road. Photo pinned to the site map and shared with every crew on this job." },
+		{ t = 8100,  type = "weather", clouds = 0.2,  rain = 0,  temp_c = 31, humidity = 78, gust = 8 },
+		{ t = 15300, type = "weather", clouds = 0.2,  rain = 0,  temp_c = 34, humidity = 64, gust = 10 },
+		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 35, humidity = 62, gust = 12 },
+		{ t = 18960, type = "note",    text = "12:00 heat index over 110 F. Rest breaks in the cooling tent, water every 15 minutes." },
+		{ t = 22500, type = "weather", clouds = 0.55, rain = 0,  temp_c = 35, humidity = 60, gust = 20 },
+		{ t = 24300, type = "weather", clouds = 0.75, rain = 0,  temp_c = 33, humidity = 66, gust = 30 },
+		{ t = 26100, type = "strike",  bearing = 270, miles = 15 },
+		{ t = 27000, type = "strike",  bearing = 265, miles = 11 },
+		{ t = 27900, type = "strike",  bearing = 260, miles = 8 },
+		{ t = 27960, type = "note",    text = "14:30 strike 8 miles west. STOP WORK, 30 minute all clear, crew to the trucks." },
+		{ t = 28800, type = "strike",  bearing = 255, miles = 6 },
+		{ t = 29400, type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 45 },
+		{ t = 30600, type = "water",   depth_mm = 30 },
+		{ t = 32400, type = "water",   depth_mm = 60 },
+		{ t = 33300, type = "strike",  bearing = 250, miles = 4 },
+		{ t = 37800, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 28, humidity = 90, gust = 12 },
+		{ t = 40500, type = "note",    text = "18:00 site time: next-day safety briefing sent to the crew, English and Spanish. Tomorrow: same heat, mats need re-leveling where the trucks sank." },
+	},
+}
 
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
@@ -301,6 +412,7 @@ return Scenarios
 -- Nothing is uploaded; every part is a plain Part.
 
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -308,7 +420,7 @@ local WeatherFx = require(script.Parent.WeatherFx)
 
 local Builder = {}
 
-local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate" }
+local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate", "ConditionsBoard", "ConditionsBoardRiver", "RiverBeacon", "RiverFloodWater", "LandFloodWater" }
 local SITE_NAME = "SEMINOLE · SITE 12" -- the beacon site, Putnam County FL
 local ZONE = 60 -- work zone is ZONE x ZONE studs, centered on the beacon at the origin
 -- open water of the swamp east and south of the site, { center, radius }
@@ -348,6 +460,10 @@ local C = {
 	gatorBelly = Color3.fromRGB(150, 140, 100),
 	gatorEye = Color3.fromRGB(230, 200, 60),
 	alum = Color3.fromRGB(150, 155, 160),
+	navy = Color3.fromRGB(40, 55, 90),
+	matWood = Color3.fromRGB(120, 92, 64),
+	mud = Color3.fromRGB(84, 66, 44),
+	canopy = Color3.fromRGB(40, 110, 190),
 }
 
 local rng
@@ -360,7 +476,7 @@ local function part(parent, name, size, cf, color, material, shape)
 	p.Name = name
 	if shape then p.Shape = shape end
 	p.Size, p.CFrame, p.Color = size, cf, color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Material = material or Enum.Material.Plastic
 	p.Anchored = true
 	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
 	p.Parent = parent
@@ -430,12 +546,14 @@ local function plumbing()
 	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged" }) do
 		ensure(sim, "BindableEvent", n)
 	end
-	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere" }) do
+	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere", "StrikeRadar" }) do
 		ensure(ReplicatedStorage, "RemoteEvent", n)
 	end
 	local thunder = ensure(ReplicatedStorage, "Sound", "Thunder")
 	if thunder.SoundId == "" then
-		warn("[SceneBuilder] set ReplicatedStorage.Thunder.SoundId from a Toolbox thunder clip")
+		-- "Thunder Sharp Booming Strikes Rumbling 1", ProSoundEffects, Roblox licensed library audio, 12.9 s.
+		-- A deep boom with a long tail, which is what the mic listener's 120 Hz band pass hears best.
+		thunder.SoundId = "rbxassetid://9120021540"
 	end
 end
 
@@ -468,6 +586,13 @@ local function beacon()
 	m.PrimaryPart = base
 	part(m, "Footing", Vector3.new(3, 0.6, 3), CFrame.new(0, 0.3, 0), C.concrete, Enum.Material.Concrete)
 	part(m, "Head", Vector3.new(4.4, 3.6, 1.4), CFrame.new(0, 8.2, 0), C.safety)
+	-- the real unit's silhouette: a tilted solar panel behind the head, the sensor pod on a short mast, a whip antenna
+	part(m, "SolarBracket", Vector3.new(0.3, 2.2, 0.3), CFrame.new(0, 6.2, -1.1) * CFrame.Angles(math.rad(-20), 0, 0), C.steel, Enum.Material.Metal)
+	part(m, "SolarPanel", Vector3.new(3.4, 0.15, 2.4), CFrame.new(0, 7.3, -2) * CFrame.Angles(math.rad(35), 0, 0), Color3.fromRGB(28, 40, 72), Enum.Material.Glass)
+	part(m, "PodMast", Vector3.new(0.25, 2.4, 0.25), CFrame.new(1.9, 11.2, 0), C.steel, Enum.Material.Metal)
+	part(m, "SensorPod", Vector3.new(1.1, 0.9, 0.9), CFrame.new(1.9, 12.85, 0), C.white)
+	part(m, "PodLens", Vector3.new(0.5, 0.5, 0.1), CFrame.new(1.9, 12.85, 0.46), C.dark, Enum.Material.Glass)
+	part(m, "Antenna", Vector3.new(0.08, 3, 0.08), CFrame.new(-1.9, 11.5, 0), C.dark)
 
 	-- status light
 	column(m, "LightBase", 0.5, 2, Vector3.new(0, 10, 0), C.dark)
@@ -477,8 +602,8 @@ local function beacon()
 	glow.Parent = light
 	-- level tag floating over the light, readable from the spawn
 	local tag = Instance.new("BillboardGui")
-	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(240, 64), Vector3.new(0, 2.6, 0)
-	tag.MaxDistance, tag.LightInfluence = 300, 0
+	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(190, 46), Vector3.new(0, 2.4, 0)
+	tag.MaxDistance, tag.LightInfluence = 140, 0
 	tag.Parent = light
 	label(tag, "Level", "ALL CLEAR", UDim2.fromScale(1, 0.62), UDim2.new(), C.green)
 	label(tag, "Sub", "HAZARD INDEX 0", UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0.62), C.white, Enum.Font.GothamMedium)
@@ -519,25 +644,38 @@ local function beacon()
 	end
 end
 
--- yellow and black stripes along the ground from a to b
-local function hazardLine(parent, a, b)
-	local n = math.floor((b - a).Magnitude / 3)
-	for i = 0, n - 1 do
-		local p0, p1 = a:Lerp(b, i / n), a:Lerp(b, (i + 1) / n)
-		local s = part(parent, "Stripe", Vector3.new(1, 0.12, (p1 - p0).Magnitude), CFrame.lookAt((p0 + p1) / 2, p1),
-			i % 2 == 0 and C.safety or C.dark)
-		s.CanCollide, s.CanQuery, s.CastShadow = false, false, false
-	end
-end
-
 local function zone()
 	local z = ghost(part(workspace, "ZonePart", Vector3.new(ZONE, 14, ZONE), CFrame.new(0, 7, 0), C.safety))
+	-- kept for BeaconVisuals, which tints it; invisible so the zone reads as a real taped off area
 	local floor = part(z, "ZoneFloor", Vector3.new(ZONE, 0.05, ZONE), CFrame.new(0, 0.05, 0), C.green)
-	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 0.82, false, false, false
+	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 1, false, false, false
 	local h = ZONE / 2
-	local corners = { Vector3.new(-h, 0.07, -h), Vector3.new(h, 0.07, -h), Vector3.new(h, 0.07, h), Vector3.new(-h, 0.07, h) }
+	local corners = { Vector3.new(-h, 0, -h), Vector3.new(h, 0, -h), Vector3.new(h, 0, h), Vector3.new(-h, 0, h) }
+	local tape = Color3.fromRGB(240, 200, 30)
 	for i = 1, 4 do
-		hazardLine(z, corners[i], corners[i % 4 + 1])
+		local a, b = corners[i], corners[i % 4 + 1]
+		local count = math.floor((b - a).Magnitude / 7.5)
+		local prev
+		for k = 0, count - 1 do
+			local p = a:Lerp(b, k / count)
+			-- stakes driven into the muck, leaning a little like real ones do
+			local stake = part(z, "Stake", Vector3.new(0.3, 5, 0.3), CFrame.new(p + Vector3.new(0, 1.5, 0)) * CFrame.Angles(math.rad(rng:NextNumber(-4, 4)), 0, math.rad(rng:NextNumber(-4, 4))), C.wood, Enum.Material.Wood)
+			stake.CanCollide = false
+			local att = Instance.new("Attachment")
+			att.Position = Vector3.new(0, 1.8, 0)
+			att.Parent = stake
+			if prev then
+				local band = Instance.new("Beam")
+				band.Attachment0, band.Attachment1 = prev, att
+				band.Width0, band.Width1, band.Segments = 0.3, 0.3, 6
+				band.CurveSize0, band.CurveSize1 = -0.4, 0.4 -- a little sag between stakes
+				band.Color = ColorSequence.new(tape)
+				band.FaceCamera, band.LightInfluence = true, 1
+				band.Parent = stake
+			end
+			prev = att
+		end
+		prev = nil
 	end
 end
 
@@ -831,8 +969,7 @@ local function wildlife(parent, layout)
 end
 
 -- staff gauge at the zone's south east corner, so everyone sees the water climb
-local function floodGauge(parent)
-	local x, z = 37, 37
+local function floodGauge(parent, x, z)
 	column(parent, "GaugePost", 8, 0.5, Vector3.new(x + 0.9, 0, z - 0.3), C.steel, Enum.Material.Metal)
 	local board = part(parent, "FloodGauge", Vector3.new(1.4, 7, 0.15), CFrame.new(x, 3.5, z), C.white)
 	local g = surface(board, 50)
@@ -887,19 +1024,423 @@ end
 
 local function lighting()
 	pcall(function() Lighting.Technology = Enum.Technology.Future end)
-	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.2
-	Lighting.Ambient = Color3.fromRGB(38, 40, 46)
+	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.12
+	Lighting.Ambient = Color3.fromRGB(22, 24, 28)
 	Lighting.EnvironmentDiffuseScale, Lighting.EnvironmentSpecularScale = 1, 1
-	Lighting.GeographicLatitude = 29
+	Lighting.ExposureCompensation = 0
+	Lighting.GeographicLatitude = 26 -- the Everglades
 	ensure(Lighting, "Sky", "Sky")
 	local bloom = ensure(Lighting, "BloomEffect", "Bloom")
-	bloom.Intensity, bloom.Size, bloom.Threshold = 0.5, 28, 1.4
+	bloom.Intensity, bloom.Size, bloom.Threshold = 0.25, 20, 2.2
 	local rays = ensure(Lighting, "SunRaysEffect", "SunRays")
-	rays.Intensity, rays.Spread = 0.05, 0.7
+	rays.Intensity, rays.Spread = 0.03, 0.6
+	local dof = ensure(Lighting, "DepthOfFieldEffect", "DepthOfField")
+	dof.FarIntensity, dof.NearIntensity, dof.FocusDistance, dof.InFocusRadius = 0.12, 0, 80, 70
+	local theirs = Lighting:FindFirstChild("PlanITColor")
+	if theirs and theirs:IsA("ColorCorrectionEffect") then
+		theirs.Brightness, theirs.Contrast, theirs.Saturation, theirs.TintColor = 0, 0, 0, Color3.new(1, 1, 1)
+	end
+	-- swamp water is tea colored and murky, with soft reflections and a light chop
+	local T = workspace.Terrain
+	T.WaterColor = Color3.fromRGB(58, 60, 38)
+	T.WaterTransparency, T.WaterReflectance = 0.3, 0.22
+	T.WaterWaveSize, T.WaterWaveSpeed = 0.05, 5
 	WeatherFx.reset()
 end
 
 ---------------------------------------------------------------- build
+
+---------------------------------------------------------------- the jobsite from the challenge brief
+
+-- a crew member: a humanoid rig in a hi-vis vest and hard hat, anchored at the root so scripts move it,
+-- pivot at the root, feet 3 studs below it. Falls back to a block figure where rigs cannot be made.
+local function humanoidWorker(parent, cf)
+	local d = Instance.new("HumanoidDescription")
+	local vest, pants, skin = C.orange, C.navy, ({ Color3.fromRGB(176, 124, 92), Color3.fromRGB(120, 82, 58), Color3.fromRGB(224, 172, 140) })[rng:NextInteger(1, 3)]
+	d.HeadColor, d.TorsoColor, d.LeftArmColor, d.RightArmColor = skin, vest, skin, skin
+	d.LeftLegColor, d.RightLegColor = pants, pants
+	d.HeightScale, d.WidthScale, d.DepthScale, d.ProportionScale = rng:NextNumber(0.97, 1.05), 0.95, 0.95, 1
+	local m = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	m.Name = "Worker"
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+	local root = m:FindFirstChild("HumanoidRootPart")
+	if root then root.Anchored = true end
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then p.CanCollide = false end
+	end
+	local head, torso = m:FindFirstChild("Head"), m:FindFirstChild("UpperTorso")
+	local function wear(name, size, offset, color, material, on)
+		if not on then return end
+		local p = Instance.new("Part")
+		p.Name, p.Size, p.Color, p.Material = name, size, color, material
+		p.CanCollide, p.Massless, p.CastShadow = false, true, true
+		p.CFrame = on.CFrame * offset
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0, weld.Part1, weld.Parent = on, p, p
+		p.Parent = m
+	end
+	wear("HardHat", Vector3.new(1.35, 0.5, 1.45), CFrame.new(0, 0.62, 0), C.yellow, Enum.Material.Plastic, head)
+	wear("HatBrim", Vector3.new(1.55, 0.08, 1.7), CFrame.new(0, 0.42, -0.05), C.yellow, Enum.Material.Plastic, head)
+	wear("VestStripe", Vector3.new(2.05, 0.18, 1.12), CFrame.new(0, -0.15, 0), Color3.fromRGB(215, 220, 225), Enum.Material.Foil, torso)
+	m:PivotTo(cf)
+	m.Parent = parent
+	return m
+end
+
+local function workerModel(parent, cf)
+	local ok, rig = pcall(humanoidWorker, parent, cf)
+	if ok and rig and rig:FindFirstChild("Head") then return rig end
+	local m = model(parent, "Worker")
+	local function w(n, size, off, color)
+		return nonCollide(part(m, n, size, cf * off, color))
+	end
+	m.PrimaryPart = w("Torso", Vector3.new(2, 2, 1), CFrame.new(), C.orange)
+	w("Stripe", Vector3.new(2.05, 0.25, 1.05), CFrame.new(0, 0.2, 0), C.white)
+	w("Head", Vector3.new(1.1, 1.1, 1.1), CFrame.new(0, 1.6, 0), Color3.fromRGB(176, 124, 92))
+	w("HardHat", Vector3.new(1.4, 0.45, 1.4), CFrame.new(0, 2.3, 0), C.yellow)
+	w("LegL", Vector3.new(0.9, 2, 1), CFrame.new(-0.5, -2, 0), C.navy)
+	w("LegR", Vector3.new(0.9, 2, 1), CFrame.new(0.5, -2, 0), C.navy)
+	w("ArmL", Vector3.new(0.6, 1.9, 0.8), CFrame.new(-1.3, 0, 0), C.orange)
+	w("ArmR", Vector3.new(0.6, 1.9, 0.8), CFrame.new(1.3, 0, 0), C.orange)
+	return m
+end
+
+-- timber crane mats laid across the marsh, the temporary road the brief describes
+local function mats(parent, x0, x1, z, width)
+	for x = x0, x1, 4.2 do
+		part(parent, "Mat", Vector3.new(4, 0.6, width), CFrame.new(x, -0.3, z) * CFrame.Angles(0, 0, math.rad(rng:NextNumber(-0.8, 0.8))),
+			C.matWood, Enum.Material.WoodPlanks)
+	end
+end
+
+-- an H-frame transmission structure; returns the three conductor attachments
+local function hframe(parent, x, z)
+	for _, dx in ipairs({ -5, 5 }) do
+		column(parent, "TxPole", 50, 1.6, Vector3.new(x + dx, -6, z), C.wood, Enum.Material.Wood)
+	end
+	local arm = part(parent, "TxArm", Vector3.new(18, 1, 1.2), CFrame.new(x, 40, z), C.wood, Enum.Material.Wood)
+	strut(parent, "TxBrace", Vector3.new(x - 5, 28, z), Vector3.new(x + 5, 38, z), 0.5, C.wood)
+	strut(parent, "TxBrace", Vector3.new(x + 5, 28, z), Vector3.new(x - 5, 38, z), 0.5, C.wood)
+	local atts = {}
+	for _, dx in ipairs({ -7, 0, 7 }) do
+		part(parent, "Insulator", Vector3.new(0.5, 2.6, 0.5), CFrame.new(x + dx, 38.2, z), C.white, Enum.Material.Glass)
+		local a = Instance.new("Attachment")
+		a.CFrame = CFrame.new(dx, -3.3, 0) * CFrame.Angles(0, 0, math.rad(-90)) -- X points down so the conductors sag
+		a.Parent = arm
+		table.insert(atts, a)
+	end
+	return atts
+end
+
+-- the new line the crew is building: finished spans strung, the newest structures still bare
+local function transmissionLine(parent, z, xs, strung)
+	local prev
+	for i, x in ipairs(xs) do
+		local atts = hframe(parent, x, z)
+		if prev and i <= strung then
+			for k = 1, 3 do
+				local w = Instance.new("Beam")
+				w.Attachment0, w.Attachment1 = prev[k], atts[k]
+				w.CurveSize0, w.CurveSize1 = 10, -10
+				w.Width0, w.Width1, w.Segments = 0.22, 0.22, 20
+				w.Color = ColorSequence.new(C.dark)
+				w.FaceCamera = true
+				w.Parent = atts[k].Parent
+			end
+		end
+		prev = atts
+	end
+end
+
+local function crewTruck(parent, cf)
+	local m = model(parent, "CrewTruck")
+	for _, x in ipairs({ -2.6, 2.6 }) do
+		for _, z in ipairs({ -3.2, 3.2 }) do
+			part(m, "Wheel", Vector3.new(1, 2.4, 2.4), cf * CFrame.new(x, 1.2, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	m.PrimaryPart = part(m, "Body", Vector3.new(5, 1.6, 10), cf * CFrame.new(0, 2.4, 0), C.white)
+	part(m, "Cab", Vector3.new(5, 2.2, 4.4), cf * CFrame.new(0, 4.3, -1.2), C.white)
+	part(m, "Glass", Vector3.new(4.8, 1.2, 0.2), cf * CFrame.new(0, 4.6, -3.45), C.glass, Enum.Material.Glass)
+	part(m, "Stripe", Vector3.new(5.05, 0.3, 10.05), cf * CFrame.new(0, 2.6, 0), C.orange)
+	m:SetAttribute("SinksInMud", true)
+	return m
+end
+
+-- mud spray for a vehicle bogged in the muck, switched on by Crew.server.lua
+local function mudSpray(p)
+	local e = Instance.new("ParticleEmitter")
+	e.Name, e.Enabled, e.Rate = "Mud", false, 30
+	e.Speed, e.Lifetime = NumberRange.new(6, 10), NumberRange.new(0.6, 1)
+	e.SpreadAngle = Vector2.new(30, 30)
+	e.Acceleration = Vector3.new(0, -40, 0)
+	e.Size = NumberSequence.new(0.35)
+	e.Color = ColorSequence.new(C.mud)
+	e.Parent = p
+end
+
+local function coolingTent(parent, cf)
+	for _, x in ipairs({ -4.5, 4.5 }) do
+		for _, z in ipairs({ -4.5, 4.5 }) do
+			column(parent, "TentPole", 7, 0.3, (cf * CFrame.new(x, 0, z)).Position, C.steel, Enum.Material.Metal)
+		end
+	end
+	part(parent, "Canopy", Vector3.new(10, 0.3, 10), cf * CFrame.new(0, 7, 0), C.canopy, Enum.Material.Fabric)
+	part(parent, "Valance", Vector3.new(10.1, 0.8, 10.1), cf * CFrame.new(0, 6.5, 0), C.canopy, Enum.Material.Fabric).Transparency = 0.2
+	column(parent, "WaterCooler", 1.4, 1.1, (cf * CFrame.new(3, 0.9, 3)).Position, C.orange)
+	part(parent, "CoolerTable", Vector3.new(3, 0.3, 2), cf * CFrame.new(3, 0.75, 3), C.white)
+	part(parent, "Bench", Vector3.new(6, 0.4, 1.2), cf * CFrame.new(-1, 1, -2.5), C.steel, Enum.Material.Metal)
+end
+
+-- the site conditions board, the one combined risk picture standing on the jobsite. Conditions.server.lua writes it.
+local function conditionsBoard(cf, name)
+	local b = part(workspace, name or "ConditionsBoard", Vector3.new(18, 10.5, 0.4), cf * CFrame.new(0, 10, 0), C.panel)
+	for _, x in ipairs({ -7, 7 }) do
+		column(workspace.Site, "BoardPost", 14, 0.5, (cf * CFrame.new(x, 0, -0.35)).Position, C.steel, Enum.Material.Metal)
+	end
+	local g = surface(b, 36)
+	local title = label(g, "Title", "SITE CONDITIONS", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.025), C.safety)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	-- the go/no-go call, a colored banner under the title
+	local decision = label(g, "Decision", "GO", UDim2.fromScale(0.94, 0.12), UDim2.fromScale(0.03, 0.14), C.white, Enum.Font.GothamBold, Color3.fromRGB(26, 110, 60))
+	local dpad = Instance.new("UIPadding")
+	dpad.PaddingLeft = UDim.new(0.015, 0)
+	dpad.Parent = decision
+	decision.TextXAlignment = Enum.TextXAlignment.Left
+	for i = 1, 6 do
+		local row = label(g, "Row" .. i, "", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.3 + (i - 1) * 0.115), C.white, Enum.Font.GothamMedium)
+		row.TextXAlignment = Enum.TextXAlignment.Left
+	end
+	return b
+end
+
+-- camera shots for demo mode: an invisible part per shot, the part's CFrame is where the camera sits and looks
+local function shots(list, name)
+	local f = Instance.new("Folder")
+	f.Name = name or "Shots"
+	f.Parent = workspace.Site
+	for name, s in pairs(list) do
+		ghost(part(f, name, Vector3.new(1, 1, 1), CFrame.lookAt(s[1], s[2]), C.white))
+	end
+end
+
+---------------------------------------------------------------- jobsite signs and equipment
+
+-- ANSI Z535 style safety sign: a colored signal word header over a white message panel, on two posts
+local SIGNAL = {
+	DANGER = { bg = Color3.fromRGB(200, 30, 36), fg = Color3.new(1, 1, 1) },
+	WARNING = { bg = Color3.fromRGB(240, 120, 20), fg = Color3.new(0, 0, 0) },
+	CAUTION = { bg = Color3.fromRGB(250, 210, 0), fg = Color3.new(0, 0, 0) },
+	NOTICE = { bg = Color3.fromRGB(20, 80, 170), fg = Color3.new(1, 1, 1) },
+	SAFETY = { bg = Color3.fromRGB(0, 130, 70), fg = Color3.new(1, 1, 1) },
+}
+local function safetySign(parent, cf, signal, message, width, height, postBase)
+	width, height = width or 5, height or 3.4
+	local base, top = postBase or 0, 7.5
+	for _, x in ipairs({ -width / 2 + 0.4, width / 2 - 0.4 }) do
+		part(parent, "SignPost", Vector3.new(0.25, top - base, 0.25), cf * CFrame.new(x, (top + base) / 2, -0.12), C.steel, Enum.Material.Metal)
+	end
+	local panel = part(parent, "Sign", Vector3.new(width, height, 0.1), cf * CFrame.new(0, top - height / 2, 0), C.white)
+	local g = surface(panel, 70)
+	local sig = SIGNAL[signal]
+	local head = label(g, "Signal", signal, UDim2.fromScale(1, 0.3), UDim2.new(), sig.fg, Enum.Font.GothamBlack, sig.bg)
+	head.Name = "Signal"
+	local body = label(g, "Message", message, UDim2.fromScale(0.92, 0.62), UDim2.fromScale(0.04, 0.34), Color3.fromRGB(20, 20, 24), Enum.Font.GothamBold)
+	body.TextWrapped = true
+	return panel
+end
+
+-- an orange traffic drum with reflective white bands, the way mat roads are delineated
+local function drum(parent, pos)
+	local up = CFrame.Angles(0, 0, math.rad(90))
+	part(parent, "Drum", Vector3.new(3, 1.9, 1.9), CFrame.new(pos + Vector3.new(0, 1.6, 0)) * up, C.orange, Enum.Material.Plastic, Enum.PartType.Cylinder).CanCollide = false
+	for _, y in ipairs({ 1.2, 2.3 }) do
+		part(parent, "DrumBand", Vector3.new(0.35, 1.95, 1.95), CFrame.new(pos + Vector3.new(0, y, 0)) * up, C.white, Enum.Material.Foil, Enum.PartType.Cylinder).CanCollide = false
+	end
+	part(parent, "DrumBase", Vector3.new(2.6, 0.2, 2.6), CFrame.new(pos + Vector3.new(0, 0.1, 0)), C.black).CanCollide = false
+end
+
+-- a reel of new conductor on its trailer, the heart of a transmission line job
+local function reelTrailer(parent, cf)
+	part(parent, "TrailerBed", Vector3.new(4, 0.5, 9), cf * CFrame.new(0, 1.5, 0), C.dark, Enum.Material.Metal)
+	for _, z in ipairs({ -2, 2 }) do
+		for _, x in ipairs({ -2.2, 2.2 }) do
+			part(parent, "Wheel", Vector3.new(0.8, 2, 2), cf * CFrame.new(x, 1, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	part(parent, "Tongue", Vector3.new(0.4, 0.4, 4), cf * CFrame.new(0, 1.3, -6.4), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, 1.6 }) do
+		part(parent, "ReelStand", Vector3.new(0.3, 4.5, 0.4), cf * CFrame.new(x, 3.9, 0), C.steel, Enum.Material.Metal)
+	end
+	part(parent, "ReelFlange", Vector3.new(3, 6.2, 6.2), cf * CFrame.new(0, 5.2, 0), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	part(parent, "Conductor", Vector3.new(3.1, 5, 5), cf * CFrame.new(0, 5.2, 0), Color3.fromRGB(150, 152, 156), Enum.Material.Metal, Enum.PartType.Cylinder)
+end
+
+local function generator(parent, cf)
+	part(parent, "Generator", Vector3.new(3, 2.4, 5.5), cf * CFrame.new(0, 1.6, 0), Color3.fromRGB(230, 200, 40), Enum.Material.Metal)
+	part(parent, "GenSkid", Vector3.new(3.2, 0.4, 5.8), cf * CFrame.new(0, 0.2, 0), C.dark, Enum.Material.Metal)
+	part(parent, "Exhaust", Vector3.new(0.3, 1.2, 0.3), cf * CFrame.new(0.9, 3.3, 2), C.dark, Enum.Material.Metal)
+end
+
+local function lightTower(parent, cf)
+	part(parent, "TowerBase", Vector3.new(3.6, 2.2, 6), cf * CFrame.new(0, 1.5, 0), C.white, Enum.Material.Metal)
+	part(parent, "TowerMast", Vector3.new(0.35, 18, 0.35), cf * CFrame.new(0, 11.5, -1.5), C.steel, Enum.Material.Metal)
+	part(parent, "LampBar", Vector3.new(4.5, 0.4, 0.4), cf * CFrame.new(0, 20.4, -1.5), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, -0.55, 0.55, 1.6 }) do
+		part(parent, "Lamp", Vector3.new(0.9, 0.9, 0.5), cf * CFrame.new(x, 21, -1.4), Color3.fromRGB(230, 232, 236), Enum.Material.Glass)
+	end
+end
+
+local function portableToilet(parent, cf)
+	part(parent, "PortableToilet", Vector3.new(3.6, 7, 3.6), cf * CFrame.new(0, 3.5, 0), Color3.fromRGB(30, 110, 60))
+	part(parent, "ToiletRoof", Vector3.new(3.8, 0.4, 3.8), cf * CFrame.new(0, 7.2, 0), C.white)
+end
+
+local function poleLaydown(parent, cf)
+	for i = 0, 2 do
+		part(parent, "SparePole", Vector3.new(36, 1.5, 1.5), cf * CFrame.new(0, 0.9 + (i == 2 and 1.3 or 0), (i == 2 and 0.8 or i * 1.6)), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	end
+	for _, x in ipairs({ -12, 0, 12 }) do
+		part(parent, "Dunnage", Vector3.new(0.8, 0.6, 5), cf * CFrame.new(x, 0.1, 0.8), C.matWood, Enum.Material.Wood)
+	end
+end
+
+-- the signs and the working kit on the boardwalk jobsite
+local function jobsiteDressing(site)
+	local f = Instance.new("Folder")
+	f.Name = "Jobsite"
+	f.Parent = site
+	local facingWest = CFrame.Angles(0, math.rad(-90), 0) -- read by people walking east from the spawn
+	safetySign(f, CFrame.new(-82, 0, 6) * facingWest, "CAUTION", "ACTIVE UTILITY CONSTRUCTION. AUTHORIZED PERSONNEL ONLY. HARD HAT, HI-VIS VEST, AND SAFETY BOOTS REQUIRED.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN PLANIT.", 5, 3.4, -1)
+	safetySign(f, CFrame.new(-48, 0, 6) * facingWest, "WARNING", "LIGHTNING. WHEN THE BEACON SOUNDS, GO TO THE TRUCKS. WORK RESUMES 30 MIN AFTER THE LAST STRIKE INSIDE 10 MI.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-33, 0, 6) * facingWest, "NOTICE", "BEACON WORK ZONE. CHECK IN ON THE CREW PAGE OR AT THE BEACON BEFORE ENTERING.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-92, 0, -46.5), "SAFETY", "HEAT ILLNESS PREVENTION. WATER, REST, SHADE. DRINK A CUP EVERY 15 MINUTES.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-120, 0, -46.5), "SAFETY", "EMERGENCY MUSTER POINT. HEADCOUNT HERE ON EVERY STOP WORK.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-100, 0, -46.5), "NOTICE", "EMERGENCY: CALL 911. SITE 12, SEMINOLE, PUTNAM COUNTY FL. AED AND FIRST AID IN THE CREW TRUCK.", 5.4, 3.4, -1)
+
+	reelTrailer(f, CFrame.new(-140, 0, -37) * CFrame.Angles(0, math.rad(-90), 0))
+	generator(f, CFrame.new(-100, 0, -32) * CFrame.Angles(0, math.rad(90), 0))
+	lightTower(f, CFrame.new(-140, 0, -20))
+	portableToilet(f, CFrame.new(-75, 0, -41))
+	mats(f, -232, -188, -36, 6)
+	poleLaydown(f, CFrame.new(-210, 0, -36))
+	for i = 0, 3 do -- a stack of spare mats at the head of the road
+		part(f, "MatStack", Vector3.new(4, 0.6, 12), CFrame.new(-156, 0.3 + i * 0.62, -36) * CFrame.Angles(0, math.rad(90 + i * 3), 0), C.matWood, Enum.Material.WoodPlanks)
+	end
+	part(f, "Extinguisher", Vector3.new(1.4, 0.5, 0.5), CFrame.new(-108, 0.7, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 20, 20), Enum.Material.Metal, Enum.PartType.Cylinder)
+	part(f, "SpillKit", Vector3.new(2.2, 1.8, 1.8), CFrame.new(-110.5, 1.1, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(240, 200, 20), Enum.Material.Plastic, Enum.PartType.Cylinder)
+	for x = -250, -75, 25 do -- drums marking the mat road edges
+		drum(f, Vector3.new(x, 0, -17.2))
+		drum(f, Vector3.new(x + 12, 0, -30.8))
+	end
+end
+
+-- the brief's jobsite fitted beside the boardwalk: a mat road from the truck end toward the new line,
+-- a laydown pad with the crew truck and the cooling tent, the excavator and mat truck at the work face,
+-- the crew at work, and the transmission line they are building south of the road
+local function jobsite(site)
+	local crew = Instance.new("Folder")
+	crew.Name = "Crew"
+	crew.Parent = site
+	mats(site, -262, -40, -24, 12) -- the road
+	mats(site, -160, -72, -36, 14) -- the laydown pad
+	transmissionLine(site, -70, { -280, -160, -40, 80, 200 }, 3)
+	excavator(CFrame.new(-46, 0, -24) * CFrame.Angles(0, math.rad(-90), 0)) -- boom out over the marsh, facing east
+	local matTruck = model(site, "MatTruck")
+	truck(matTruck, CFrame.new(-150, 0, -24) * CFrame.Angles(0, math.rad(-90), 0))
+	matTruck.PrimaryPart = matTruck:FindFirstChild("Chassis")
+	matTruck:SetAttribute("SinksInMud", true)
+	for _, p in ipairs(matTruck:GetChildren()) do if p.Name == "Wheel" then mudSpray(p) end end
+	local pickup = crewTruck(site, CFrame.new(-115, 0, -38) * CFrame.Angles(0, math.rad(-90), 0))
+	for _, p in ipairs(pickup:GetChildren()) do if p.Name == "Wheel" then mudSpray(p) end end
+	coolingTent(site, CFrame.new(-86, 0, -38))
+	-- where the crew goes: into the truck on stop work, under the tent in the heat (pivot height, 3 studs over the mats)
+	ghost(part(crew, "ShelterSpot", Vector3.new(1, 1, 1), CFrame.new(-115, 3, -38), C.white))
+	ghost(part(crew, "ShadeSpot", Vector3.new(1, 1, 1), CFrame.new(-86, 3, -38), C.white))
+	ghost(part(crew, "TailboardSpot", Vector3.new(1, 1, 1), CFrame.lookAt(Vector3.new(-75, 3, -19), Vector3.new(-75, 3, -8)), C.white))
+	for _, p in ipairs({ { -58, -20 }, { -61, -28 }, { -67, -22 }, { -54, -29 } }) do
+		workerModel(crew, CFrame.new(p[1], 3, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(60, 120)), 0))
+	end
+	jobsiteDressing(site)
+end
+
+-- The second setting: a Mississippi River crossing 2600 studs east of the main site. A levee 4 studs high between
+-- the river and the work pad, a substation, the new transmission line crossing the river, a river gauge, its own
+-- conditions board, and a beacon light that mirrors the main beacon. Flood water is two planes: the river side
+-- rises first, the land side only floods once the river tops the levee. It is a sim setting only; the contract's
+-- site 12 beacon, zone, and muster stay at the main site.
+local RIVER = Vector3.new(2600, 0, 0)
+local function riverSite()
+	local R = RIVER
+	local f = Instance.new("Folder")
+	f.Name = "RiverSite"
+	f.Parent = workspace.Site
+	local T = workspace.Terrain
+	T:FillBlock(CFrame.new(R + Vector3.new(0, -8, 0)), Vector3.new(1000, 16, 1000), Enum.Material.Grass)
+	T:FillBlock(CFrame.new(R + Vector3.new(180, -4, 0)), Vector3.new(160, 8, 1000), Enum.Material.Air)
+	T:FillBlock(CFrame.new(R + Vector3.new(180, -5.5, 0)), Vector3.new(160, 5, 1000), Enum.Material.Water) -- surface at -3
+	T:FillBlock(CFrame.new(R + Vector3.new(97, -4, 0)), Vector3.new(10, 8, 1000), Enum.Material.Mud)
+	T:FillBlock(CFrame.new(R + Vector3.new(80, 2, 0)), Vector3.new(20, 4, 1000), Enum.Material.Grass) -- the levee, top at 4
+	T:FillBlock(CFrame.new(R + Vector3.new(-40, -8, 10)), Vector3.new(110, 16.1, 90), Enum.Material.Ground) -- the work pad
+
+	-- substation: three transformers on a slab inside a fence
+	local sub = R + Vector3.new(-130, 0, -80)
+	part(f, "SubSlab", Vector3.new(44, 0.6, 22), CFrame.new(sub + Vector3.new(10, 0.3, 0)), C.concrete, Enum.Material.Concrete)
+	for i = 0, 2 do
+		local p = sub + Vector3.new(i * 10, 0, 0)
+		part(f, "Transformer", Vector3.new(6, 6, 5), CFrame.new(p + Vector3.new(0, 3.6, 0)), Color3.fromRGB(110, 118, 110), Enum.Material.Metal)
+		for _, dx in ipairs({ -1.8, 0, 1.8 }) do
+			part(f, "Bushing", Vector3.new(0.6, 2.4, 0.6), CFrame.new(p + Vector3.new(dx, 7.8, 0)), C.white, Enum.Material.Glass)
+		end
+	end
+	for _, side in ipairs({ { 10, -11, 44, 0 }, { 10, 11, 44, 0 }, { -12, 0, 22, 90 }, { 32, 0, 22, 90 } }) do
+		local fence = part(f, "Fence", Vector3.new(side[3], 5, 0.15), CFrame.new(sub + Vector3.new(side[1], 2.5, side[2])) * CFrame.Angles(0, math.rad(side[4]), 0), C.steel, Enum.Material.DiamondPlate)
+		fence.Transparency = 0.55
+	end
+
+	-- the new line crossing the river, strung from the substation side to the far bank
+	transmissionLine(f, R.Z + 90, { R.X - 150, R.X + 20, R.X + 340 }, 3)
+
+	-- crew equipment on the pad: a mat truck and the crew truck, parked
+	local matTruck = model(f, "RiverMatTruck")
+	truck(matTruck, CFrame.new(R + Vector3.new(-60, 0, 30)) * CFrame.Angles(0, math.rad(-90), 0))
+	crewTruck(f, CFrame.new(R + Vector3.new(-30, 0, 45)) * CFrame.Angles(0, math.rad(-90), 0)):SetAttribute("SinksInMud", nil)
+
+	-- a beacon light on its own post, mirroring the main beacon's state
+	local rb = model(workspace, "RiverBeacon")
+	rb.PrimaryPart = part(rb, "Post", Vector3.new(0.7, 9, 0.7), CFrame.new(R + Vector3.new(-10, 4.5, 10)), C.steel, Enum.Material.Metal)
+	part(rb, "Head", Vector3.new(2.4, 1.6, 1.2), CFrame.new(R + Vector3.new(-10, 8.6, 10)), C.safety)
+	local light = part(rb, "Light", Vector3.new(1.6, 1.6, 1.6), CFrame.new(R + Vector3.new(-10, 10.2, 10)), C.green, Enum.Material.Neon, Enum.PartType.Ball)
+	local glow = Instance.new("PointLight")
+	glow.Name, glow.Range, glow.Brightness, glow.Color = "Glow", 20, 3, C.green
+	glow.Parent = light
+	local tag = Instance.new("BillboardGui")
+	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(240, 64), Vector3.new(0, 2.6, 0)
+	tag.MaxDistance, tag.LightInfluence = 300, 0
+	tag.Parent = light
+	label(tag, "Level", "ALL CLEAR", UDim2.fromScale(1, 0.62), UDim2.new(), C.green)
+	label(tag, "Sub", "HAZARD INDEX 0", UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0.62), C.white, Enum.Font.GothamMedium)
+
+	floodGauge(f, R.X + 64, R.Z + 20)
+	conditionsBoard(CFrame.new(R + Vector3.new(-60, 0, 20)), "ConditionsBoardRiver")
+	local sp = ghost(part(f, "RiverSpawn", Vector3.new(4, 1, 4), CFrame.lookAt(R + Vector3.new(-40, 3, 70), R + Vector3.new(100, 3, 20)), C.white))
+	sp.Name = "RiverSpawn"
+
+	-- river side rises first, land side floods only past the levee top (WeatherFx drives both)
+	local riverFlood = ghost(part(workspace, "RiverFloodWater", Vector3.new(410, 0.4, 1000), CFrame.new(R + Vector3.new(295, -3.4, 0)), Color3.fromRGB(96, 84, 60), Enum.Material.Glass))
+	riverFlood.Reflectance = 0.05
+	local landFlood = ghost(part(workspace, "LandFloodWater", Vector3.new(570, 0.4, 1000), CFrame.new(R + Vector3.new(-215, -1.2, 0)), Color3.fromRGB(96, 84, 60), Enum.Material.Glass))
+	landFlood.Reflectance = 0.05
+
+	shots({
+		Wide = { R + Vector3.new(-160, 70, 160), R + Vector3.new(40, 0, 0) },
+		Levee = { R + Vector3.new(40, 9, 60), R + Vector3.new(140, 0, 0) },
+		Beacon = { R + Vector3.new(-26, 12, 26), R + Vector3.new(-10, 9, 10) },
+		Board = { R + Vector3.new(-60, 9, 44), R + Vector3.new(-60, 8, 20) },
+	}, "ShotsRiver")
+end
 
 -- The boardwalk swamp (workspace.PlanITSite, a hand made scene): deck top 4.4, open water everywhere at -0.6,
 -- a 28 x 24 research platform at the origin, the boardwalk running west to the truck at x -300.
@@ -952,14 +1493,25 @@ function Builder.build()
 	if scene then
 		-- the beacon pivots on its post, whose center is 5 studs up
 		workspace.Beacon:PivotTo(CFrame.new(-6, DECK_Y, -6) * CFrame.Angles(0, math.rad(-90), 0) * CFrame.new(0, 5, 0)) -- faces west, down the boardwalk
-		powerLine(site)
+		jobsite(site)
 		wildlife(site, {
 			swims = { { 40, -60, 30, 3.2 }, { -100, 50, 25, 2.6 }, { 120, 80, 40, 3.6 }, { -200, -60, 30, 2.2 } },
 			basks = { { -70, WATER_Y - 0.4, -12, 90 }, { 30, WATER_Y - 0.4, 22, 300 } }, -- lurking by the walkway
 		})
 		adopt(scene, site)
 		billboard(site, CFrame.new(-50, 0, 9) * CFrame.Angles(0, math.pi, 0))
-		markers(CFrame.lookAt(Vector3.new(-60, DECK_Y + 1, 0), Vector3.new(0, DECK_Y + 1, 0)), false)
+		conditionsBoard(CFrame.new(-75, -1, -8))
+		shots({
+			Wide = { Vector3.new(-170, 70, 120), Vector3.new(-60, 0, -20) },
+			Road = { Vector3.new(-125, 14, 10), Vector3.new(-60, 2, -26) },
+			Gator = { Vector3.new(-82, 9, -6), Vector3.new(-100, 1, -24) },
+			Tent = { Vector3.new(-70, 10, -18), Vector3.new(-86, 3, -38) },
+			Storm = { Vector3.new(-20, 30, 40), Vector3.new(-600, 120, -60) },
+			Beacon = { Vector3.new(-22, 12, 4), Vector3.new(-6, 9, -6) },
+			Flood = { Vector3.new(40, 9, 20), Vector3.new(0, 3, -6) },
+			Board = { Vector3.new(-75, 9, 16), Vector3.new(-75, 8, -8) },
+		})
+		markers(CFrame.lookAt(Vector3.new(-100, 1, -24), Vector3.new(0, 1, -24)), false) -- the gator walks the mat road toward the crew
 	else
 		terrain()
 		excavator(CFrame.new(-16, 0, -12) * CFrame.Angles(0, math.rad(30), 0))
@@ -978,10 +1530,23 @@ function Builder.build()
 			table.insert(swims, { c.X, c.Z, r, s[3] })
 		end
 		wildlife(site, { swims = swims, basks = { { 72, 1, -20, 63 }, { 100, 1, 140, 98 } }, egrets = true }) -- one bask in sight of the spawn
-		floodGauge(site)
+		floodGauge(site, 37, 37)
 		billboard(site, CFrame.new(-28, 0, 70))
+		conditionsBoard(CFrame.new(30, 0, 70))
+		shots({
+			Wide = { Vector3.new(0, 70, 190), Vector3.new(0, 0, 0) },
+			Road = { Vector3.new(-50, 14, 60), Vector3.new(-16, 2, -12) },
+			Gator = { Vector3.new(90, 9, 50), Vector3.new(66, 1, 30) },
+			Tent = { Vector3.new(30, 12, 110), Vector3.new(30, 8, 70) },
+			Storm = { Vector3.new(30, 30, 60), Vector3.new(-600, 120, 0) },
+			Beacon = { Vector3.new(0, 12, 22), Vector3.new(0, 9, 0) },
+			Flood = { Vector3.new(60, 10, 60), Vector3.new(0, 1, 0) },
+			Board = { Vector3.new(30, 9, 92), Vector3.new(30, 8, 70) },
+		})
 		markers(CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), true) -- gator crawls toward the zone
 	end
+	riverSite()
+	workspace:SetAttribute("ActiveSite", "everglades")
 	lighting()
 	print("[SceneBuilder] site built" .. (scene and " into the boardwalk swamp" or "") .. ". File > Save, then publish.")
 end
@@ -1014,16 +1579,16 @@ local targets = {
 }
 
 local CLEAR = {
-	lighting = { ClockTime = 15, Brightness = 2.5, OutdoorAmbient = Color3.fromRGB(140, 140, 150) },
-	atmosphere = { Density = 0.34, Haze = 1.6, Glare = 0.25, Color = Color3.fromRGB(196, 198, 172), Decay = Color3.fromRGB(96, 112, 96) },
-	grade = { Brightness = 0, Contrast = 0.05, Saturation = 0.1, TintColor = Color3.new(1, 1, 1) },
-	clouds = { Cover = 0.45, Density = 0.6, Color = Color3.new(1, 1, 1) },
+	lighting = { Brightness = 3, OutdoorAmbient = Color3.fromRGB(118, 120, 126) },
+	atmosphere = { Density = 0.36, Haze = 1.8, Glare = 0.35, Color = Color3.fromRGB(200, 204, 196), Decay = Color3.fromRGB(108, 118, 112) },
+	grade = { Brightness = 0, Contrast = 0.12, Saturation = -0.06, TintColor = Color3.fromRGB(255, 248, 236) },
+	clouds = { Cover = 0.5, Density = 0.55, Color = Color3.new(1, 1, 1) },
 }
 local STORM = {
-	lighting = { ClockTime = 17.2, Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(90, 95, 110) },
-	atmosphere = { Density = 0.55, Haze = 2.5, Glare = 0, Color = Color3.fromRGB(110, 115, 125), Decay = Color3.fromRGB(70, 75, 90) },
-	grade = { Brightness = -0.05, Contrast = 0.12, Saturation = -0.25, TintColor = Color3.fromRGB(215, 225, 240) },
-	clouds = { Cover = 0.95, Density = 0.85, Color = Color3.fromRGB(120, 125, 135) },
+	lighting = { Brightness = 1.1, OutdoorAmbient = Color3.fromRGB(78, 84, 96) },
+	atmosphere = { Density = 0.58, Haze = 2.6, Glare = 0, Color = Color3.fromRGB(104, 110, 120), Decay = Color3.fromRGB(64, 70, 84) },
+	grade = { Brightness = -0.04, Contrast = 0.16, Saturation = -0.3, TintColor = Color3.fromRGB(212, 222, 236) },
+	clouds = { Cover = 0.96, Density = 0.9, Color = Color3.fromRGB(105, 110, 120) },
 }
 
 -- k = 0 is CLEAR, k = 1 is STORM
@@ -1061,7 +1626,38 @@ local WATER_Y = -0.5
 local STUDS_PER_MM = 2.4 / 60
 local RISE_SECONDS = 8
 
+-- The river crossing: the river side climbs from its normal level at -3, the land side floods only once the river
+-- passes the levee top at 4. 100 mm brings the river to the levee top, 120 mm and up overtops it.
+local RIVER_NORMAL, LEVEE_TOP, RIVER_PER_MM = -3, 4, 0.07
+local function setRiver(depth_mm, instant)
+	local riverTop = RIVER_NORMAL + math.max(0, depth_mm) * RIVER_PER_MM
+	local landTop = riverTop > LEVEE_TOP and (riverTop - 0.6) or -1.2
+	local plan = {
+		{ workspace:FindFirstChild("RiverFloodWater"), riverTop, depth_mm > 0 and 0.2 or 1 },
+		{ workspace:FindFirstChild("LandFloodWater"), landTop, riverTop > LEVEE_TOP and 0.25 or 1 },
+	}
+	for _, p in ipairs(plan) do
+		local water, top, transparency = p[1], p[2], p[3]
+		if water then
+			local goal = { Transparency = transparency, CFrame = CFrame.new(water.CFrame.Position.X, top - water.Size.Y / 2, water.CFrame.Position.Z) }
+			if instant then
+				for name, v in pairs(goal) do water[name] = v end
+			else
+				TweenService:Create(water, TweenInfo.new(RISE_SECONDS, Enum.EasingStyle.Sine), goal):Play()
+			end
+		end
+	end
+	workspace:SetAttribute("RiverOvertop", riverTop > LEVEE_TOP)
+end
+
+-- the rain falls over whichever setting is active
+function WeatherFx.moveRain(position)
+	local part = workspace:FindFirstChild("RainEmitter")
+	if part then part.CFrame = CFrame.new(position + Vector3.new(0, 150, 0)) end
+end
+
 function WeatherFx.setWater(depth_mm, instant)
+	setRiver(depth_mm, instant)
 	local top = depth_mm > 0 and math.min(6, 0.3 + depth_mm * STUDS_PER_MM) or -1
 	workspace:SetAttribute("WaterSurface", math.max(WATER_Y, top)) -- Wildlife floats the boat, logs, pads, and gators to this
 	local water = workspace:FindFirstChild("FloodWater")
@@ -1077,27 +1673,69 @@ function WeatherFx.setWater(depth_mm, instant)
 	end
 end
 
+-- the sun's position comes from the scenario clock (ScenarioEngine), the weather only dims and tints it
+function WeatherFx.setClock(hours)
+	Lighting.ClockTime = hours
+end
+
 function WeatherFx.reset()
 	set(blend(0), 0)
 	workspace:SetAttribute("Storm", 0)
+	workspace:SetAttribute("Rain", 0)
 	workspace.GlobalWind = Vector3.new(4, 0, 0)
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
 	WeatherFx.setWater(0, true)
-	local gator = workspace:FindFirstChild("Gator")
-	if gator then gator:Destroy() end
+	for _, n in ipairs({ "Gator", "HazardPin" }) do
+		local x = workspace:FindFirstChild(n)
+		if x then x:Destroy() end
+	end
+end
+
+-- a crew hazard report as it shows on the site map: a pin with the report, and the 30 ft buffer on the ground
+local function hazardPin(at, title, detail)
+	local m = Instance.new("Model")
+	m.Name = "HazardPin"
+	local function piece(size, cf, color, material, shape)
+		local p = Instance.new("Part")
+		p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow = true, false, false, false, false
+		p.Size, p.CFrame, p.Color, p.Material = size, cf, color, material or Enum.Material.SmoothPlastic
+		if shape then p.Shape = shape end
+		p.Parent = m
+		return p
+	end
+	local yellow = Color3.fromRGB(255, 200, 0)
+	piece(Vector3.new(0.25, 7, 0.25), CFrame.new(at + Vector3.new(0, 3.5, 0)), Color3.fromRGB(40, 40, 46), Enum.Material.Metal)
+	local head = piece(Vector3.new(1.4, 1.4, 1.4), CFrame.new(at + Vector3.new(0, 7.6, 0)), yellow, Enum.Material.Neon, Enum.PartType.Ball)
+	-- 30 ft is about 28 studs across at our 1 stud to 1.1 ft
+	local ring = piece(Vector3.new(0.12, 28, 28), CFrame.new(at + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90)), yellow, Enum.Material.Neon, Enum.PartType.Cylinder)
+	ring.Transparency = 0.75
+	local bb = Instance.new("BillboardGui")
+	bb.Size, bb.StudsOffset, bb.MaxDistance, bb.LightInfluence = UDim2.fromOffset(250, 58), Vector3.new(0, 2.4, 0), 250, 0
+	bb.Parent = head
+	local function line(text, y, h, color, font)
+		local t = Instance.new("TextLabel")
+		t.BackgroundColor3, t.BackgroundTransparency, t.BorderSizePixel = Color3.fromRGB(14, 16, 22), 0.15, 0
+		t.Size, t.Position = UDim2.fromScale(1, h), UDim2.fromScale(0, y)
+		t.Font, t.TextScaled, t.TextColor3, t.Text = font, true, color, text
+		t.Parent = bb
+	end
+	line(title, 0, 0.55, yellow, Enum.Font.GothamBold)
+	line(detail, 0.55, 0.45, Color3.fromRGB(236, 238, 243), Enum.Font.GothamMedium)
+	m.Parent = workspace
 end
 
 function WeatherFx.apply(e)
 	local k = math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)
 	set(blend(k), 4)
 	workspace:SetAttribute("Storm", k) -- Wildlife flushes the egrets past 0.6
+	workspace:SetAttribute("Rain", e.rain or 0) -- Ambience fades the rain loop to this
 	-- wind from the scenario's gust (mph), blowing east off the storm: bends the rain, the grass, and the clouds
 	workspace.GlobalWind = Vector3.new(math.max(4, (e.gust or 0) * 0.8), 0, (e.gust or 0) * 0.15)
 	local rain = emitter()
 	if rain then
 		rain.Enabled = (e.rain or 0) > 0
-		rain.Rate = math.clamp((e.rain or 0) * 8, 0, 500)
+		rain.Rate = math.clamp((e.rain or 0) * 12, 0, 800) -- the worst cells come down in sheets
 	end
 end
 
@@ -1109,20 +1747,63 @@ function WeatherFx.spawnGator()
 		local g = template:Clone()
 		g:PivotTo(spot.CFrame)
 		g.Parent = workspace
+		-- pinned where the crew saw it, centered on where it crawls to
+		local at = (spot.CFrame * CFrame.new(0, -1, -8)).Position
+		hazardPin(at, "HAZARD REPORT  ·  ALLIGATOR", "Crew photo, tagged and shared  ·  30 ft buffer")
 	end
 end
 
 return WeatherFx
 ]==] },
+	{ "Ambience", "LocalScript", [==[-- Ambience (LocalScript in StarterPlayerScripts)
+-- Swamp sound: frogs and insects when it is calm, rain on the water when a scenario brings rain.
+-- Both are Roblox licensed library audio (ProSoundEffects), nothing uploaded. Volumes change over 6 s,
+-- never in a jump, so the mic listener's thunder detector (a 4x rise in under 0.3 s) cannot mistake them for thunder.
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local FROGS_ID = "rbxassetid://9112809746" -- Jungle Frogs 1, 46 s loop
+local RAIN_ID = "rbxassetid://9112854469" -- Rain On Water 1, 61 s loop
+local FROGS_MAX, RAIN_MAX = 0.25, 0.45
+local FADE = TweenInfo.new(6, Enum.EasingStyle.Sine)
+
+local function loop(name, id)
+	local s = Instance.new("Sound")
+	s.Name, s.SoundId, s.Looped, s.Volume = name, id, true, 0
+	s.Parent = SoundService
+	s:Play()
+	return s
+end
+local frogs = loop("SwampFrogs", FROGS_ID)
+local rain = loop("SwampRain", RAIN_ID)
+
+local function update()
+	local storm = workspace:GetAttribute("Storm") or 0
+	local mm = workspace:GetAttribute("Rain") or 0
+	TweenService:Create(frogs, FADE, { Volume = FROGS_MAX * (1 - storm) }):Play() -- the frogs go quiet as the storm builds
+	TweenService:Create(rain, FADE, { Volume = RAIN_MAX * math.clamp(mm / 40, 0, 1) }):Play()
+end
+workspace:GetAttributeChangedSignal("Storm"):Connect(update)
+workspace:GetAttributeChangedSignal("Rain"):Connect(update)
+update()
+]==] },
 	{ "BeaconVisuals", "Script", [==[-- BeaconVisuals (Script in ServerScriptService/World)
--- Reads the workspace.Beacon attributes the Bridge writes and animates the in world beacon.
--- The light's color, flash pattern, and alarm follow the 0 to 10 hazard index, and a stop work overrides them:
---   index 0-3  ALL CLEAR  green   steady
---   index 4-6  CAUTION    yellow  slow pulse   one chirp when it rises here
---   index 7-8  WARNING    orange  fast pulse   two chirps
---   index 9-10 DANGER     red     rapid pulse  three chirps
---   stop work  STOP WORK  red     4 Hz strobe  horn x3, again on every countdown reset, a chime when it ends
--- Led from the real device still wins when it is more severe than the index band, so the twin never looks safer than the beacon.
+-- Animates the in world beacon. Each hazard has its own light color, flash pattern, label, and alarm, so a crew can
+-- tell from across the site what the beacon is warning about. With no hazard the light follows the 0 to 10 index.
+--   STOP WORK      lightning inside 10 mi   red strobe 4 Hz       3 bursts of fast high beeps, again on every reset
+--   E-STOP         emergency stop           red fast flash        rapid beeps
+--   BEACON TIPPED  pod knocked over         purple fast flash     two tone warble
+--   FLOOD          water on the pad         blue wave             rising sweep
+--   HEAT DANGER    heat index 115 F+        red orange slow pulse slow two tone, three times
+--   HEAT WARNING   heat index 103 F+        orange slow pulse     slow two tone, twice
+--   GATOR ON SITE  wildlife report          yellow double blink   chirp chirp, pause, chirp chirp
+--   all clear when the last hazard ends: a rising three note chime
+--   index 0-3 green steady, 4-6 yellow slow pulse, 7-8 orange fast pulse, 9-10 red rapid pulse, chirps as it rises
+-- Hazards come from the backend (Alerts, Led, Countdown, which the Bridge writes) and from the sim's own picture
+-- (Conditions writes SimStopWork, HeatIndexF, SimFloodMm, SimWildlife). The worse of the two wins, so the twin
+-- never looks safer than the real beacon and still reacts when the backend is unreachable.
+-- Every alarm is short, high beeps on purpose: the mic listener hears thunder as a sustained rumble near 120 Hz,
+-- so a low horn out of the demo laptop's speakers could be heard as thunder and fake a flash to bang distance.
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1143,17 +1824,56 @@ local billboard = billboardPart:WaitForChild("SurfaceGui"):WaitForChild("Status"
 local zone = workspace:WaitForChild("ZonePart")
 local zoneFloor = zone:FindFirstChild("ZoneFloor")
 local excavator = workspace:FindFirstChild("Excavator")
+-- the river crossing's beacon light shows exactly what this one shows
+local mirror = workspace:FindFirstChild("RiverBeacon")
+local mirrorLight = mirror and mirror:FindFirstChild("Light")
+local mirrorGlow = mirrorLight and mirrorLight:FindFirstChildOfClass("PointLight")
+local mirrorTag = mirrorLight and mirrorLight:FindFirstChild("LevelTag")
 
 local OFF = Color3.fromRGB(25, 25, 28)
 local DIM_RED = Color3.fromRGB(70, 22, 22)
-local LEVELS = {
-	[0] = { name = "ALL CLEAR", color = Color3.fromRGB(40, 210, 100), period = 0, chirps = 0 },
-	[1] = { name = "CAUTION", color = Color3.fromRGB(255, 200, 0), period = 2.2, chirps = 1 },
-	[2] = { name = "WARNING", color = Color3.fromRGB(255, 130, 30), period = 0.7, chirps = 2 },
-	[3] = { name = "DANGER", color = Color3.fromRGB(235, 40, 40), period = 0.35, chirps = 3 },
-	[4] = { name = "STOP WORK", color = Color3.fromRGB(235, 40, 40), period = 0, chirps = 0 },
+local RED = Color3.fromRGB(235, 40, 40)
+
+-- alarm patterns: { pitch, seconds until the next beep }
+local function rep(n, seq)
+	local out = {}
+	for _ = 1, n do
+		for _, b in ipairs(seq) do table.insert(out, b) end
+	end
+	return out
+end
+local HAZARDS = {
+	estop = { rank = 7, label = "E-STOP", sub = "PIN TO RESET", color = RED, pattern = "fast",
+		alarm = rep(8, { { 1.3, 0.12 } }) },
+	stopwork = { rank = 6, label = "STOP WORK", sub = "LIGHTNING INSIDE 10 MI", color = RED, pattern = "strobe",
+		alarm = rep(3, { { 1.5, 0.1 }, { 1.5, 0.1 }, { 1.5, 0.4 } }) },
+	beacon_unsafe = { rank = 5, label = "BEACON TIPPED", sub = "SENSORS UNRELIABLE", color = Color3.fromRGB(170, 90, 255), pattern = "fast",
+		alarm = rep(3, { { 1.15, 0.22 }, { 0.95, 0.22 } }) },
+	flood = { rank = 4, label = "FLOOD", sub = "WATER ON THE PAD", color = Color3.fromRGB(60, 140, 255), pattern = "wave",
+		alarm = rep(2, { { 0.9, 0.16 }, { 1.05, 0.16 }, { 1.2, 0.16 }, { 1.35, 0.16 }, { 1.5, 0.5 } }) },
+	wind = { rank = 3.5, label = "HIGH WIND", sub = "AERIAL LIFTS GROUNDED, 28 MPH+", color = Color3.fromRGB(0, 200, 200), pattern = "pulse",
+		alarm = rep(2, { { 1.2, 0.14 }, { 1.0, 0.14 }, { 1.2, 0.45 } }) },
+	heat_danger = { rank = 3, label = "HEAT DANGER", sub = "REST BREAKS, WATER", color = Color3.fromRGB(255, 90, 40), pattern = "slow",
+		alarm = rep(3, { { 1.0, 0.45 }, { 1.25, 0.45 } }) },
+	heat_warning = { rank = 2, label = "HEAT WARNING", sub = "HYDRATE, WATCH THE CREW", color = Color3.fromRGB(255, 150, 30), pattern = "slow",
+		alarm = rep(2, { { 1.0, 0.45 }, { 1.25, 0.45 } }) },
+	wildlife = { rank = 1, label = "GATOR ON SITE", sub = "KEEP 30 FT, CHECK THE MAP", color = Color3.fromRGB(255, 210, 0), pattern = "double",
+		alarm = rep(2, { { 1.8, 0.09 }, { 1.8, 0.45 } }) },
 }
-local LED_LEVEL = { green = 0, yellow = 1, red = 3, strobe = 4 }
+local ALL_CLEAR = { { 1.0, 0.2 }, { 1.26, 0.2 }, { 1.5, 0.6 } }
+-- backend alert types (contracts/events.md) mapped onto the beacon's hazards
+local ALERT_HAZARD = {
+	stopwork = "stopwork", estop = "estop", beacon_unsafe = "beacon_unsafe",
+	flood_warning = "flood", flood_confirmed = "flood", heat_danger = "heat_danger", heat_warning = "heat_warning",
+	wildlife = "wildlife",
+}
+local LEVELS = {
+	[0] = { name = "ALL CLEAR", color = Color3.fromRGB(40, 210, 100), pattern = "steady", chirps = 0 },
+	[1] = { name = "CAUTION", color = Color3.fromRGB(255, 200, 0), pattern = "slow", chirps = 1 },
+	[2] = { name = "WARNING", color = Color3.fromRGB(255, 130, 30), pattern = "pulse", chirps = 2 },
+	[3] = { name = "DANGER", color = RED, pattern = "rapid", chirps = 3 },
+}
+local LED_LEVEL = { green = 0, yellow = 1, red = 3 }
 
 local function attr(name, default)
 	local v = beacon:GetAttribute(name)
@@ -1170,12 +1890,43 @@ local function fmtIndex(i)
 	return i % 1 == 0 and ("%d"):format(i) or ("%.1f"):format(i)
 end
 
-local function stopWork()
-	return attr("Led", "green") == "strobe" or attr("Countdown", 0) > 0
+-- the countdown to show: the real beacon's when it runs one, otherwise the sim's own 30 minute rule
+local function countdown()
+	local real = attr("Countdown", 0)
+	if real > 0 then return real end
+	return workspace:GetAttribute("SimCountdown") or 0
 end
 
-local function level()
-	if stopWork() then return 4 end
+local function activeHazards()
+	local set = {}
+	local ok, alerts = pcall(HttpService.JSONDecode, HttpService, attr("Alerts", "[]"))
+	if ok and typeof(alerts) == "table" then
+		for _, a in ipairs(alerts) do
+			local h = ALERT_HAZARD[tostring(a)]
+			if h then set[h] = true end
+		end
+	end
+	if attr("Led", "green") == "strobe" or attr("Countdown", 0) > 0 or workspace:GetAttribute("SimStopWork") == true then
+		set.stopwork = true
+	end
+	local hi = workspace:GetAttribute("HeatIndexF") or 0
+	if hi >= 115 then set.heat_danger = true elseif hi >= 103 then set.heat_warning = true end
+	if set.heat_danger then set.heat_warning = nil end
+	if (workspace:GetAttribute("SimFloodMm") or 0) > 0 then set.flood = true end
+	if workspace:GetAttribute("SimWildlife") == true then set.wildlife = true end
+	if (workspace:GetAttribute("SimGustMph") or 0) >= 28 then set.wind = true end
+	return set
+end
+
+local function topOf(set)
+	local top
+	for key in pairs(set) do
+		if not top or HAZARDS[key].rank > HAZARDS[top].rank then top = key end
+	end
+	return top
+end
+
+local function indexLevel()
 	local i = attr("Index", 0)
 	local band = i >= 9 and 3 or i >= 7 and 2 or i >= 4 and 1 or 0
 	return math.max(band, LED_LEVEL[attr("Led", "green")] or 0)
@@ -1189,77 +1940,110 @@ if not alarm then
 	alarm.Name = "Alarm"
 	alarm.Parent = light
 end
--- Built in client sound so it works with nothing uploaded. Set Beacon attribute AlarmSoundId to a Toolbox siren to override.
+-- Built in client sound so it works with nothing uploaded. Set Beacon attribute AlarmSoundId to override.
 alarm.SoundId = attr("AlarmSoundId", "rbxasset://sounds/electronicpingshort.wav")
 alarm.Volume, alarm.RollOffMaxDistance = 1, 400
 
-local alarmBusy = false
-local function beep(times, pitch, gap)
-	if alarmBusy then return end
-	alarmBusy = true
-	task.spawn(function()
-		for _ = 1, times do
-			alarm.PlaybackSpeed = pitch
-			alarm:Play()
-			task.wait(gap)
-		end
-		alarmBusy = false
-	end)
+local queue = {}
+local function sound(name, pattern)
+	light:SetAttribute("LastAlarm", name)
+	table.insert(queue, pattern)
 end
-local function horn() beep(3, 0.45, 0.7) end
-local function chime() beep(2, 1.6, 0.25) end
-
----------------------------------------------------------------- light, tag, zone floor
-
-local current = level()
-local function onLevel()
-	local new = level()
-	if new == current then return end
-	if new == 4 then horn()
-	elseif current == 4 then chime()
-	elseif new > current then beep(LEVELS[new].chirps, 1, 0.3)
+task.spawn(function()
+	while true do
+		local pattern = table.remove(queue, 1)
+		if pattern then
+			for _, b in ipairs(pattern) do
+				alarm.PlaybackSpeed = b[1]
+				alarm:Play()
+				task.wait(b[2])
+			end
+			task.wait(0.3)
+		else
+			task.wait(0.1)
+		end
 	end
-	current = new
+end)
+
+---------------------------------------------------------------- state: hazards first, then the index
+
+local active, top, level = {}, nil, indexLevel()
+local function look()
+	if top then return HAZARDS[top] end
+	return LEVELS[level]
+end
+
+local function update()
+	local set = activeHazards()
+	for key in pairs(set) do
+		if not active[key] then sound(key, HAZARDS[key].alarm) end -- each new hazard announces itself
+	end
+	local newTop = topOf(set)
+	if top and not newTop then sound("all_clear", ALL_CLEAR) end
+	local newLevel = indexLevel()
+	if not newTop and newLevel > level then
+		sound("index", rep(LEVELS[newLevel].chirps, { { 1.0, 0.3 } }))
+	end
+	active, top, level = set, newTop, newLevel
 end
 
 local clock = 0
 RunService.Heartbeat:Connect(function(dt) clock += dt end)
+local PERIOD = { wave = 1.2, slow = 2.2, pulse = 0.7, rapid = 0.35 }
+local function brightness(pattern)
+	if pattern == "strobe" then return (clock * 8) % 2 < 1 and 1 or 0 end
+	if pattern == "fast" then return (clock * 5) % 2 < 1 and 1 or 0.1 end
+	if pattern == "double" then
+		local p = clock % 1.4
+		return ((p < 0.15) or (p > 0.3 and p < 0.45)) and 1 or 0.1
+	end
+	local period = PERIOD[pattern]
+	if period then return 0.55 + 0.45 * math.sin(clock * 2 * math.pi / period) end
+	return 1
+end
 task.spawn(function()
 	while true do
-		local lv = LEVELS[current]
-		local k = 1
-		if current == 4 then
-			k = (clock * 8) % 2 < 1 and 1 or 0
-		elseif lv.period > 0 then
-			k = 0.55 + 0.45 * math.sin(clock * 2 * math.pi / lv.period)
-		end
-		light.Color = lv.color:Lerp(OFF, (1 - k) * 0.85)
+		local lk = look()
+		local k = brightness(lk.pattern)
+		light.Color = lk.color:Lerp(OFF, (1 - k) * 0.85)
 		if glow then
-			glow.Color, glow.Brightness = lv.color, 0.4 + 3.6 * k
+			glow.Color, glow.Brightness = lk.color, 0.4 + 3.6 * k
 		end
-		if zoneFloor then zoneFloor.Color = lv.color end
+		if zoneFloor then zoneFloor.Color = lk.color end
+		if mirrorLight then
+			mirrorLight.Color = light.Color
+			if mirrorGlow then mirrorGlow.Color, mirrorGlow.Brightness = lk.color, 0.4 + 3.6 * k end
+		end
 		task.wait(0.05)
 	end
 end)
 
 local function applyTag()
 	if not tag then return end
-	local lv = LEVELS[current]
-	local s = attr("Countdown", 0)
-	tag.Level.Text = current == 4 and s > 0 and ("%s  %s"):format(lv.name, fmt(s)) or lv.name
-	tag.Level.TextColor3 = lv.color
-	tag.Sub.Text = "HAZARD INDEX " .. fmtIndex(attr("Index", 0))
+	local lk = look()
+	local s = countdown()
+	tag.Level.Text = top == "stopwork" and s > 0 and ("%s  %s"):format(lk.label, fmt(s)) or (lk.label or lk.name)
+	tag.Level.TextColor3 = lk.color
+	local others = 0
+	for key in pairs(active) do
+		if key ~= top then others += 1 end
+	end
+	local sub = (top and (HAZARDS[top].sub .. "  ·  ") or "") .. "HAZARD INDEX " .. fmtIndex(attr("Index", 0))
+	tag.Sub.Text = others > 0 and ("%s  ·  +%d MORE"):format(sub, others) or sub
+	if mirrorTag then
+		mirrorTag.Level.Text, mirrorTag.Level.TextColor3, mirrorTag.Sub.Text = tag.Level.Text, tag.Level.TextColor3, tag.Sub.Text
+	end
 end
 
 ---------------------------------------------------------------- displays
 
-local lastCountdown = attr("Countdown", 0)
+local lastCountdown = countdown()
 local function applyCountdown()
-	local s = attr("Countdown", 0)
+	local s = countdown()
 	countdownLabel.Text = s > 0 and fmt(s) or "--:--"
-	countdownLabel.TextColor3 = s > 0 and LEVELS[4].color or DIM_RED
-	-- a new strike restarts the countdown, so a jump upward is a reset
-	if current == 4 and s > lastCountdown + 5 then horn() end
+	countdownLabel.TextColor3 = s > 0 and RED or DIM_RED
+	-- a new strike restarts the countdown, so a jump upward is a reset: sound the stop work alarm again
+	if top == "stopwork" and s > lastCountdown + 5 then sound("stopwork", HAZARDS.stopwork.alarm) end
 	lastCountdown = s
 end
 
@@ -1272,13 +2056,39 @@ local function applyIndex()
 	TweenService:Create(needle, TweenInfo.new(0.6, Enum.EasingStyle.Back), { CFrame = goal }):Play()
 end
 
+-- The equipment LCD mirrors the real beacon's lines while the Bridge is online. Offline, it shows the sim's own
+-- state using the beacon LCD lines from contracts/serial.md, 16 characters a line.
+local function cut(text) return text:sub(1, 16) end
+local function simLcd()
+	local hi = workspace:GetAttribute("HeatIndexF") or 0
+	if top == "stopwork" then
+		local miles = workspace:GetAttribute("SimStrikeMiles") or 0
+		return ("STOP WORK  %s"):format(fmt(countdown())), miles > 0 and ("LIGHTNING %d MI"):format(math.floor(miles + 0.5)) or "LIGHTNING"
+	elseif top == "flood" then
+		return "STANDING WATER", ("WATER %d MM"):format(math.floor((workspace:GetAttribute("SimFloodMm") or 0) + 0.5))
+	elseif top == "heat_danger" then
+		return "HEAT REST BREAK", ("HEAT INDEX %dF"):format(hi)
+	elseif top == "heat_warning" then
+		return "HEAT WARNING", ("HEAT INDEX %dF"):format(hi)
+	elseif top == "wildlife" then
+		return "GATOR ON SITE", "KEEP 30 FT"
+	elseif top == "wind" then
+		return "HIGH WIND", "AERIAL LIFTS DOWN"
+	end
+	return "ALL CLEAR  IDX " .. fmtIndex(attr("Index", 0)), "LOCAL RULES ON"
+end
 local function applyLcd()
-	lcd1.Text = attr("Lcd1", "")
-	lcd2.Text = attr("Lcd2", "")
+	if attr("Online", false) == true then
+		lcd1.Text, lcd2.Text = cut(attr("Lcd1", "")), cut(attr("Lcd2", ""))
+	else
+		local a, b = simLcd()
+		lcd1.Text, lcd2.Text = cut(a), cut(b)
+	end
 end
 
 local function applyBillboard()
-	local site = billboardPart:GetAttribute("SiteName") or "SITE 1"
+	-- the Bridge writes the backend's site name onto the Beacon, the scene's own label is the fallback
+	local site = (attr("SiteName", nil) or billboardPart:GetAttribute("SiteName") or "SITE 1"):upper()
 	if attr("Online", false) ~= true then
 		billboard.Text = site .. "\nBEACON OFFLINE"
 		return
@@ -1291,7 +2101,7 @@ local function applyBillboard()
 		end
 	end
 	billboard.Text = ("%s\nHAZARD INDEX %s / 10  ·  %s\n%s"):format(
-		site, fmtIndex(attr("Index", 0)), LEVELS[current].name, #names > 0 and table.concat(names, "  ·  ") or "NO ACTIVE ALERTS")
+		site, fmtIndex(attr("Index", 0)), look().label or look().name, #names > 0 and table.concat(names, "  ·  ") or "NO ACTIVE ALERTS")
 end
 
 ---------------------------------------------------------------- NPC worker
@@ -1357,12 +2167,14 @@ end
 
 ---------------------------------------------------------------- wiring
 
+local function refresh() update() applyTag() applyLcd() end
 local handlers = {
-	Led = { onLevel, applyTag, applyBillboard },
-	Countdown = { onLevel, applyCountdown, applyTag },
-	Index = { onLevel, applyIndex, applyTag, applyBillboard },
+	Led = { refresh, applyBillboard },
+	Countdown = { refresh, applyCountdown },
+	Index = { refresh, applyIndex, applyBillboard },
+	Alerts = { refresh, applyBillboard },
 	Lcd1 = { applyLcd }, Lcd2 = { applyLcd },
-	Online = { applyBillboard }, Alerts = { applyBillboard },
+	Online = { applyBillboard, applyLcd }, SiteName = { applyBillboard },
 	Presence = { applyPresence },
 	AlarmSoundId = { function() alarm.SoundId = attr("AlarmSoundId", alarm.SoundId) end },
 }
@@ -1371,8 +2183,565 @@ for name, fns in pairs(handlers) do
 		for _, f in ipairs(fns) do f() end
 	end)
 end
+for _, name in ipairs({ "SimStopWork", "HeatIndexF", "SimFloodMm", "SimWildlife", "SimGustMph" }) do
+	workspace:GetAttributeChangedSignal(name):Connect(refresh)
+end
+workspace:GetAttributeChangedSignal("SimCountdown"):Connect(function() applyCountdown() applyTag() applyLcd() end)
 
+update()
 applyCountdown() applyIndex() applyLcd() applyTag() applyBillboard() applyPresence()
+]==] },
+	{ "Conditions", "Script", [==[-- Conditions (Script in ServerScriptService/World)
+-- The site's one combined risk picture, in simulated time, and the decisions a foreman makes from it. It reads the
+-- scenario's weather, water, lightning, and wildlife and applies the field rules a utility crew works under:
+--   lightning   any strike inside 10 mi is a stop work; 30 minute all clear, restarted by every new strike
+--   heat        NWS heat index (Rothfusz); work/rest 45/15 from 91 F, 30/30 from 103 F, 15/45 from 115 F, water every 15 min
+--   wind        gusts of 28 mph and up ground aerial lifts and bucket trucks; 40 mph and up stops the job
+--   ground      a week of rain plus today's sets soil saturation; at 85% equipment stays on mats
+--   flood       water on the pad (or the river over its levee) stops the job; rising water is a flood watch
+--   wildlife    a crew report puts a 30 ft buffer around the animal
+-- From those it makes the go/no-go call (GO, GO WITH CONTROLS, NO-GO) with its reasons, runs the tailboard at the
+-- start of every shift, counts the crew into shelter during a stop work, and keeps a timestamped shift log.
+-- It writes both conditions boards and publishes workspace attributes the crew, the beacon, and the screens read:
+-- HeatIndexF, HeatRest, Soil, SimGustMph, SimStopWork, SimCountdown, SimStrikeMiles, SimFloodMm, SimWildlife,
+-- SimTime, SimSpeed, GoNoGo, GoReasons, Tailboard, ShiftLog.
+-- The real beacon and the in world beacon still show the backend's decision; this is the sim's own picture.
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Engine = require(script.Parent.ScenarioEngine)
+local Scenarios = require(script.Parent.Scenarios)
+local events = ReplicatedStorage:WaitForChild("SimEvents")
+
+-- one board at each setting; both show the same picture
+local boards = {}
+for _, name in ipairs({ "ConditionsBoard", "ConditionsBoardRiver" }) do
+	local b = name == "ConditionsBoard" and workspace:WaitForChild(name) or workspace:FindFirstChild(name)
+	if b then
+		local gui = b:WaitForChild("SurfaceGui")
+		local entry = { title = gui:WaitForChild("Title"), decision = gui:FindFirstChild("Decision"), rows = {} }
+		for i = 1, 6 do entry.rows[i] = gui:WaitForChild("Row" .. i) end
+		table.insert(boards, entry)
+	end
+end
+
+local STOP_MILES, ALL_CLEAR_S, TAILBOARD_S = 10, 30 * 60, 30 * 60
+local MUDDY, AERIAL_GUST, STOP_GUST = 0.85, 28, 40
+-- heat index bands: { from F, work/rest minutes, share of the crew resting at a time }
+local HEAT_BANDS = {
+	{ from = 115, label = "VERY HIGH", workRest = "15/45", rest = 0.75 },
+	{ from = 103, label = "HIGH", workRest = "30/30", rest = 0.5 },
+	{ from = 91, label = "MODERATE", workRest = "45/15", rest = 0.25 },
+}
+local COLOR = {
+	ok = Color3.fromRGB(150, 230, 160),
+	caution = Color3.fromRGB(255, 220, 90),
+	warning = Color3.fromRGB(255, 150, 50),
+	danger = Color3.fromRGB(255, 80, 80),
+	text = Color3.fromRGB(236, 238, 243),
+}
+local DECISION_BG = {
+	["GO"] = Color3.fromRGB(26, 110, 60),
+	["GO WITH CONTROLS"] = Color3.fromRGB(150, 100, 10),
+	["NO-GO"] = Color3.fromRGB(150, 28, 28),
+	["TAILBOARD"] = Color3.fromRGB(30, 70, 140),
+}
+local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
+
+local S
+local log = {}
+local function reset(key)
+	local sc = key and Scenarios[key]
+	S = {
+		key = key, name = sc and sc.name or "", clockStart = sc and sc.clockStart or "13:00",
+		t = 0, lastT = 0, soil0 = sc and sc.soil or 0.5,
+		temp_c = nil, rh = nil, gust = 0, rate = 0, rainMm = 0, depth = 0,
+		near = nil, nearest = nil, gatorAt = nil,
+		last = {}, -- the previous value of everything the shift log reports on
+	}
+	log = {}
+	workspace:SetAttribute("ShiftLog", "[]")
+end
+reset(nil)
+
+-- NWS heat index (Rothfusz regression with its adjustments), Fahrenheit
+local function heatIndexF(tc, rh)
+	local T = tc * 9 / 5 + 32
+	local hi = 0.5 * (T + 61 + (T - 68) * 1.2 + rh * 0.094)
+	if (hi + T) / 2 >= 80 then
+		hi = -42.379 + 2.04901523 * T + 10.14333127 * rh - 0.22475541 * T * rh - 6.83783e-3 * T * T
+			- 5.481717e-2 * rh * rh + 1.22874e-3 * T * T * rh + 8.5282e-4 * T * rh * rh - 1.99e-6 * T * T * rh * rh
+		if rh < 13 and T >= 80 and T <= 112 then
+			hi -= ((13 - rh) / 4) * math.sqrt((17 - math.abs(T - 95)) / 17)
+		elseif rh > 85 and T >= 80 and T <= 87 then
+			hi += ((rh - 85) / 10) * ((87 - T) / 5)
+		end
+	end
+	return hi, T
+end
+
+local function clock(t)
+	local h, m = S.clockStart:match("(%d+):(%d+)")
+	local minutes = tonumber(h) * 60 + tonumber(m) + t / 60
+	return ("%02d:%02d"):format(math.floor(minutes / 60) % 24, math.floor(minutes % 60))
+end
+
+local function mmss(s)
+	s = math.max(0, math.floor(s))
+	return ("%02d:%02d"):format(s // 60, s % 60)
+end
+
+local function n(x) return math.floor(x + 0.5) end -- string.format %d needs whole numbers
+
+local function logEvent(text)
+	local entry = clock(S.t) .. "  " .. text
+	table.insert(log, 1, entry)
+	while #log > 12 do table.remove(log) end
+	workspace:SetAttribute("ShiftLog", HttpService:JSONEncode(log))
+	print("[ShiftLog] " .. entry)
+end
+
+-- log a line only when the value it reports on changes
+local function changed(key, value, text)
+	if S.last[key] ~= value then
+		local first = S.last[key] == nil
+		S.last[key] = value
+		if text and not (first and value == false) then logEvent(text) end
+	end
+end
+
+local function setBoards(fn)
+	for _, b in ipairs(boards) do fn(b) end
+end
+local function row(i, text, color)
+	setBoards(function(b)
+		b.rows[i].Text = text
+		b.rows[i].TextColor3 = color or COLOR.text
+	end)
+end
+
+local function heatBand(hi)
+	for _, band in ipairs(HEAT_BANDS) do
+		if hi >= band.from then return band end
+	end
+	return nil
+end
+
+local function render()
+	if not S.key then
+		setBoards(function(b) b.title.Text = "SITE CONDITIONS  ·  NO SCENARIO" end)
+	else
+		setBoards(function(b) b.title.Text = ("SITE CONDITIONS  ·  %s  ·  %s"):format(clock(S.t), S.name:upper()) end)
+	end
+	workspace:SetAttribute("SimTime", S.t)
+
+	-- heat
+	local hi, band = 0, nil
+	if S.temp_c then
+		local raw, T = heatIndexF(S.temp_c, S.rh)
+		hi = n(raw) -- decide on the number the board shows
+		band = heatBand(hi)
+		row(1, ("AIR %d°F  ·  RH %d%%  ·  HEAT INDEX %d°F%s"):format(n(T), n(S.rh), hi,
+			band and ("  ·  %s, WORK/REST %s, WATER EVERY 15 MIN"):format(band.label, band.workRest) or ""),
+			band and (band.from >= 115 and COLOR.danger or band.from >= 103 and COLOR.warning or COLOR.caution) or COLOR.ok)
+	else
+		row(1, "AIR  ·  waiting for the scenario's first weather report")
+	end
+	workspace:SetAttribute("HeatIndexF", hi)
+	workspace:SetAttribute("HeatRest", band and band.rest or 0)
+	changed("heat", band and band.label or "none", band and ("HEAT %s, heat index %d F: work/rest %s, water every 15 min"):format(band.label, hi, band.workRest)
+		or (S.last.heat and "Heat back under 91 F, normal work"))
+
+	-- wind
+	local gust = S.gust or 0
+	workspace:SetAttribute("SimGustMph", gust)
+	row(2, ("WIND %d mph  ·  GUSTS %d mph%s"):format(n(gust * 0.6), n(gust),
+		gust >= STOP_GUST and "  ·  STOP ALL WORK" or gust >= AERIAL_GUST and "  ·  AERIAL LIFTS GROUNDED" or ""),
+		gust >= STOP_GUST and COLOR.danger or gust >= AERIAL_GUST and COLOR.warning or COLOR.text)
+	changed("aerial", gust >= AERIAL_GUST, gust >= AERIAL_GUST and ("Gusts %d mph: aerial lifts and bucket trucks grounded"):format(n(gust))
+		or "Gusts under 28 mph: aerial work may resume")
+
+	-- ground
+	local soil = math.clamp(S.soil0 + S.rainMm / 120, 0, 1)
+	workspace:SetAttribute("Soil", soil)
+	row(3, ("RAIN TODAY %d mm  ·  SOIL %d%% SATURATED%s"):format(n(S.rainMm), n(soil * 100), soil >= MUDDY and "  ·  EQUIPMENT ON MATS ONLY" or ""),
+		soil >= MUDDY and COLOR.warning or soil >= 0.7 and COLOR.caution or COLOR.ok)
+	changed("muddy", soil >= MUDDY, soil >= MUDDY and ("Soil %d%% saturated: equipment on mats only, expect stuck vehicles"):format(n(soil * 100)) or nil)
+
+	-- lightning
+	local left = S.near and ALL_CLEAR_S - (S.t - S.near.t) or 0
+	workspace:SetAttribute("SimStopWork", left > 0)
+	workspace:SetAttribute("SimCountdown", math.max(0, left))
+	workspace:SetAttribute("SimStrikeMiles", S.near and S.near.miles or 0)
+	local sheltered, total = workspace:GetAttribute("CrewSheltered") or 0, workspace:GetAttribute("CrewTotal") or 0
+	if left > 0 then
+		row(4, ("LIGHTNING %d mi %s at %s  ·  STOP WORK %s%s"):format(n(S.near.miles), S.near.dir, clock(S.near.t), mmss(left),
+			total > 0 and ("  ·  CREW %d/%d SHELTERED"):format(sheltered, total) or ""), COLOR.danger)
+	elseif S.near then
+		row(4, "LIGHTNING  ·  ALL CLEAR, 30 min with no strike inside 10 mi", COLOR.ok)
+	elseif S.nearest then
+		row(4, ("LIGHTNING nearest %d mi %s, outside 10 mi"):format(n(S.nearest.miles), S.nearest.dir), COLOR.caution)
+	else
+		row(4, "LIGHTNING  ·  none detected", COLOR.ok)
+	end
+	changed("stop", left > 0, left <= 0 and S.near and "ALL CLEAR: 30 minutes with no strike inside 10 mi, work may resume" or nil)
+	changed("accounted", left > 0 and total > 0 and sheltered == total,
+		left > 0 and total > 0 and sheltered == total and ("Headcount: crew %d/%d accounted for in the trucks"):format(sheltered, total) or nil)
+
+	-- flood
+	local river = workspace:GetAttribute("ActiveSite") == "river"
+	local overtop = workspace:GetAttribute("RiverOvertop") == true
+	local floodOnSite = (river and overtop) or (not river and S.depth >= 30)
+	workspace:SetAttribute("SimFloodMm", S.depth)
+	if S.depth > 0 and river then
+		row(5, overtop and ("FLOOD  ·  river up %d mm, OVERTOPPING THE LEVEE"):format(n(S.depth))
+			or ("FLOOD RISK  ·  river up %d mm after heavy rain, levee holding"):format(n(S.depth)), overtop and COLOR.danger or COLOR.warning)
+	elseif S.depth > 0 then
+		row(5, ("FLOOD  ·  water %d mm over the pad, rising after heavy rain"):format(n(S.depth)), floodOnSite and COLOR.danger or COLOR.warning)
+	else
+		row(5, "FLOOD  ·  none", COLOR.ok)
+	end
+	changed("floodwatch", S.depth > 0, S.depth > 0 and (river and "Flood risk warning: the river is rising after heavy rain" or "Flood watch: water rising on the pad") or nil)
+	changed("flood", floodOnSite, floodOnSite and (river and "Levee overtopping: flood confirmed, evacuate to high ground" or "Flood on site: stop work, move equipment to high ground") or nil)
+
+	-- wildlife
+	workspace:SetAttribute("SimWildlife", S.gatorAt ~= nil)
+	if S.gatorAt then
+		row(6, ("WILDLIFE  ·  alligator reported %s on the mat road, pinned to the site map, 30 ft buffer"):format(clock(S.gatorAt)), COLOR.warning)
+	else
+		row(6, "WILDLIFE  ·  no reports today", COLOR.ok)
+	end
+	changed("gator", S.gatorAt ~= nil, S.gatorAt and "Crew report: alligator on the mat road, photo pinned, 30 ft buffer" or nil)
+
+	-- the call
+	local reasons, go = {}, "GO"
+	if left > 0 then go = "NO-GO"; table.insert(reasons, "lightning inside 10 mi") end
+	if floodOnSite then go = "NO-GO"; table.insert(reasons, "flood on site") end
+	if gust >= STOP_GUST then go = "NO-GO"; table.insert(reasons, ("gusts %d mph"):format(n(gust))) end
+	if go == "GO" then
+		if band then table.insert(reasons, "heat work/rest " .. band.workRest) end
+		if soil >= MUDDY then table.insert(reasons, "mats only") end
+		if gust >= AERIAL_GUST then table.insert(reasons, "no aerial lifts") end
+		if S.gatorAt then table.insert(reasons, "gator buffer 30 ft") end
+		if S.depth > 0 then table.insert(reasons, "flood watch") end
+		if #reasons > 0 then go = "GO WITH CONTROLS" end
+	end
+	local tailboard = S.key ~= nil and S.t < TAILBOARD_S
+	workspace:SetAttribute("Tailboard", tailboard)
+	workspace:SetAttribute("GoNoGo", go)
+	workspace:SetAttribute("GoReasons", table.concat(reasons, ", "))
+	local banner = tailboard and ("TAILBOARD  ·  JHA REVIEWED, CREW 4/4 SIGNED  ·  THEN %s"):format(go)
+		or (#reasons > 0 and ("%s  ·  %s"):format(go, table.concat(reasons, ", "):upper()) or go)
+	setBoards(function(b)
+		if b.decision then
+			b.decision.Text = banner
+			b.decision.BackgroundColor3 = DECISION_BG[tailboard and "TAILBOARD" or go]
+		end
+	end)
+	if S.key then
+		changed("tailboard", tailboard, tailboard and "Tailboard: job hazard analysis reviewed with the crew, 4/4 signed" or nil)
+		changed("go", go, ("Call: %s%s"):format(go, #reasons > 0 and (" (" .. table.concat(reasons, ", ") .. ")") or ""))
+	end
+end
+
+events.Weather.Event:Connect(function(w)
+	S.temp_c, S.rh, S.gust, S.rate = w.temp_c, w.humidity, w.gust or 0, w.precip_mm or 0
+	render()
+end)
+
+events.Water.Event:Connect(function(depth_mm)
+	S.depth = depth_mm
+	render()
+end)
+
+events.Strike.Event:Connect(function(bearing, miles)
+	local strike = { t = S.t, miles = miles, dir = COMPASS[math.floor(((bearing % 360) + 22.5) / 45) % 8 + 1] }
+	if not S.nearest or miles < S.nearest.miles then S.nearest = strike end
+	if miles < STOP_MILES then
+		local restart = S.near and (S.t - S.near.t) < ALL_CLEAR_S
+		S.near = strike -- every strike inside 10 miles restarts the 30 minutes
+		logEvent(("%s: strike %d mi %s, %s"):format(restart and "COUNTDOWN RESET" or "STOP WORK", n(miles), strike.dir,
+			restart and "30 minute all clear restarted" or "30 minute all clear started, crew to the trucks"))
+	end
+	render()
+end)
+
+workspace:GetAttributeChangedSignal("CrewSheltered"):Connect(render)
+
+Engine.Changed.Event:Connect(function(snap)
+	if snap.key ~= S.key then
+		reset(snap.key)
+		if snap.key then logEvent("Shift start: " .. S.name) end
+	end
+	local dt = math.max(0, snap.simTime - S.lastT)
+	S.t, S.lastT = snap.simTime, snap.simTime
+	workspace:SetAttribute("SimSpeed", snap.speed) -- the crew walks faster when the day plays fast
+	S.rainMm += S.rate * dt / 3600 -- rain rate is mm per hour
+	if not S.gatorAt and workspace:FindFirstChild("Gator") then S.gatorAt = S.t end
+	render()
+end)
+
+render()
+]==] },
+	{ "Crew", "Script", [==[-- Crew (Script in ServerScriptService/World)
+-- The jobsite crew acts on the decisions the platform makes. Every shift starts with the crew at the board for the
+-- tailboard. On a stop work they walk to the crew truck and get in, and the headcount is published for the board.
+-- In the heat they rotate through the cooling tent on the work/rest cycle (a quarter, half, or three quarters of
+-- the crew resting at a time, taking turns). Otherwise they work the mat road.
+-- When the soil is saturated the trucks bog down in the muck and throw mud.
+-- A stop work is the sim's own 30 minute rule (Conditions) or the real beacon's, mirrored onto workspace.Beacon.
+local RunService = game:GetService("RunService")
+
+local site = workspace:WaitForChild("Site")
+local crew = site:FindFirstChild("Crew")
+if not crew then return end -- the scene without the jobsite has no crew
+local beacon = workspace:WaitForChild("Beacon")
+local shelter = crew:WaitForChild("ShelterSpot").CFrame.Position
+local shade = crew:WaitForChild("ShadeSpot").CFrame.Position
+local tailboard = crew:FindFirstChild("TailboardSpot")
+tailboard = tailboard and tailboard.CFrame
+
+local WALK = 7 -- studs per second
+local MUDDY, ROTATE_S = 0.85, 900 -- the resting group changes every 15 simulated minutes
+
+-- Roblox's own R15 walk and idle animations, so the rigs move like people. Missing animations are not fatal.
+local WALK_ANIM, IDLE_ANIM = "rbxassetid://507777826", "rbxassetid://507766388"
+local function tracks(m)
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if not hum then return nil end
+	local ok, result = pcall(function()
+		local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+		local walk, idle = Instance.new("Animation"), Instance.new("Animation")
+		walk.AnimationId, idle.AnimationId = WALK_ANIM, IDLE_ANIM
+		local t = { walk = animator:LoadAnimation(walk), idle = animator:LoadAnimation(idle) }
+		t.walk.Looped, t.idle.Looped = true, true
+		t.idle:Play()
+		return t
+	end)
+	return ok and result or nil
+end
+
+local workers = {}
+for i, m in ipairs(crew:GetChildren()) do
+	if m.Name == "Worker" then
+		table.insert(workers, { m = m, home = m:GetPivot(), i = i, hidden = false, anim = tracks(m), walking = false })
+	end
+end
+
+local function setWalking(w, walking)
+	if w.walking == walking or not w.anim then return end
+	w.walking = walking
+	if walking then w.anim.idle:Stop(0.2) w.anim.walk:Play(0.2) else w.anim.walk:Stop(0.2) w.anim.idle:Play(0.2) end
+end
+
+local sinkers = {}
+for _, m in ipairs(site:GetChildren()) do
+	if m:IsA("Model") and m:GetAttribute("SinksInMud") then
+		local mud = {}
+		for _, d in ipairs(m:GetDescendants()) do
+			if d:IsA("ParticleEmitter") and d.Name == "Mud" then table.insert(mud, d) end
+		end
+		table.insert(sinkers, { m = m, base = m:GetPivot(), k = 0, mud = mud })
+	end
+end
+
+-- hiding keeps each part's own transparency (a rig's root part is always invisible)
+local function setVisible(m, visible)
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			if p:GetAttribute("BaseT") == nil then p:SetAttribute("BaseT", p.Transparency) end
+			p.Transparency = visible and p:GetAttribute("BaseT") or 1
+		end
+	end
+end
+
+local t = 0
+RunService.Heartbeat:Connect(function(dt)
+	t += dt
+	local stop = workspace:GetAttribute("SimStopWork") == true
+		or beacon:GetAttribute("Led") == "strobe" or beacon:GetAttribute("Interlock") == "locked"
+	local restShare = workspace:GetAttribute("HeatRest") or 0
+	local resting = math.floor(#workers * restShare + 0.5)
+	local turn = math.floor((workspace:GetAttribute("SimTime") or 0) / ROTATE_S)
+	local briefing = workspace:GetAttribute("Tailboard") == true and tailboard ~= nil
+
+	local sheltered = 0
+	for k, w in ipairs(workers) do
+		local target
+		local rests = ((k + turn) % #workers) < resting
+		if stop then
+			target = shelter
+		elseif briefing then
+			target = (tailboard * CFrame.new((k - (#workers + 1) / 2) * 2.4, 0, 0)).Position
+		elseif rests then
+			target = shade + Vector3.new((k % 2) * 3 - 1.5, 0, (k % 3) - 1)
+		else
+			target = w.home.Position
+		end
+		local pos = w.m:GetPivot().Position
+		local flat = Vector3.new(target.X - pos.X, 0, target.Z - pos.Z)
+		local dist = flat.Magnitude
+		local arrived = dist < 0.6
+		setWalking(w, not arrived)
+		if not arrived then
+			-- at 300x a stop work lasts seconds, so the crew hurries in step with the playback, up to 4x
+			local hurry = math.clamp((workspace:GetAttribute("SimSpeed") or 1) / 60, 1, 4)
+			local step = math.min(dist, dt * WALK * hurry)
+			local nextPos = pos + flat.Unit * step
+			-- rigs walk on their animation; the block figure bobs instead
+			local bob = w.anim and 0 or math.abs(math.sin(t * 9)) * 0.15
+			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, bob, 0))
+		elseif briefing and not stop then
+			w.m:PivotTo(CFrame.new(w.m:GetPivot().Position) * tailboard.Rotation) -- facing the board
+		elseif not stop and not rests then
+			-- back at the work face: face it and keep busy
+			w.m:PivotTo(w.home * CFrame.Angles(0, math.sin(t * 1.3 + w.i) * 0.25, 0))
+		end
+		local inside = stop and arrived
+		if inside then sheltered += 1 end
+		if inside ~= w.hidden then
+			w.hidden = inside
+			setVisible(w.m, not inside)
+		end
+	end
+
+	if workspace:GetAttribute("CrewSheltered") ~= sheltered then workspace:SetAttribute("CrewSheltered", sheltered) end
+	if workspace:GetAttribute("CrewTotal") ~= #workers then workspace:SetAttribute("CrewTotal", #workers) end
+
+	local muddy = (workspace:GetAttribute("Soil") or 0) >= MUDDY
+	for _, s in ipairs(sinkers) do
+		local goal = muddy and 1 or 0
+		if s.k ~= goal then
+			s.k = math.clamp(s.k + (goal - s.k) * math.min(1, dt * 0.25) + (goal > s.k and 0.001 or -0.001), 0, 1)
+			-- sinks to the axles and lists to one side
+			s.m:PivotTo(s.base * CFrame.new(0, -0.9 * s.k, 0) * CFrame.Angles(0, 0, math.rad(5) * s.k))
+		end
+		for _, e in ipairs(s.mud) do e.Enabled = muddy and not stop end -- wheels spin in the muck until the crew stops
+	end
+end)
+]==] },
+	{ "DemoDirector", "LocalScript", [==[-- DemoDirector (LocalScript in StarterPlayerScripts)
+-- Demo mode: while workspace.DemoMode is on, operators' cameras cut to each moment of the Everglades day and a
+-- caption bar narrates it. Judges on their phones keep their own camera. The flash and thunder are untouched, the
+-- director only moves the camera, so the real beacon still sees every strike.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local stateEvent = ReplicatedStorage:WaitForChild("ScenarioState")
+local camera = workspace.CurrentCamera
+
+-- simulated seconds after 06:45 -> shot and caption. Follows Scenarios.everglades_day.
+local TIMELINE = {
+	{ t = 0, shot = "Wide", text = "06:45, August, a remote Everglades jobsite. The crew is laying a temporary mat road for the equipment that will build a new transmission line." },
+	{ t = 900, shot = "Road", text = "A week of rain: the soil is 82% saturated. Boots sink, trucks bog down. PlanIT has already flagged it on the conditions board." },
+	{ t = 2700, shot = "Gator", text = "07:30 a gator on the mat road. A crew member snaps a photo, it is tagged and pinned to the site map for every crew on the job." },
+	{ t = 15300, shot = "Board", text = "11:00 the heat index climbs. The board combines heat, wind, rain, soil, lightning, flood, and wildlife into one picture." },
+	{ t = 18900, shot = "Tent", text = "12:00 heat index past 110 F. The beacon sounds the heat alarm and the crew rotates through the cooling tent." },
+	{ t = 24300, shot = "Storm", text = "13:30 thunderstorms building to the west. Watch the screen flash: the real beacon's light sensor is aimed at it." },
+	{ t = 27900, shot = "Beacon", text = "14:30 strike 8 miles out. STOP WORK: the beacon strobes, the fan on the table stops, a 30 minute all clear starts." },
+	{ t = 28800, shot = "Beacon", text = "14:45 a new strike at 6 miles restarts the 30 minute countdown. The crew stays in the trucks." },
+	{ t = 29400, shot = "Flood", text = "14:55 the downpour. Water rises over the pad, the beacon switches to the flood alarm, the trucks sink to their axles." },
+	{ t = 37800, shot = "Board", text = "17:15 the storm moves off. The all clear runs out 30 minutes after the last strike inside 10 miles." },
+	{ t = 40500, shot = "Wide", text = "18:00 site time: the next-day safety briefing goes out in English and Spanish. Tomorrow's plan starts tonight." },
+}
+local CUT = TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+
+local gui = Instance.new("ScreenGui")
+gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "DemoCaption", false, 20 -- under FlashGui so the white flash covers it
+gui.Parent = player:WaitForChild("PlayerGui")
+-- scale with the screen, same rule as the operator panel
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = gui
+local function rescale()
+	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
+rescale()
+local bar = Instance.new("Frame")
+bar.AnchorPoint, bar.Position, bar.Size = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 18), UDim2.new(0.7, 0, 0, 0)
+bar.AutomaticSize = Enum.AutomaticSize.Y
+bar.BackgroundColor3, bar.BackgroundTransparency, bar.BorderSizePixel = Color3.fromRGB(10, 12, 16), 0.2, 0
+bar.Visible = false
+bar.Parent = gui
+local cap = Instance.new("UISizeConstraint") -- never wider than 640, so it clears the zone card top right
+cap.MaxSize = Vector2.new(640, math.huge)
+cap.Parent = bar
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = bar
+local pad = Instance.new("UIPadding")
+pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12), UDim.new(0, 18), UDim.new(0, 18)
+pad.Parent = bar
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 4)
+layout.Parent = bar
+local function line(name, font, size, color)
+	local t = Instance.new("TextLabel")
+	t.Name, t.BackgroundTransparency, t.Size = name, 1, UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font, t.TextSize, t.TextColor3 = font, size, color
+	t.TextWrapped, t.TextXAlignment = true, Enum.TextXAlignment.Left
+	t.Text = ""
+	t.Parent = bar
+	return t
+end
+local header = line("Header", Enum.Font.GothamBold, 14, Color3.fromRGB(255, 184, 28))
+local caption = line("Caption", Enum.Font.GothamMedium, 20, Color3.fromRGB(236, 238, 243))
+
+local function isOperator() return player:GetAttribute("Operator") == true end
+
+local currentStep, savedType = nil, nil
+local function cutTo(shotName)
+	if not camera or not isOperator() then return end
+	local shots = workspace:FindFirstChild("Site") and workspace.Site:FindFirstChild("Shots")
+	local shot = shots and shots:FindFirstChild(shotName)
+	if not shot then return end
+	if camera.CameraType ~= Enum.CameraType.Scriptable then
+		savedType = camera.CameraType
+		camera.CameraType = Enum.CameraType.Scriptable
+	end
+	TweenService:Create(camera, CUT, { CFrame = shot.CFrame }):Play()
+end
+
+local function stop()
+	bar.Visible = false
+	currentStep = nil
+	if camera and savedType then
+		camera.CameraType = savedType
+		savedType = nil
+	end
+end
+
+local function clockText(st)
+	local h, m = st.clockStart:match("(%d+):(%d+)")
+	local minutes = tonumber(h) * 60 + tonumber(m) + st.simTime / 60
+	return ("%02d:%02d"):format(math.floor(minutes / 60) % 24, math.floor(minutes % 60))
+end
+
+stateEvent.OnClientEvent:Connect(function(st)
+	if not workspace:GetAttribute("DemoMode") or st.key ~= "everglades_day" then
+		if currentStep then stop() end
+		return
+	end
+	local step = 1
+	for i, s in ipairs(TIMELINE) do
+		if st.simTime >= s.t then step = i end
+	end
+	bar.Visible = true
+	header.Text = ("PLANIT DEMO  ·  %s  ·  %s"):format(clockText(st), st.name:upper())
+	if step ~= currentStep then
+		currentStep = step
+		caption.Text = TIMELINE[step].text
+		cutTo(TIMELINE[step].shot)
+	end
+end)
+
+workspace:GetAttributeChangedSignal("DemoMode"):Connect(function()
+	if not workspace:GetAttribute("DemoMode") then stop() end
+end)
 ]==] },
 	{ "FlashClient", "LocalScript", [==[-- FlashClient (LocalScript in StarterPlayerScripts)
 local Players = game:GetService("Players")
@@ -1413,6 +2782,8 @@ end
 local function thunder(miles)
 	local s = thunderTemplate:Clone()
 	s.Volume = math.clamp(1.3 - miles * 0.04, 0.6, 1)
+	-- far strikes sound lower and longer, the air soaks up the crack and leaves the rumble
+	s.PlaybackSpeed = math.clamp(1.05 - miles * 0.02, 0.75, 1)
 	s.Parent = SoundService
 	s.Ended:Connect(function() s:Destroy() end)
 	s:Play()
@@ -1424,6 +2795,238 @@ flashEvent.OnClientEvent:Connect(function(miles)
 	print(("[Flash] flash now, thunder in %.1f s"):format(miles * SECONDS_PER_MILE))
 end)
 ]==] },
+	{ "LightningRadar", "LocalScript", [==[-- LightningRadar (LocalScript in StarterPlayerScripts)
+-- A lightning display in the style crews use from real detection networks: range rings at 5, 10, and 15 miles
+-- around the active site (the 10 mile stop work ring in red), compass points, a sweep, and every strike plotted by
+-- bearing and distance, colored by age in simulated minutes and gone after the 30 minute window. Below it: the
+-- nearest strike and how long ago, strikes in the last 10 minutes, the storm's trend (approaching or receding), and
+-- the stop work countdown. Fed by ReplicatedStorage.StrikeRadar (bearing, miles) and the sim's SimTime.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local strikeRadar = ReplicatedStorage:WaitForChild("StrikeRadar")
+local beacon = workspace:WaitForChild("Beacon")
+
+local RANGE_MI, STOP_MI, WINDOW_S, RECENT_S = 15, 10, 30 * 60, 10 * 60
+local THEME = {
+	panel = Color3.fromRGB(14, 16, 22), scope = Color3.fromRGB(10, 22, 18), grid = Color3.fromRGB(70, 110, 95),
+	text = Color3.fromRGB(236, 238, 243), dim = Color3.fromRGB(138, 145, 160), red = Color3.fromRGB(255, 80, 80),
+	amber = Color3.fromRGB(255, 184, 28), green = Color3.fromRGB(80, 220, 130), fresh = Color3.fromRGB(255, 255, 255),
+}
+
+local gui = Instance.new("ScreenGui")
+gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "LightningRadar", false, 14 -- under FlashGui so the white flash covers it
+gui.Parent = player:WaitForChild("PlayerGui")
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = gui
+local function rescale()
+	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
+rescale()
+
+local function round(inst, r)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = r
+	c.Parent = inst
+end
+local function label(parent, text, size, font, color, order)
+	local t = Instance.new("TextLabel")
+	t.LayoutOrder, t.BackgroundTransparency, t.Size = order or 0, 1, UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font, t.TextSize, t.TextColor3 = font, size, color
+	t.TextXAlignment, t.TextWrapped, t.Text = Enum.TextXAlignment.Left, true, text
+	t.Parent = parent
+	return t
+end
+
+local card = Instance.new("Frame")
+card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(244, 0)
+card.AutomaticSize = Enum.AutomaticSize.Y
+card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.1, 0
+card.Parent = gui
+round(card, UDim.new(0, 12))
+local pad = Instance.new("UIPadding")
+pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 12), UDim.new(0, 12)
+pad.Parent = card
+local list = Instance.new("UIListLayout")
+list.Padding, list.SortOrder = UDim.new(0, 6), Enum.SortOrder.LayoutOrder
+list.Parent = card
+
+label(card, "LIGHTNING DETECTION  ·  15 MI", 12, Enum.Font.GothamBold, THEME.amber, 1)
+
+local scope = Instance.new("Frame")
+scope.Name, scope.LayoutOrder, scope.Size = "Scope", 2, UDim2.fromOffset(220, 220)
+scope.BackgroundColor3, scope.BorderSizePixel = THEME.scope, 0
+scope.ClipsDescendants = true
+scope.Parent = card
+round(scope, UDim.new(1, 0))
+
+local function ringLabel(text, mi)
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint = Vector2.new(0, 1)
+	t.Position = UDim2.fromScale(0.5 + 0.02, 0.5 - mi / RANGE_MI / 2 + 0.005)
+	t.Size, t.BackgroundTransparency = UDim2.fromOffset(28, 12), 1
+	t.Font, t.TextSize, t.TextColor3, t.Text = Enum.Font.GothamMedium, 10, mi == STOP_MI and THEME.red or THEME.grid, text
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.ZIndex = 3
+	t.Parent = scope
+end
+for _, mi in ipairs({ 5, 10, 15 }) do
+	local ring = Instance.new("Frame")
+	ring.AnchorPoint, ring.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+	ring.Size = UDim2.fromScale(mi / RANGE_MI, mi / RANGE_MI)
+	ring.BackgroundTransparency = 1
+	ring.Parent = scope
+	round(ring, UDim.new(1, 0))
+	local s = Instance.new("UIStroke")
+	s.Color = mi == STOP_MI and THEME.red or THEME.grid
+	s.Transparency, s.Thickness = mi == STOP_MI and 0.05 or 0.35, mi == STOP_MI and 2 or 1
+	s.Parent = ring
+	if mi < RANGE_MI then ringLabel(mi .. " mi", mi) end
+end
+-- crosshair and compass points
+for _, axis in ipairs({ { UDim2.new(1, 0, 0, 1) }, { UDim2.new(0, 1, 1, 0) } }) do
+	local line = Instance.new("Frame")
+	line.AnchorPoint, line.Position, line.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), axis[1]
+	line.BackgroundColor3, line.BackgroundTransparency, line.BorderSizePixel = THEME.grid, 0.6, 0
+	line.Parent = scope
+end
+for _, c in ipairs({ { "N", 0.5, 0.035 }, { "E", 0.965, 0.5 }, { "S", 0.5, 0.965 }, { "W", 0.035, 0.5 } }) do
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint, t.Position, t.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(c[2], c[3]), UDim2.fromOffset(14, 14)
+	t.BackgroundTransparency, t.Font, t.TextSize, t.TextColor3, t.Text = 1, Enum.Font.GothamBold, 11, THEME.dim, c[1]
+	t.ZIndex = 3
+	t.Parent = scope
+end
+-- the sweep: a faint arm turning once every four seconds
+local sweep = Instance.new("Frame")
+sweep.AnchorPoint, sweep.Position, sweep.Size = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.5), UDim2.new(0, 2, 0.5, 0)
+sweep.BackgroundColor3, sweep.BackgroundTransparency, sweep.BorderSizePixel = THEME.green, 0.55, 0
+sweep.Parent = scope
+local sweepPivot = Instance.new("Frame") -- rotate a full size holder so the arm turns about the center
+sweepPivot.AnchorPoint, sweepPivot.Position, sweepPivot.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1, 1)
+sweepPivot.BackgroundTransparency = 1
+sweepPivot.Parent = scope
+sweep.Parent = sweepPivot
+local site = Instance.new("Frame")
+site.AnchorPoint, site.Position, site.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(9, 9)
+site.BackgroundColor3, site.BorderSizePixel, site.ZIndex = THEME.green, 0, 4
+site.Parent = scope
+round(site, UDim.new(1, 0))
+
+local nearestLine = label(card, "No strikes detected", 13, Enum.Font.GothamBold, THEME.green, 3)
+local trendLine = label(card, "", 12, Enum.Font.GothamMedium, THEME.dim, 4)
+local stopLine = label(card, "", 13, Enum.Font.GothamBold, THEME.red, 5)
+stopLine.Name = "StopLine"
+trendLine.Name = "TrendLine"
+nearestLine.Name = "NearestLine"
+
+-- simulated seconds when the sim is running, real seconds otherwise (free play strikes with no scenario)
+local function now()
+	return workspace:GetAttribute("SimTime") or os.clock()
+end
+
+local strikes = {}
+strikeRadar.OnClientEvent:Connect(function(bearing, miles)
+	local r = math.min(miles, RANGE_MI) / RANGE_MI / 2
+	local dot = Instance.new("Frame")
+	dot.Name = "Strike"
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.fromScale(0.5 + math.sin(math.rad(bearing)) * r, 0.5 - math.cos(math.rad(bearing)) * r)
+	dot.Size = UDim2.fromOffset(11, 11)
+	dot.BackgroundColor3, dot.BorderSizePixel, dot.ZIndex = THEME.fresh, 0, 2
+	dot.Parent = scope
+	round(dot, UDim.new(1, 0))
+	-- a cross inside the dot, the way detection maps mark a cloud to ground strike
+	local cross = Instance.new("TextLabel")
+	cross.BackgroundTransparency, cross.Size, cross.Text = 1, UDim2.fromScale(1, 1), "+"
+	cross.Font, cross.TextScaled, cross.TextColor3, cross.ZIndex = Enum.Font.GothamBold, true, THEME.panel, 2
+	cross.Parent = dot
+	table.insert(strikes, { t = now(), miles = miles, bearing = bearing, dot = dot })
+end)
+
+-- when a new scenario starts its clock restarts: clear the old strikes
+workspace:GetAttributeChangedSignal("SimTime"):Connect(function()
+	local t = workspace:GetAttribute("SimTime") or 0
+	if #strikes > 0 and t < strikes[#strikes].t - 1 then
+		for _, s in ipairs(strikes) do s.dot:Destroy() end
+		strikes = {}
+	end
+end)
+
+local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
+local function dir(b) return COMPASS[math.floor(((b % 360) + 22.5) / 45) % 8 + 1] end
+local function mmss(s)
+	s = math.max(0, math.floor(s))
+	return ("%02d:%02d"):format(s // 60, s % 60)
+end
+local function ago(s)
+	if s < 60 then return "just now" end
+	return ("%d min ago"):format(math.floor(s / 60))
+end
+
+local spin = 0
+RunService.RenderStepped:Connect(function(dt)
+	spin = (spin + dt * 90) % 360
+	sweepPivot.Rotation = spin
+end)
+
+while true do
+	local t = now()
+	-- age the dots: white when fresh, through amber to dim red, gone after 30 minutes
+	local keep = {}
+	for _, s in ipairs(strikes) do
+		local age = t - s.t
+		if age > WINDOW_S then
+			s.dot:Destroy()
+		else
+			local k = math.clamp(age / WINDOW_S, 0, 1)
+			s.dot.BackgroundColor3 = k < 0.15 and THEME.fresh or (k < 0.5 and THEME.amber or THEME.red)
+			s.dot.BackgroundTransparency = k * 0.7
+			table.insert(keep, s)
+		end
+	end
+	strikes = keep
+
+	local nearest, recent, older = nil, {}, {}
+	for _, s in ipairs(strikes) do
+		if not nearest or s.miles < nearest.miles then nearest = s end
+		if t - s.t <= RECENT_S then table.insert(recent, s) elseif t - s.t <= 2 * RECENT_S then table.insert(older, s) end
+	end
+	if nearest then
+		nearestLine.Text = ("Nearest %.1f mi %s  ·  %s"):format(nearest.miles, dir(nearest.bearing), ago(t - nearest.t))
+		nearestLine.TextColor3 = nearest.miles < STOP_MI and THEME.red or THEME.amber
+	else
+		nearestLine.Text, nearestLine.TextColor3 = "No strikes in the last 30 min", THEME.green
+	end
+	local function avg(set)
+		local sum = 0
+		for _, s in ipairs(set) do sum += s.miles end
+		return #set > 0 and sum / #set or nil
+	end
+	local a, b = avg(recent), avg(older)
+	local trend = ""
+	if a and b then
+		local change = a - b
+		trend = change < -0.5 and ("  ·  TREND APPROACHING %.1f mi/10 min"):format(-change)
+			or change > 0.5 and ("  ·  TREND RECEDING %.1f mi/10 min"):format(change) or "  ·  TREND STEADY"
+	end
+	trendLine.Text = ("Last 10 min: %d strike%s%s"):format(#recent, #recent == 1 and "" or "s", trend)
+
+	local real = beacon:GetAttribute("Countdown") or 0
+	local left = real > 0 and real or (workspace:GetAttribute("SimCountdown") or 0)
+	if left > 0 then
+		stopLine.Text, stopLine.TextColor3 = "STOP WORK  ·  ALL CLEAR IN " .. mmss(left), THEME.red
+	else
+		stopLine.Text, stopLine.TextColor3 = "CLEAR  ·  no strike inside 10 mi for 30 min", THEME.green
+	end
+	task.wait(0.25)
+end
+]==] },
 	{ "ScenarioServer", "Script", [==[-- ScenarioServer (Script in ServerScriptService/World)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1431,6 +3034,72 @@ local RunService = game:GetService("RunService")
 
 local Engine = require(script.Parent.ScenarioEngine)
 local Lightning = require(script.Parent.Lightning)
+local Scenarios = require(script.Parent.Scenarios)
+local WeatherFx = require(script.Parent.WeatherFx)
+
+-- two settings: the Everglades jobsite (the contract's site 12) and the Mississippi crossing. Switching moves the
+-- operators there, the rain, and the point lightning is measured from. Judges stay at the main site and its zone.
+local function siteOrigin(site)
+	local river = workspace:FindFirstChild("RiverBeacon")
+	if site == "river" and river then return river:GetPivot().Position end
+	return workspace.Beacon:GetPivot().Position
+end
+local function siteSpawn(site)
+	if site == "river" then
+		local r = workspace:FindFirstChild("Site") and workspace.Site:FindFirstChild("RiverSite")
+		local sp = r and r:FindFirstChild("RiverSpawn")
+		return sp and sp.CFrame
+	end
+	local scene = workspace:FindFirstChild("PlanITSite")
+	local sp = (scene and scene:FindFirstChildOfClass("SpawnLocation")) or workspace:FindFirstChildOfClass("SpawnLocation")
+	return sp and sp.CFrame
+end
+local operatorList -- set below, once isOperator exists
+local function setSite(site, who)
+	if site ~= "river" then site = "everglades" end
+	local moved = workspace:GetAttribute("ActiveSite") ~= site
+	workspace:SetAttribute("ActiveSite", site)
+	WeatherFx.moveRain(siteOrigin(site))
+	if not moved then return end
+	local cf = siteSpawn(site)
+	for _, p in ipairs(who or operatorList()) do
+		local character = p.Character
+		if character and cf then character:PivotTo(cf + Vector3.new(0, 4, 0)) end
+	end
+end
+
+-- Demo mode plays the challenge day as a guided timeline: the DemoDirector on operator screens cuts the camera to
+-- each moment and captions it, and the day loops a few seconds after the 6 PM briefing.
+local DEMO_SCENARIO, DEMO_SPEED, DEMO_PAUSE = "everglades_day", 600, 6
+-- the demo runs the quiet hours fast and slows for the moments that matter: about 75 seconds for the whole day
+local DEMO_PACE = {
+	{ upTo = 2600,  speed = 900 }, -- dawn
+	{ upTo = 3000,  speed = 150 }, -- the gator report
+	{ upTo = 18800, speed = 1200 }, -- the morning heats up
+	{ upTo = 19400, speed = 200 }, -- noon heat, the crew to the tent
+	{ upTo = 25800, speed = 1200 }, -- the storm builds west
+	{ upTo = 29500, speed = 120 }, -- the strikes, stop work, the reset
+	{ upTo = 33000, speed = 300 }, -- the downpour and the flood
+	{ upTo = math.huge, speed = 1200 }, -- to the 6 PM briefing
+}
+local function demoSpeed(t)
+	for _, p in ipairs(DEMO_PACE) do
+		if t < p.upTo then return p.speed end
+	end
+	return DEMO_SPEED
+end
+local function lastEventT(key)
+	local last = 0
+	for _, e in ipairs(Scenarios[key].events) do last = math.max(last, e.t) end
+	return last
+end
+local function startDemo()
+	setSite("everglades")
+	Engine.load(DEMO_SCENARIO)
+	Engine.setSpeed(demoSpeed(0))
+	workspace:SetAttribute("DemoMode", true)
+	Engine.play()
+end
 
 local control = ReplicatedStorage:WaitForChild("ScenarioControl")
 local stateEvent = ReplicatedStorage:WaitForChild("ScenarioState")
@@ -1440,6 +3109,13 @@ local strikeHere = ReplicatedStorage:WaitForChild("StrikeHere")
 local OPERATORS = { ["SlavikUsername"] = true, ["VietUsername"] = true }
 
 local function isOperator(p) return OPERATORS[p.Name] == true or RunService:IsStudio() end
+operatorList = function()
+	local list = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if isOperator(p) then table.insert(list, p) end
+	end
+	return list
+end
 
 Players.PlayerAdded:Connect(function(p)
 	p:SetAttribute("Operator", isOperator(p))
@@ -1448,6 +3124,10 @@ end)
 
 control.OnServerEvent:Connect(function(p, action, arg)
 	if not isOperator(p) then return end
+	if action == "demo" then startDemo() return end
+	if action == "site" then setSite(arg, { p }) return end
+	if action == "load" then workspace:SetAttribute("DemoMode", false) end
+	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
 	if action == "load" then Engine.load(arg)
 	elseif action == "play" then Engine.play()
 	elseif action == "pause" then Engine.pause()
@@ -1461,12 +3141,26 @@ strikeHere.OnServerEvent:Connect(function(p, pos)
 	Lightning.strike(bearing, miles)
 end)
 
+local looping = false
 Engine.Changed.Event:Connect(function(snapshot)
 	stateEvent:FireAllClients(snapshot)
+	if workspace:GetAttribute("DemoMode") and snapshot.key == DEMO_SCENARIO and snapshot.speed ~= demoSpeed(snapshot.simTime) then
+		Engine.setSpeed(demoSpeed(snapshot.simTime))
+	end
+	if workspace:GetAttribute("DemoMode") and snapshot.key == DEMO_SCENARIO and not looping
+		and snapshot.simTime > lastEventT(DEMO_SCENARIO) + 600 then
+		looping = true
+		task.delay(DEMO_PAUSE, function()
+			looping = false
+			if workspace:GetAttribute("DemoMode") then startDemo() end
+		end)
+	end
 end)
 ]==] },
 	{ "ScenarioUI", "LocalScript", [==[-- ScenarioUI (LocalScript in StarterPlayerScripts)
--- Operator panel, built in code. Hidden for judges who join as crew.
+-- The operator's control panel. Built in code, hidden for judges who join as crew. Sections: the sim clock and a
+-- timeline with a tick for every strike, flood step, wildlife report, and note; the guided demo; the scenarios;
+-- playback speed; free play lightning. Scales with the screen and collapses to its header.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -1476,23 +3170,41 @@ local control = ReplicatedStorage:WaitForChild("ScenarioControl")
 local stateEvent = ReplicatedStorage:WaitForChild("ScenarioState")
 local strikeHere = ReplicatedStorage:WaitForChild("StrikeHere")
 
+-- one theme for every PlanIT screen: panel, demo caption, zone card
 local THEME = {
 	panel = Color3.fromRGB(14, 16, 22),
-	chip = Color3.fromRGB(34, 38, 48),
+	raised = Color3.fromRGB(30, 34, 44),
+	line = Color3.fromRGB(255, 255, 255),
 	accent = Color3.fromRGB(255, 184, 28),
 	text = Color3.fromRGB(236, 238, 243),
 	dim = Color3.fromRGB(138, 145, 160),
+	red = Color3.fromRGB(255, 80, 80),
+	blue = Color3.fromRGB(70, 150, 255),
+	yellow = Color3.fromRGB(255, 210, 0),
 }
+local MARKER_COLOR = { strike = THEME.red, water = THEME.blue, wildlife = THEME.yellow, note = THEME.text }
 local SCENARIOS = {
-	{ "storm_west", "Storm W" }, { "hurricane", "Hurricane" }, { "flash_flood", "Flash flood" },
+	{ "everglades_day", "Everglades day" }, { "lightning_cell", "Lightning cell" }, { "storm_west", "Storm W" },
+	{ "hurricane", "Hurricane" }, { "flash_flood", "Flash flood" }, { "mississippi_flood", "River flood" },
 	{ "heat_day", "Heat day" }, { "gator", "Gator" }, { "tipped", "Tipped pod" },
 }
-local SPEEDS = { 1, 10, 60, 120 }
+local SITES = { { "everglades", "Everglades jobsite" }, { "river", "Mississippi crossing" } }
+local SPEEDS = { 10, 60, 120, 300 }
 
 -- DisplayOrder stays under FlashGui (1000) so the white flash covers the panel
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "ScenarioUI", false, 10
 gui.Parent = player:WaitForChild("PlayerGui")
+
+-- scale with the screen: full size on a laptop, smaller on a phone
+local scale = Instance.new("UIScale")
+scale.Parent = gui
+local function rescale()
+	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+	scale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
+rescale()
 
 local function round(inst, r)
 	local c = Instance.new("UICorner")
@@ -1503,16 +3215,16 @@ end
 local panel = Instance.new("Frame")
 panel.AnchorPoint = Vector2.new(0, 1)
 panel.Position = UDim2.new(0, 16, 1, -16)
-panel.Size = UDim2.fromOffset(330, 0)
+panel.Size = UDim2.fromOffset(340, 0)
 panel.AutomaticSize = Enum.AutomaticSize.Y
-panel.BackgroundColor3, panel.BackgroundTransparency, panel.BorderSizePixel = THEME.panel, 0.1, 0
+panel.BackgroundColor3, panel.BackgroundTransparency, panel.BorderSizePixel = THEME.panel, 0.08, 0
 panel.Parent = gui
 round(panel, 14)
 local stroke = Instance.new("UIStroke")
-stroke.Color, stroke.Transparency = Color3.new(1, 1, 1), 0.9
+stroke.Color, stroke.Transparency = THEME.line, 0.9
 stroke.Parent = panel
 local pad = Instance.new("UIPadding")
-pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 14), UDim.new(0, 14)
+pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 12), UDim.new(0, 14)
 pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 14), UDim.new(0, 14)
 pad.Parent = panel
 local list = Instance.new("UIListLayout")
@@ -1520,21 +3232,23 @@ list.Padding, list.SortOrder = UDim.new(0, 8), Enum.SortOrder.LayoutOrder
 list.Parent = panel
 
 local order = 0
-local function add(inst)
+local collapsible = {}
+local function add(inst, keep)
 	order += 1
 	inst.LayoutOrder = order
 	inst.Parent = panel
+	if not keep then table.insert(collapsible, inst) end
 	return inst
 end
 
-local function text(size, font, color, height)
+local function text(size, font, color, height, keep)
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
 	t.Size = UDim2.new(1, 0, 0, height)
 	t.Font, t.TextSize, t.TextColor3 = font, size, color
 	t.TextXAlignment, t.TextWrapped = Enum.TextXAlignment.Left, true
 	t.Text = ""
-	return add(t)
+	return add(t, keep)
 end
 
 local function grid(columns, height)
@@ -1553,7 +3267,8 @@ end
 local function chip(parent, label, layoutOrder, onClick)
 	local b = Instance.new("TextButton")
 	b.Text, b.Font, b.TextSize = label, Enum.Font.GothamMedium, 13
-	b.TextColor3, b.BackgroundColor3, b.BorderSizePixel = THEME.text, THEME.chip, 0
+	b.TextColor3, b.BackgroundColor3, b.BorderSizePixel = THEME.text, THEME.raised, 0
+	b.AutoButtonColor = true
 	b.LayoutOrder = layoutOrder
 	b.Parent = parent
 	round(b, 8)
@@ -1562,17 +3277,133 @@ local function chip(parent, label, layoutOrder, onClick)
 end
 
 local function setActive(b, on)
-	b.BackgroundColor3 = on and THEME.accent or THEME.chip
+	b.BackgroundColor3 = on and THEME.accent or THEME.raised
 	b.TextColor3 = on and THEME.panel or THEME.text
 end
 
-text(11, Enum.Font.GothamBold, THEME.dim, 14).Text = "SCENARIO CONTROL"
-local title = text(17, Enum.Font.GothamBold, THEME.text, 22)
-title.Text = "No scenario loaded"
-local clock = text(30, Enum.Font.RobotoMono, THEME.accent, 34)
-clock.Text = "--:--"
-local status = text(12, Enum.Font.Gotham, THEME.dim, 16)
+local function section(name)
+	local t = text(11, Enum.Font.GothamBold, THEME.dim, 14)
+	t.Text = name
+	return t
+end
 
+---------------------------------------------------------------- header (always visible)
+
+local header = Instance.new("Frame")
+header.BackgroundTransparency, header.Size = 1, UDim2.new(1, 0, 0, 20)
+add(header, true)
+local brand = Instance.new("TextLabel")
+brand.BackgroundTransparency, brand.Size = 1, UDim2.new(1, -30, 1, 0)
+brand.Font, brand.TextSize, brand.TextColor3 = Enum.Font.GothamBold, 12, THEME.accent
+brand.TextXAlignment, brand.Text = Enum.TextXAlignment.Left, "PLANIT  ·  SIM CONTROL"
+brand.Parent = header
+local collapsed = false
+local collapseBtn
+collapseBtn = chip(header, "–", 0, function()
+	collapsed = not collapsed
+	collapseBtn.Text = collapsed and "+" or "–"
+	for _, inst in ipairs(collapsible) do inst.Visible = not collapsed end
+end)
+collapseBtn.AnchorPoint, collapseBtn.Position, collapseBtn.Size = Vector2.new(1, 0), UDim2.new(1, 0, 0, 0), UDim2.fromOffset(26, 20)
+
+---------------------------------------------------------------- clock and timeline
+
+local clockRow = Instance.new("Frame")
+clockRow.BackgroundTransparency, clockRow.Size = 1, UDim2.new(1, 0, 0, 38)
+add(clockRow)
+local clock = Instance.new("TextLabel")
+clock.BackgroundTransparency, clock.Size = 1, UDim2.new(0, 110, 1, 0)
+clock.Font, clock.TextSize, clock.TextColor3 = Enum.Font.RobotoMono, 32, THEME.accent
+clock.TextXAlignment, clock.Text = Enum.TextXAlignment.Left, "--:--"
+clock.Parent = clockRow
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency, title.Position, title.Size = 1, UDim2.fromOffset(112, 1), UDim2.new(1, -112, 0, 20)
+title.Font, title.TextSize, title.TextColor3 = Enum.Font.GothamBold, 15, THEME.text
+title.TextXAlignment, title.TextTruncate, title.Text = Enum.TextXAlignment.Left, Enum.TextTruncate.AtEnd, "No scenario loaded"
+title.Parent = clockRow
+local status = Instance.new("TextLabel")
+status.BackgroundTransparency, status.Position, status.Size = 1, UDim2.fromOffset(112, 21), UDim2.new(1, -112, 0, 16)
+status.Font, status.TextSize, status.TextColor3 = Enum.Font.Gotham, 12, THEME.dim
+status.TextXAlignment, status.Text = Enum.TextXAlignment.Left, "PAUSED"
+status.Parent = clockRow
+
+local track = Instance.new("Frame")
+track.BackgroundColor3, track.BorderSizePixel, track.Size = THEME.raised, 0, UDim2.new(1, 0, 0, 8)
+add(track)
+round(track, 4)
+local fill = Instance.new("Frame")
+fill.BackgroundColor3, fill.BackgroundTransparency, fill.BorderSizePixel = THEME.accent, 0.35, 0
+fill.Size = UDim2.fromScale(0, 1)
+fill.Parent = track
+round(fill, 4)
+local markerHolder = Instance.new("Frame")
+markerHolder.BackgroundTransparency, markerHolder.Size = 1, UDim2.fromScale(1, 1)
+markerHolder.Parent = track
+local playhead = Instance.new("Frame")
+playhead.AnchorPoint, playhead.Size = Vector2.new(0.5, 0.5), UDim2.fromOffset(4, 16)
+playhead.Position = UDim2.fromScale(0, 0.5)
+playhead.BackgroundColor3, playhead.BorderSizePixel, playhead.ZIndex = THEME.text, 0, 3
+playhead.Parent = track
+round(playhead, 2)
+
+local drawnFor
+local function drawMarkers(st)
+	if drawnFor == st.key then return end
+	drawnFor = st.key
+	markerHolder:ClearAllChildren()
+	if not st.markers or not st.duration or st.duration <= 0 then return end
+	for _, m in ipairs(st.markers) do
+		local tick = Instance.new("Frame")
+		tick.AnchorPoint = Vector2.new(0.5, 0.5)
+		tick.Position = UDim2.fromScale(m.t / st.duration, 0.5)
+		tick.Size = m.type == "strike" and UDim2.fromOffset(3, 14) or UDim2.fromOffset(2, 10)
+		tick.BackgroundColor3, tick.BorderSizePixel, tick.ZIndex = MARKER_COLOR[m.type] or THEME.dim, 0, 2
+		tick.Parent = markerHolder
+	end
+end
+
+-- the go/no-go call, a colored pill under the timeline
+local DECISION_BG = {
+	["GO"] = Color3.fromRGB(26, 110, 60), ["GO WITH CONTROLS"] = Color3.fromRGB(150, 100, 10), ["NO-GO"] = Color3.fromRGB(150, 28, 28),
+}
+local decision = text(13, Enum.Font.GothamBold, THEME.text, 0)
+decision.AutomaticSize = Enum.AutomaticSize.Y
+decision.BackgroundTransparency = 0
+round(decision, 6)
+local dpad = Instance.new("UIPadding")
+dpad.PaddingTop, dpad.PaddingBottom, dpad.PaddingLeft, dpad.PaddingRight = UDim.new(0, 5), UDim.new(0, 5), UDim.new(0, 8), UDim.new(0, 8)
+dpad.Parent = decision
+local function paintDecision()
+	local go = workspace:GetAttribute("GoNoGo") or "GO"
+	local reasons = workspace:GetAttribute("GoReasons") or ""
+	decision.Text = (workspace:GetAttribute("Tailboard") and "TAILBOARD  ·  " or "") .. go .. (reasons ~= "" and ("  ·  " .. reasons) or "")
+	decision.BackgroundColor3 = DECISION_BG[go] or THEME.raised
+end
+for _, a in ipairs({ "GoNoGo", "GoReasons", "Tailboard" }) do workspace:GetAttributeChangedSignal(a):Connect(paintDecision) end
+paintDecision()
+
+---------------------------------------------------------------- demo, scenarios, playback
+
+section("DEMO")
+local current = { playing = false }
+local demoBtn = chip(grid(1, 34), "Guided demo  ·  the Everglades day", 0, function() control:FireServer("demo") end)
+demoBtn.Font, demoBtn.TextSize = Enum.Font.GothamBold, 14
+
+section("SITE")
+local siteGrid = grid(2, 30)
+local siteChips = {}
+for i, s in ipairs(SITES) do
+	local key = s[1]
+	siteChips[key] = chip(siteGrid, s[2], i, function() control:FireServer("site", key) end)
+end
+local function paintSites()
+	local active = workspace:GetAttribute("ActiveSite") or "everglades"
+	for key, b in pairs(siteChips) do setActive(b, key == active) end
+end
+workspace:GetAttributeChangedSignal("ActiveSite"):Connect(paintSites)
+paintSites()
+
+section("SCENARIOS")
 local scenarioGrid = grid(3, 30)
 local scenarioChips = {}
 for i, s in ipairs(SCENARIOS) do
@@ -1580,7 +3411,7 @@ for i, s in ipairs(SCENARIOS) do
 	scenarioChips[key] = chip(scenarioGrid, s[2], i, function() control:FireServer("load", key) end)
 end
 
-local current = { playing = false }
+section("PLAYBACK")
 local transport = grid(5, 30)
 local playBtn = chip(transport, "Play", 0, function()
 	control:FireServer(current.playing and "pause" or "play")
@@ -1592,15 +3423,33 @@ end
 
 local freePlay = false
 local fp
-fp = chip(grid(1, 30), "Free play strike: off", 0, function()
+fp = chip(grid(1, 30), "Free play lightning: off", 0, function()
 	freePlay = not freePlay
-	fp.Text = freePlay and "Free play strike: on, click the ground" or "Free play strike: off"
+	fp.Text = freePlay and "Free play lightning: on, click the ground" or "Free play lightning: off"
 	setActive(fp, freePlay)
 end)
 
 local note = text(13, Enum.Font.Gotham, THEME.text, 0)
 note.AutomaticSize = Enum.AutomaticSize.Y
 note.Visible = false
+
+-- the shift log: every call and alert with its time, newest first, the record a safety manager files
+section("SHIFT LOG")
+local shiftLog = text(12, Enum.Font.RobotoMono, THEME.dim, 0)
+shiftLog.AutomaticSize = Enum.AutomaticSize.Y
+shiftLog.Text = "No entries yet"
+local HttpService = game:GetService("HttpService")
+local function paintLog()
+	local ok, entries = pcall(HttpService.JSONDecode, HttpService, workspace:GetAttribute("ShiftLog") or "[]")
+	if not ok or #entries == 0 then shiftLog.Text = "No entries yet" return end
+	local shown = {}
+	for i = 1, math.min(5, #entries) do table.insert(shown, entries[i]) end
+	shiftLog.Text = table.concat(shown, "\n")
+end
+workspace:GetAttributeChangedSignal("ShiftLog"):Connect(paintLog)
+paintLog()
+
+---------------------------------------------------------------- state
 
 local function clockText(st)
 	local h, m = st.clockStart:match("(%d+):(%d+)")
@@ -1610,17 +3459,23 @@ end
 
 stateEvent.OnClientEvent:Connect(function(st)
 	current = st
+	local demo = workspace:GetAttribute("DemoMode") == true
 	if st.name and st.name ~= "" then
 		title.Text = st.name
 		clock.Text = clockText(st)
 	end
-	status.Text = ("%s  ·  %dx"):format(st.playing and "PLAYING" or "PAUSED", st.speed)
+	status.Text = ("%s  ·  %dx%s"):format(st.playing and "PLAYING" or "PAUSED", st.speed, demo and "  ·  DEMO" or "")
 	playBtn.Text = st.playing and "Pause" or "Play"
 	setActive(playBtn, st.playing)
-	for key, b in pairs(scenarioChips) do setActive(b, key == st.key) end
+	for key, b in pairs(scenarioChips) do setActive(b, key == st.key and not demo) end
 	for s, b in pairs(speedChips) do setActive(b, s == st.speed) end
+	setActive(demoBtn, demo)
+	drawMarkers(st)
+	local p = (st.duration and st.duration > 0) and math.clamp(st.simTime / st.duration, 0, 1) or 0
+	fill.Size = UDim2.fromScale(p, 1)
+	playhead.Position = UDim2.fromScale(p, 0.5)
 	note.Text = st.note or ""
-	note.Visible = note.Text ~= ""
+	note.Visible = note.Text ~= "" and not collapsed
 end)
 
 local mouse = player:GetMouse()
@@ -1762,10 +3617,108 @@ while true do
 	task.wait(0.5)
 end
 ]==] },
+	{ "ZoneHud", "LocalScript", [==[-- ZoneHud (LocalScript in StarterPlayerScripts)
+-- A small card for everyone in the experience, judges on phones included: are you inside the work zone (and so on
+-- the muster list), and what the beacon is saying right now. During a stop work it tells people in the zone to leave.
+-- It reads only what is already replicated: the ZonePart, the Beacon's level tag, and the sim's stop work flag.
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local zone = workspace:WaitForChild("ZonePart")
+local beacon = workspace:WaitForChild("Beacon")
+
+local GREEN, AMBER, RED, TEXT = Color3.fromRGB(80, 220, 130), Color3.fromRGB(255, 184, 28), Color3.fromRGB(255, 80, 80), Color3.fromRGB(236, 238, 243)
+
+local gui = Instance.new("ScreenGui")
+gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "ZoneHud", false, 15 -- under FlashGui so the white flash covers it
+gui.Parent = player:WaitForChild("PlayerGui")
+-- scale with the screen, same rule as the operator panel
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = gui
+local function rescale()
+	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+end
+if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
+rescale()
+local card = Instance.new("Frame")
+card.AnchorPoint, card.Position, card.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 16), UDim2.fromOffset(300, 0)
+card.AutomaticSize = Enum.AutomaticSize.Y
+card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = Color3.fromRGB(14, 16, 22), 0.15, 0
+card.Parent = gui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = card
+local stroke = Instance.new("UIStroke")
+stroke.Thickness, stroke.Color = 2, GREEN
+stroke.Parent = card
+local pad = Instance.new("UIPadding")
+pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 14), UDim.new(0, 14)
+pad.Parent = card
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 3)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = card
+local function line(name, order, font, size, color)
+	local t = Instance.new("TextLabel")
+	t.Name, t.LayoutOrder, t.BackgroundTransparency = name, order, 1
+	t.Size, t.AutomaticSize = UDim2.new(1, 0, 0, 0), Enum.AutomaticSize.Y
+	t.Font, t.TextSize, t.TextColor3 = font, size, color
+	t.TextWrapped, t.TextXAlignment = true, Enum.TextXAlignment.Left
+	t.Text = ""
+	t.Parent = card
+	return t
+end
+local callLine = line("Call", 0, Enum.Font.GothamBold, 13, TEXT)
+local beaconLine = line("Beacon", 1, Enum.Font.GothamBold, 15, GREEN)
+local zoneLine = line("Zone", 2, Enum.Font.GothamBold, 17, TEXT)
+local hintLine = line("Hint", 3, Enum.Font.Gotham, 13, Color3.fromRGB(170, 176, 190))
+
+local function inZone()
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	local p = zone.CFrame:PointToObjectSpace(root.Position)
+	local half = zone.Size / 2
+	return math.abs(p.X) <= half.X and math.abs(p.Y) <= half.Y and math.abs(p.Z) <= half.Z
+end
+
+local function render()
+	local tag = beacon:FindFirstChild("Light") and beacon.Light:FindFirstChild("LevelTag")
+	local level = tag and tag:FindFirstChild("Level")
+	local state = level and level.Text or "ALL CLEAR"
+	local color = level and level.TextColor3 or GREEN
+	local stop = state:find("STOP WORK") ~= nil or workspace:GetAttribute("SimStopWork") == true
+	local go = workspace:GetAttribute("GoNoGo") or "GO"
+	callLine.Text = "SITE CALL  ·  " .. (workspace:GetAttribute("Tailboard") and "TAILBOARD, THEN " or "") .. go
+	callLine.TextColor3 = go == "NO-GO" and RED or go == "GO" and GREEN or AMBER
+	beaconLine.Text = "BEACON  ·  " .. state
+	beaconLine.TextColor3 = color
+	local inside = inZone()
+	if inside and stop then
+		zoneLine.Text, zoneLine.TextColor3 = "STOP WORK, LEAVE THE WORK ZONE", RED
+		hintLine.Text = "Lightning inside 10 miles. Get to a truck until the 30 minute all clear."
+		stroke.Color = RED
+	elseif inside then
+		zoneLine.Text, zoneLine.TextColor3 = "IN THE WORK ZONE  ·  on the muster list", GREEN
+		hintLine.Text = "The real beacon on the table counts you as crew on site. Step out to check out."
+		stroke.Color = GREEN
+	else
+		zoneLine.Text, zoneLine.TextColor3 = "OUTSIDE THE WORK ZONE", AMBER
+		hintLine.Text = "Walk into the striped work zone by the beacon to check in on the muster list."
+		stroke.Color = stop and RED or AMBER
+	end
+end
+
+while true do
+	render()
+	task.wait(0.25)
+end
+]==] },
 }
 
 return function()
-	print("[WorldInstaller] version 1017-0545, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-0909, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

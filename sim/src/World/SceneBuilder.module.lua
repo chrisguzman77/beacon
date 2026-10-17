@@ -7,6 +7,7 @@
 -- Nothing is uploaded; every part is a plain Part.
 
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
@@ -14,7 +15,7 @@ local WeatherFx = require(script.Parent.WeatherFx)
 
 local Builder = {}
 
-local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate" }
+local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate", "ConditionsBoard", "ConditionsBoardRiver", "RiverBeacon", "RiverFloodWater", "LandFloodWater" }
 local SITE_NAME = "SEMINOLE · SITE 12" -- the beacon site, Putnam County FL
 local ZONE = 60 -- work zone is ZONE x ZONE studs, centered on the beacon at the origin
 -- open water of the swamp east and south of the site, { center, radius }
@@ -54,6 +55,10 @@ local C = {
 	gatorBelly = Color3.fromRGB(150, 140, 100),
 	gatorEye = Color3.fromRGB(230, 200, 60),
 	alum = Color3.fromRGB(150, 155, 160),
+	navy = Color3.fromRGB(40, 55, 90),
+	matWood = Color3.fromRGB(120, 92, 64),
+	mud = Color3.fromRGB(84, 66, 44),
+	canopy = Color3.fromRGB(40, 110, 190),
 }
 
 local rng
@@ -66,7 +71,7 @@ local function part(parent, name, size, cf, color, material, shape)
 	p.Name = name
 	if shape then p.Shape = shape end
 	p.Size, p.CFrame, p.Color = size, cf, color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Material = material or Enum.Material.Plastic
 	p.Anchored = true
 	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
 	p.Parent = parent
@@ -136,7 +141,7 @@ local function plumbing()
 	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged" }) do
 		ensure(sim, "BindableEvent", n)
 	end
-	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere" }) do
+	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere", "StrikeRadar" }) do
 		ensure(ReplicatedStorage, "RemoteEvent", n)
 	end
 	local thunder = ensure(ReplicatedStorage, "Sound", "Thunder")
@@ -176,6 +181,13 @@ local function beacon()
 	m.PrimaryPart = base
 	part(m, "Footing", Vector3.new(3, 0.6, 3), CFrame.new(0, 0.3, 0), C.concrete, Enum.Material.Concrete)
 	part(m, "Head", Vector3.new(4.4, 3.6, 1.4), CFrame.new(0, 8.2, 0), C.safety)
+	-- the real unit's silhouette: a tilted solar panel behind the head, the sensor pod on a short mast, a whip antenna
+	part(m, "SolarBracket", Vector3.new(0.3, 2.2, 0.3), CFrame.new(0, 6.2, -1.1) * CFrame.Angles(math.rad(-20), 0, 0), C.steel, Enum.Material.Metal)
+	part(m, "SolarPanel", Vector3.new(3.4, 0.15, 2.4), CFrame.new(0, 7.3, -2) * CFrame.Angles(math.rad(35), 0, 0), Color3.fromRGB(28, 40, 72), Enum.Material.Glass)
+	part(m, "PodMast", Vector3.new(0.25, 2.4, 0.25), CFrame.new(1.9, 11.2, 0), C.steel, Enum.Material.Metal)
+	part(m, "SensorPod", Vector3.new(1.1, 0.9, 0.9), CFrame.new(1.9, 12.85, 0), C.white)
+	part(m, "PodLens", Vector3.new(0.5, 0.5, 0.1), CFrame.new(1.9, 12.85, 0.46), C.dark, Enum.Material.Glass)
+	part(m, "Antenna", Vector3.new(0.08, 3, 0.08), CFrame.new(-1.9, 11.5, 0), C.dark)
 
 	-- status light
 	column(m, "LightBase", 0.5, 2, Vector3.new(0, 10, 0), C.dark)
@@ -185,8 +197,8 @@ local function beacon()
 	glow.Parent = light
 	-- level tag floating over the light, readable from the spawn
 	local tag = Instance.new("BillboardGui")
-	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(240, 64), Vector3.new(0, 2.6, 0)
-	tag.MaxDistance, tag.LightInfluence = 300, 0
+	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(190, 46), Vector3.new(0, 2.4, 0)
+	tag.MaxDistance, tag.LightInfluence = 140, 0
 	tag.Parent = light
 	label(tag, "Level", "ALL CLEAR", UDim2.fromScale(1, 0.62), UDim2.new(), C.green)
 	label(tag, "Sub", "HAZARD INDEX 0", UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0.62), C.white, Enum.Font.GothamMedium)
@@ -227,25 +239,38 @@ local function beacon()
 	end
 end
 
--- yellow and black stripes along the ground from a to b
-local function hazardLine(parent, a, b)
-	local n = math.floor((b - a).Magnitude / 3)
-	for i = 0, n - 1 do
-		local p0, p1 = a:Lerp(b, i / n), a:Lerp(b, (i + 1) / n)
-		local s = part(parent, "Stripe", Vector3.new(1, 0.12, (p1 - p0).Magnitude), CFrame.lookAt((p0 + p1) / 2, p1),
-			i % 2 == 0 and C.safety or C.dark)
-		s.CanCollide, s.CanQuery, s.CastShadow = false, false, false
-	end
-end
-
 local function zone()
 	local z = ghost(part(workspace, "ZonePart", Vector3.new(ZONE, 14, ZONE), CFrame.new(0, 7, 0), C.safety))
+	-- kept for BeaconVisuals, which tints it; invisible so the zone reads as a real taped off area
 	local floor = part(z, "ZoneFloor", Vector3.new(ZONE, 0.05, ZONE), CFrame.new(0, 0.05, 0), C.green)
-	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 0.82, false, false, false
+	floor.Transparency, floor.CanCollide, floor.CanQuery, floor.CastShadow = 1, false, false, false
 	local h = ZONE / 2
-	local corners = { Vector3.new(-h, 0.07, -h), Vector3.new(h, 0.07, -h), Vector3.new(h, 0.07, h), Vector3.new(-h, 0.07, h) }
+	local corners = { Vector3.new(-h, 0, -h), Vector3.new(h, 0, -h), Vector3.new(h, 0, h), Vector3.new(-h, 0, h) }
+	local tape = Color3.fromRGB(240, 200, 30)
 	for i = 1, 4 do
-		hazardLine(z, corners[i], corners[i % 4 + 1])
+		local a, b = corners[i], corners[i % 4 + 1]
+		local count = math.floor((b - a).Magnitude / 7.5)
+		local prev
+		for k = 0, count - 1 do
+			local p = a:Lerp(b, k / count)
+			-- stakes driven into the muck, leaning a little like real ones do
+			local stake = part(z, "Stake", Vector3.new(0.3, 5, 0.3), CFrame.new(p + Vector3.new(0, 1.5, 0)) * CFrame.Angles(math.rad(rng:NextNumber(-4, 4)), 0, math.rad(rng:NextNumber(-4, 4))), C.wood, Enum.Material.Wood)
+			stake.CanCollide = false
+			local att = Instance.new("Attachment")
+			att.Position = Vector3.new(0, 1.8, 0)
+			att.Parent = stake
+			if prev then
+				local band = Instance.new("Beam")
+				band.Attachment0, band.Attachment1 = prev, att
+				band.Width0, band.Width1, band.Segments = 0.3, 0.3, 6
+				band.CurveSize0, band.CurveSize1 = -0.4, 0.4 -- a little sag between stakes
+				band.Color = ColorSequence.new(tape)
+				band.FaceCamera, band.LightInfluence = true, 1
+				band.Parent = stake
+			end
+			prev = att
+		end
+		prev = nil
 	end
 end
 
@@ -539,8 +564,7 @@ local function wildlife(parent, layout)
 end
 
 -- staff gauge at the zone's south east corner, so everyone sees the water climb
-local function floodGauge(parent)
-	local x, z = 37, 37
+local function floodGauge(parent, x, z)
 	column(parent, "GaugePost", 8, 0.5, Vector3.new(x + 0.9, 0, z - 0.3), C.steel, Enum.Material.Metal)
 	local board = part(parent, "FloodGauge", Vector3.new(1.4, 7, 0.15), CFrame.new(x, 3.5, z), C.white)
 	local g = surface(board, 50)
@@ -595,19 +619,423 @@ end
 
 local function lighting()
 	pcall(function() Lighting.Technology = Enum.Technology.Future end)
-	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.2
-	Lighting.Ambient = Color3.fromRGB(38, 40, 46)
+	Lighting.GlobalShadows, Lighting.ShadowSoftness = true, 0.12
+	Lighting.Ambient = Color3.fromRGB(22, 24, 28)
 	Lighting.EnvironmentDiffuseScale, Lighting.EnvironmentSpecularScale = 1, 1
-	Lighting.GeographicLatitude = 29
+	Lighting.ExposureCompensation = 0
+	Lighting.GeographicLatitude = 26 -- the Everglades
 	ensure(Lighting, "Sky", "Sky")
 	local bloom = ensure(Lighting, "BloomEffect", "Bloom")
-	bloom.Intensity, bloom.Size, bloom.Threshold = 0.5, 28, 1.4
+	bloom.Intensity, bloom.Size, bloom.Threshold = 0.25, 20, 2.2
 	local rays = ensure(Lighting, "SunRaysEffect", "SunRays")
-	rays.Intensity, rays.Spread = 0.05, 0.7
+	rays.Intensity, rays.Spread = 0.03, 0.6
+	local dof = ensure(Lighting, "DepthOfFieldEffect", "DepthOfField")
+	dof.FarIntensity, dof.NearIntensity, dof.FocusDistance, dof.InFocusRadius = 0.12, 0, 80, 70
+	local theirs = Lighting:FindFirstChild("PlanITColor")
+	if theirs and theirs:IsA("ColorCorrectionEffect") then
+		theirs.Brightness, theirs.Contrast, theirs.Saturation, theirs.TintColor = 0, 0, 0, Color3.new(1, 1, 1)
+	end
+	-- swamp water is tea colored and murky, with soft reflections and a light chop
+	local T = workspace.Terrain
+	T.WaterColor = Color3.fromRGB(58, 60, 38)
+	T.WaterTransparency, T.WaterReflectance = 0.3, 0.22
+	T.WaterWaveSize, T.WaterWaveSpeed = 0.05, 5
 	WeatherFx.reset()
 end
 
 ---------------------------------------------------------------- build
+
+---------------------------------------------------------------- the jobsite from the challenge brief
+
+-- a crew member: a humanoid rig in a hi-vis vest and hard hat, anchored at the root so scripts move it,
+-- pivot at the root, feet 3 studs below it. Falls back to a block figure where rigs cannot be made.
+local function humanoidWorker(parent, cf)
+	local d = Instance.new("HumanoidDescription")
+	local vest, pants, skin = C.orange, C.navy, ({ Color3.fromRGB(176, 124, 92), Color3.fromRGB(120, 82, 58), Color3.fromRGB(224, 172, 140) })[rng:NextInteger(1, 3)]
+	d.HeadColor, d.TorsoColor, d.LeftArmColor, d.RightArmColor = skin, vest, skin, skin
+	d.LeftLegColor, d.RightLegColor = pants, pants
+	d.HeightScale, d.WidthScale, d.DepthScale, d.ProportionScale = rng:NextNumber(0.97, 1.05), 0.95, 0.95, 1
+	local m = Players:CreateHumanoidModelFromDescription(d, Enum.HumanoidRigType.R15)
+	m.Name = "Worker"
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+	local root = m:FindFirstChild("HumanoidRootPart")
+	if root then root.Anchored = true end
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then p.CanCollide = false end
+	end
+	local head, torso = m:FindFirstChild("Head"), m:FindFirstChild("UpperTorso")
+	local function wear(name, size, offset, color, material, on)
+		if not on then return end
+		local p = Instance.new("Part")
+		p.Name, p.Size, p.Color, p.Material = name, size, color, material
+		p.CanCollide, p.Massless, p.CastShadow = false, true, true
+		p.CFrame = on.CFrame * offset
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0, weld.Part1, weld.Parent = on, p, p
+		p.Parent = m
+	end
+	wear("HardHat", Vector3.new(1.35, 0.5, 1.45), CFrame.new(0, 0.62, 0), C.yellow, Enum.Material.Plastic, head)
+	wear("HatBrim", Vector3.new(1.55, 0.08, 1.7), CFrame.new(0, 0.42, -0.05), C.yellow, Enum.Material.Plastic, head)
+	wear("VestStripe", Vector3.new(2.05, 0.18, 1.12), CFrame.new(0, -0.15, 0), Color3.fromRGB(215, 220, 225), Enum.Material.Foil, torso)
+	m:PivotTo(cf)
+	m.Parent = parent
+	return m
+end
+
+local function workerModel(parent, cf)
+	local ok, rig = pcall(humanoidWorker, parent, cf)
+	if ok and rig and rig:FindFirstChild("Head") then return rig end
+	local m = model(parent, "Worker")
+	local function w(n, size, off, color)
+		return nonCollide(part(m, n, size, cf * off, color))
+	end
+	m.PrimaryPart = w("Torso", Vector3.new(2, 2, 1), CFrame.new(), C.orange)
+	w("Stripe", Vector3.new(2.05, 0.25, 1.05), CFrame.new(0, 0.2, 0), C.white)
+	w("Head", Vector3.new(1.1, 1.1, 1.1), CFrame.new(0, 1.6, 0), Color3.fromRGB(176, 124, 92))
+	w("HardHat", Vector3.new(1.4, 0.45, 1.4), CFrame.new(0, 2.3, 0), C.yellow)
+	w("LegL", Vector3.new(0.9, 2, 1), CFrame.new(-0.5, -2, 0), C.navy)
+	w("LegR", Vector3.new(0.9, 2, 1), CFrame.new(0.5, -2, 0), C.navy)
+	w("ArmL", Vector3.new(0.6, 1.9, 0.8), CFrame.new(-1.3, 0, 0), C.orange)
+	w("ArmR", Vector3.new(0.6, 1.9, 0.8), CFrame.new(1.3, 0, 0), C.orange)
+	return m
+end
+
+-- timber crane mats laid across the marsh, the temporary road the brief describes
+local function mats(parent, x0, x1, z, width)
+	for x = x0, x1, 4.2 do
+		part(parent, "Mat", Vector3.new(4, 0.6, width), CFrame.new(x, -0.3, z) * CFrame.Angles(0, 0, math.rad(rng:NextNumber(-0.8, 0.8))),
+			C.matWood, Enum.Material.WoodPlanks)
+	end
+end
+
+-- an H-frame transmission structure; returns the three conductor attachments
+local function hframe(parent, x, z)
+	for _, dx in ipairs({ -5, 5 }) do
+		column(parent, "TxPole", 50, 1.6, Vector3.new(x + dx, -6, z), C.wood, Enum.Material.Wood)
+	end
+	local arm = part(parent, "TxArm", Vector3.new(18, 1, 1.2), CFrame.new(x, 40, z), C.wood, Enum.Material.Wood)
+	strut(parent, "TxBrace", Vector3.new(x - 5, 28, z), Vector3.new(x + 5, 38, z), 0.5, C.wood)
+	strut(parent, "TxBrace", Vector3.new(x + 5, 28, z), Vector3.new(x - 5, 38, z), 0.5, C.wood)
+	local atts = {}
+	for _, dx in ipairs({ -7, 0, 7 }) do
+		part(parent, "Insulator", Vector3.new(0.5, 2.6, 0.5), CFrame.new(x + dx, 38.2, z), C.white, Enum.Material.Glass)
+		local a = Instance.new("Attachment")
+		a.CFrame = CFrame.new(dx, -3.3, 0) * CFrame.Angles(0, 0, math.rad(-90)) -- X points down so the conductors sag
+		a.Parent = arm
+		table.insert(atts, a)
+	end
+	return atts
+end
+
+-- the new line the crew is building: finished spans strung, the newest structures still bare
+local function transmissionLine(parent, z, xs, strung)
+	local prev
+	for i, x in ipairs(xs) do
+		local atts = hframe(parent, x, z)
+		if prev and i <= strung then
+			for k = 1, 3 do
+				local w = Instance.new("Beam")
+				w.Attachment0, w.Attachment1 = prev[k], atts[k]
+				w.CurveSize0, w.CurveSize1 = 10, -10
+				w.Width0, w.Width1, w.Segments = 0.22, 0.22, 20
+				w.Color = ColorSequence.new(C.dark)
+				w.FaceCamera = true
+				w.Parent = atts[k].Parent
+			end
+		end
+		prev = atts
+	end
+end
+
+local function crewTruck(parent, cf)
+	local m = model(parent, "CrewTruck")
+	for _, x in ipairs({ -2.6, 2.6 }) do
+		for _, z in ipairs({ -3.2, 3.2 }) do
+			part(m, "Wheel", Vector3.new(1, 2.4, 2.4), cf * CFrame.new(x, 1.2, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	m.PrimaryPart = part(m, "Body", Vector3.new(5, 1.6, 10), cf * CFrame.new(0, 2.4, 0), C.white)
+	part(m, "Cab", Vector3.new(5, 2.2, 4.4), cf * CFrame.new(0, 4.3, -1.2), C.white)
+	part(m, "Glass", Vector3.new(4.8, 1.2, 0.2), cf * CFrame.new(0, 4.6, -3.45), C.glass, Enum.Material.Glass)
+	part(m, "Stripe", Vector3.new(5.05, 0.3, 10.05), cf * CFrame.new(0, 2.6, 0), C.orange)
+	m:SetAttribute("SinksInMud", true)
+	return m
+end
+
+-- mud spray for a vehicle bogged in the muck, switched on by Crew.server.lua
+local function mudSpray(p)
+	local e = Instance.new("ParticleEmitter")
+	e.Name, e.Enabled, e.Rate = "Mud", false, 30
+	e.Speed, e.Lifetime = NumberRange.new(6, 10), NumberRange.new(0.6, 1)
+	e.SpreadAngle = Vector2.new(30, 30)
+	e.Acceleration = Vector3.new(0, -40, 0)
+	e.Size = NumberSequence.new(0.35)
+	e.Color = ColorSequence.new(C.mud)
+	e.Parent = p
+end
+
+local function coolingTent(parent, cf)
+	for _, x in ipairs({ -4.5, 4.5 }) do
+		for _, z in ipairs({ -4.5, 4.5 }) do
+			column(parent, "TentPole", 7, 0.3, (cf * CFrame.new(x, 0, z)).Position, C.steel, Enum.Material.Metal)
+		end
+	end
+	part(parent, "Canopy", Vector3.new(10, 0.3, 10), cf * CFrame.new(0, 7, 0), C.canopy, Enum.Material.Fabric)
+	part(parent, "Valance", Vector3.new(10.1, 0.8, 10.1), cf * CFrame.new(0, 6.5, 0), C.canopy, Enum.Material.Fabric).Transparency = 0.2
+	column(parent, "WaterCooler", 1.4, 1.1, (cf * CFrame.new(3, 0.9, 3)).Position, C.orange)
+	part(parent, "CoolerTable", Vector3.new(3, 0.3, 2), cf * CFrame.new(3, 0.75, 3), C.white)
+	part(parent, "Bench", Vector3.new(6, 0.4, 1.2), cf * CFrame.new(-1, 1, -2.5), C.steel, Enum.Material.Metal)
+end
+
+-- the site conditions board, the one combined risk picture standing on the jobsite. Conditions.server.lua writes it.
+local function conditionsBoard(cf, name)
+	local b = part(workspace, name or "ConditionsBoard", Vector3.new(18, 10.5, 0.4), cf * CFrame.new(0, 10, 0), C.panel)
+	for _, x in ipairs({ -7, 7 }) do
+		column(workspace.Site, "BoardPost", 14, 0.5, (cf * CFrame.new(x, 0, -0.35)).Position, C.steel, Enum.Material.Metal)
+	end
+	local g = surface(b, 36)
+	local title = label(g, "Title", "SITE CONDITIONS", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.025), C.safety)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	-- the go/no-go call, a colored banner under the title
+	local decision = label(g, "Decision", "GO", UDim2.fromScale(0.94, 0.12), UDim2.fromScale(0.03, 0.14), C.white, Enum.Font.GothamBold, Color3.fromRGB(26, 110, 60))
+	local dpad = Instance.new("UIPadding")
+	dpad.PaddingLeft = UDim.new(0.015, 0)
+	dpad.Parent = decision
+	decision.TextXAlignment = Enum.TextXAlignment.Left
+	for i = 1, 6 do
+		local row = label(g, "Row" .. i, "", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.3 + (i - 1) * 0.115), C.white, Enum.Font.GothamMedium)
+		row.TextXAlignment = Enum.TextXAlignment.Left
+	end
+	return b
+end
+
+-- camera shots for demo mode: an invisible part per shot, the part's CFrame is where the camera sits and looks
+local function shots(list, name)
+	local f = Instance.new("Folder")
+	f.Name = name or "Shots"
+	f.Parent = workspace.Site
+	for name, s in pairs(list) do
+		ghost(part(f, name, Vector3.new(1, 1, 1), CFrame.lookAt(s[1], s[2]), C.white))
+	end
+end
+
+---------------------------------------------------------------- jobsite signs and equipment
+
+-- ANSI Z535 style safety sign: a colored signal word header over a white message panel, on two posts
+local SIGNAL = {
+	DANGER = { bg = Color3.fromRGB(200, 30, 36), fg = Color3.new(1, 1, 1) },
+	WARNING = { bg = Color3.fromRGB(240, 120, 20), fg = Color3.new(0, 0, 0) },
+	CAUTION = { bg = Color3.fromRGB(250, 210, 0), fg = Color3.new(0, 0, 0) },
+	NOTICE = { bg = Color3.fromRGB(20, 80, 170), fg = Color3.new(1, 1, 1) },
+	SAFETY = { bg = Color3.fromRGB(0, 130, 70), fg = Color3.new(1, 1, 1) },
+}
+local function safetySign(parent, cf, signal, message, width, height, postBase)
+	width, height = width or 5, height or 3.4
+	local base, top = postBase or 0, 7.5
+	for _, x in ipairs({ -width / 2 + 0.4, width / 2 - 0.4 }) do
+		part(parent, "SignPost", Vector3.new(0.25, top - base, 0.25), cf * CFrame.new(x, (top + base) / 2, -0.12), C.steel, Enum.Material.Metal)
+	end
+	local panel = part(parent, "Sign", Vector3.new(width, height, 0.1), cf * CFrame.new(0, top - height / 2, 0), C.white)
+	local g = surface(panel, 70)
+	local sig = SIGNAL[signal]
+	local head = label(g, "Signal", signal, UDim2.fromScale(1, 0.3), UDim2.new(), sig.fg, Enum.Font.GothamBlack, sig.bg)
+	head.Name = "Signal"
+	local body = label(g, "Message", message, UDim2.fromScale(0.92, 0.62), UDim2.fromScale(0.04, 0.34), Color3.fromRGB(20, 20, 24), Enum.Font.GothamBold)
+	body.TextWrapped = true
+	return panel
+end
+
+-- an orange traffic drum with reflective white bands, the way mat roads are delineated
+local function drum(parent, pos)
+	local up = CFrame.Angles(0, 0, math.rad(90))
+	part(parent, "Drum", Vector3.new(3, 1.9, 1.9), CFrame.new(pos + Vector3.new(0, 1.6, 0)) * up, C.orange, Enum.Material.Plastic, Enum.PartType.Cylinder).CanCollide = false
+	for _, y in ipairs({ 1.2, 2.3 }) do
+		part(parent, "DrumBand", Vector3.new(0.35, 1.95, 1.95), CFrame.new(pos + Vector3.new(0, y, 0)) * up, C.white, Enum.Material.Foil, Enum.PartType.Cylinder).CanCollide = false
+	end
+	part(parent, "DrumBase", Vector3.new(2.6, 0.2, 2.6), CFrame.new(pos + Vector3.new(0, 0.1, 0)), C.black).CanCollide = false
+end
+
+-- a reel of new conductor on its trailer, the heart of a transmission line job
+local function reelTrailer(parent, cf)
+	part(parent, "TrailerBed", Vector3.new(4, 0.5, 9), cf * CFrame.new(0, 1.5, 0), C.dark, Enum.Material.Metal)
+	for _, z in ipairs({ -2, 2 }) do
+		for _, x in ipairs({ -2.2, 2.2 }) do
+			part(parent, "Wheel", Vector3.new(0.8, 2, 2), cf * CFrame.new(x, 1, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	part(parent, "Tongue", Vector3.new(0.4, 0.4, 4), cf * CFrame.new(0, 1.3, -6.4), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, 1.6 }) do
+		part(parent, "ReelStand", Vector3.new(0.3, 4.5, 0.4), cf * CFrame.new(x, 3.9, 0), C.steel, Enum.Material.Metal)
+	end
+	part(parent, "ReelFlange", Vector3.new(3, 6.2, 6.2), cf * CFrame.new(0, 5.2, 0), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	part(parent, "Conductor", Vector3.new(3.1, 5, 5), cf * CFrame.new(0, 5.2, 0), Color3.fromRGB(150, 152, 156), Enum.Material.Metal, Enum.PartType.Cylinder)
+end
+
+local function generator(parent, cf)
+	part(parent, "Generator", Vector3.new(3, 2.4, 5.5), cf * CFrame.new(0, 1.6, 0), Color3.fromRGB(230, 200, 40), Enum.Material.Metal)
+	part(parent, "GenSkid", Vector3.new(3.2, 0.4, 5.8), cf * CFrame.new(0, 0.2, 0), C.dark, Enum.Material.Metal)
+	part(parent, "Exhaust", Vector3.new(0.3, 1.2, 0.3), cf * CFrame.new(0.9, 3.3, 2), C.dark, Enum.Material.Metal)
+end
+
+local function lightTower(parent, cf)
+	part(parent, "TowerBase", Vector3.new(3.6, 2.2, 6), cf * CFrame.new(0, 1.5, 0), C.white, Enum.Material.Metal)
+	part(parent, "TowerMast", Vector3.new(0.35, 18, 0.35), cf * CFrame.new(0, 11.5, -1.5), C.steel, Enum.Material.Metal)
+	part(parent, "LampBar", Vector3.new(4.5, 0.4, 0.4), cf * CFrame.new(0, 20.4, -1.5), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, -0.55, 0.55, 1.6 }) do
+		part(parent, "Lamp", Vector3.new(0.9, 0.9, 0.5), cf * CFrame.new(x, 21, -1.4), Color3.fromRGB(230, 232, 236), Enum.Material.Glass)
+	end
+end
+
+local function portableToilet(parent, cf)
+	part(parent, "PortableToilet", Vector3.new(3.6, 7, 3.6), cf * CFrame.new(0, 3.5, 0), Color3.fromRGB(30, 110, 60))
+	part(parent, "ToiletRoof", Vector3.new(3.8, 0.4, 3.8), cf * CFrame.new(0, 7.2, 0), C.white)
+end
+
+local function poleLaydown(parent, cf)
+	for i = 0, 2 do
+		part(parent, "SparePole", Vector3.new(36, 1.5, 1.5), cf * CFrame.new(0, 0.9 + (i == 2 and 1.3 or 0), (i == 2 and 0.8 or i * 1.6)), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	end
+	for _, x in ipairs({ -12, 0, 12 }) do
+		part(parent, "Dunnage", Vector3.new(0.8, 0.6, 5), cf * CFrame.new(x, 0.1, 0.8), C.matWood, Enum.Material.Wood)
+	end
+end
+
+-- the signs and the working kit on the boardwalk jobsite
+local function jobsiteDressing(site)
+	local f = Instance.new("Folder")
+	f.Name = "Jobsite"
+	f.Parent = site
+	local facingWest = CFrame.Angles(0, math.rad(-90), 0) -- read by people walking east from the spawn
+	safetySign(f, CFrame.new(-82, 0, 6) * facingWest, "CAUTION", "ACTIVE UTILITY CONSTRUCTION. AUTHORIZED PERSONNEL ONLY. HARD HAT, HI-VIS VEST, AND SAFETY BOOTS REQUIRED.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN PLANIT.", 5, 3.4, -1)
+	safetySign(f, CFrame.new(-48, 0, 6) * facingWest, "WARNING", "LIGHTNING. WHEN THE BEACON SOUNDS, GO TO THE TRUCKS. WORK RESUMES 30 MIN AFTER THE LAST STRIKE INSIDE 10 MI.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-33, 0, 6) * facingWest, "NOTICE", "BEACON WORK ZONE. CHECK IN ON THE CREW PAGE OR AT THE BEACON BEFORE ENTERING.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-92, 0, -46.5), "SAFETY", "HEAT ILLNESS PREVENTION. WATER, REST, SHADE. DRINK A CUP EVERY 15 MINUTES.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-120, 0, -46.5), "SAFETY", "EMERGENCY MUSTER POINT. HEADCOUNT HERE ON EVERY STOP WORK.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-100, 0, -46.5), "NOTICE", "EMERGENCY: CALL 911. SITE 12, SEMINOLE, PUTNAM COUNTY FL. AED AND FIRST AID IN THE CREW TRUCK.", 5.4, 3.4, -1)
+
+	reelTrailer(f, CFrame.new(-140, 0, -37) * CFrame.Angles(0, math.rad(-90), 0))
+	generator(f, CFrame.new(-100, 0, -32) * CFrame.Angles(0, math.rad(90), 0))
+	lightTower(f, CFrame.new(-140, 0, -20))
+	portableToilet(f, CFrame.new(-75, 0, -41))
+	mats(f, -232, -188, -36, 6)
+	poleLaydown(f, CFrame.new(-210, 0, -36))
+	for i = 0, 3 do -- a stack of spare mats at the head of the road
+		part(f, "MatStack", Vector3.new(4, 0.6, 12), CFrame.new(-156, 0.3 + i * 0.62, -36) * CFrame.Angles(0, math.rad(90 + i * 3), 0), C.matWood, Enum.Material.WoodPlanks)
+	end
+	part(f, "Extinguisher", Vector3.new(1.4, 0.5, 0.5), CFrame.new(-108, 0.7, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 20, 20), Enum.Material.Metal, Enum.PartType.Cylinder)
+	part(f, "SpillKit", Vector3.new(2.2, 1.8, 1.8), CFrame.new(-110.5, 1.1, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(240, 200, 20), Enum.Material.Plastic, Enum.PartType.Cylinder)
+	for x = -250, -75, 25 do -- drums marking the mat road edges
+		drum(f, Vector3.new(x, 0, -17.2))
+		drum(f, Vector3.new(x + 12, 0, -30.8))
+	end
+end
+
+-- the brief's jobsite fitted beside the boardwalk: a mat road from the truck end toward the new line,
+-- a laydown pad with the crew truck and the cooling tent, the excavator and mat truck at the work face,
+-- the crew at work, and the transmission line they are building south of the road
+local function jobsite(site)
+	local crew = Instance.new("Folder")
+	crew.Name = "Crew"
+	crew.Parent = site
+	mats(site, -262, -40, -24, 12) -- the road
+	mats(site, -160, -72, -36, 14) -- the laydown pad
+	transmissionLine(site, -70, { -280, -160, -40, 80, 200 }, 3)
+	excavator(CFrame.new(-46, 0, -24) * CFrame.Angles(0, math.rad(-90), 0)) -- boom out over the marsh, facing east
+	local matTruck = model(site, "MatTruck")
+	truck(matTruck, CFrame.new(-150, 0, -24) * CFrame.Angles(0, math.rad(-90), 0))
+	matTruck.PrimaryPart = matTruck:FindFirstChild("Chassis")
+	matTruck:SetAttribute("SinksInMud", true)
+	for _, p in ipairs(matTruck:GetChildren()) do if p.Name == "Wheel" then mudSpray(p) end end
+	local pickup = crewTruck(site, CFrame.new(-115, 0, -38) * CFrame.Angles(0, math.rad(-90), 0))
+	for _, p in ipairs(pickup:GetChildren()) do if p.Name == "Wheel" then mudSpray(p) end end
+	coolingTent(site, CFrame.new(-86, 0, -38))
+	-- where the crew goes: into the truck on stop work, under the tent in the heat (pivot height, 3 studs over the mats)
+	ghost(part(crew, "ShelterSpot", Vector3.new(1, 1, 1), CFrame.new(-115, 3, -38), C.white))
+	ghost(part(crew, "ShadeSpot", Vector3.new(1, 1, 1), CFrame.new(-86, 3, -38), C.white))
+	ghost(part(crew, "TailboardSpot", Vector3.new(1, 1, 1), CFrame.lookAt(Vector3.new(-75, 3, -19), Vector3.new(-75, 3, -8)), C.white))
+	for _, p in ipairs({ { -58, -20 }, { -61, -28 }, { -67, -22 }, { -54, -29 } }) do
+		workerModel(crew, CFrame.new(p[1], 3, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(60, 120)), 0))
+	end
+	jobsiteDressing(site)
+end
+
+-- The second setting: a Mississippi River crossing 2600 studs east of the main site. A levee 4 studs high between
+-- the river and the work pad, a substation, the new transmission line crossing the river, a river gauge, its own
+-- conditions board, and a beacon light that mirrors the main beacon. Flood water is two planes: the river side
+-- rises first, the land side only floods once the river tops the levee. It is a sim setting only; the contract's
+-- site 12 beacon, zone, and muster stay at the main site.
+local RIVER = Vector3.new(2600, 0, 0)
+local function riverSite()
+	local R = RIVER
+	local f = Instance.new("Folder")
+	f.Name = "RiverSite"
+	f.Parent = workspace.Site
+	local T = workspace.Terrain
+	T:FillBlock(CFrame.new(R + Vector3.new(0, -8, 0)), Vector3.new(1000, 16, 1000), Enum.Material.Grass)
+	T:FillBlock(CFrame.new(R + Vector3.new(180, -4, 0)), Vector3.new(160, 8, 1000), Enum.Material.Air)
+	T:FillBlock(CFrame.new(R + Vector3.new(180, -5.5, 0)), Vector3.new(160, 5, 1000), Enum.Material.Water) -- surface at -3
+	T:FillBlock(CFrame.new(R + Vector3.new(97, -4, 0)), Vector3.new(10, 8, 1000), Enum.Material.Mud)
+	T:FillBlock(CFrame.new(R + Vector3.new(80, 2, 0)), Vector3.new(20, 4, 1000), Enum.Material.Grass) -- the levee, top at 4
+	T:FillBlock(CFrame.new(R + Vector3.new(-40, -8, 10)), Vector3.new(110, 16.1, 90), Enum.Material.Ground) -- the work pad
+
+	-- substation: three transformers on a slab inside a fence
+	local sub = R + Vector3.new(-130, 0, -80)
+	part(f, "SubSlab", Vector3.new(44, 0.6, 22), CFrame.new(sub + Vector3.new(10, 0.3, 0)), C.concrete, Enum.Material.Concrete)
+	for i = 0, 2 do
+		local p = sub + Vector3.new(i * 10, 0, 0)
+		part(f, "Transformer", Vector3.new(6, 6, 5), CFrame.new(p + Vector3.new(0, 3.6, 0)), Color3.fromRGB(110, 118, 110), Enum.Material.Metal)
+		for _, dx in ipairs({ -1.8, 0, 1.8 }) do
+			part(f, "Bushing", Vector3.new(0.6, 2.4, 0.6), CFrame.new(p + Vector3.new(dx, 7.8, 0)), C.white, Enum.Material.Glass)
+		end
+	end
+	for _, side in ipairs({ { 10, -11, 44, 0 }, { 10, 11, 44, 0 }, { -12, 0, 22, 90 }, { 32, 0, 22, 90 } }) do
+		local fence = part(f, "Fence", Vector3.new(side[3], 5, 0.15), CFrame.new(sub + Vector3.new(side[1], 2.5, side[2])) * CFrame.Angles(0, math.rad(side[4]), 0), C.steel, Enum.Material.DiamondPlate)
+		fence.Transparency = 0.55
+	end
+
+	-- the new line crossing the river, strung from the substation side to the far bank
+	transmissionLine(f, R.Z + 90, { R.X - 150, R.X + 20, R.X + 340 }, 3)
+
+	-- crew equipment on the pad: a mat truck and the crew truck, parked
+	local matTruck = model(f, "RiverMatTruck")
+	truck(matTruck, CFrame.new(R + Vector3.new(-60, 0, 30)) * CFrame.Angles(0, math.rad(-90), 0))
+	crewTruck(f, CFrame.new(R + Vector3.new(-30, 0, 45)) * CFrame.Angles(0, math.rad(-90), 0)):SetAttribute("SinksInMud", nil)
+
+	-- a beacon light on its own post, mirroring the main beacon's state
+	local rb = model(workspace, "RiverBeacon")
+	rb.PrimaryPart = part(rb, "Post", Vector3.new(0.7, 9, 0.7), CFrame.new(R + Vector3.new(-10, 4.5, 10)), C.steel, Enum.Material.Metal)
+	part(rb, "Head", Vector3.new(2.4, 1.6, 1.2), CFrame.new(R + Vector3.new(-10, 8.6, 10)), C.safety)
+	local light = part(rb, "Light", Vector3.new(1.6, 1.6, 1.6), CFrame.new(R + Vector3.new(-10, 10.2, 10)), C.green, Enum.Material.Neon, Enum.PartType.Ball)
+	local glow = Instance.new("PointLight")
+	glow.Name, glow.Range, glow.Brightness, glow.Color = "Glow", 20, 3, C.green
+	glow.Parent = light
+	local tag = Instance.new("BillboardGui")
+	tag.Name, tag.Size, tag.StudsOffset = "LevelTag", UDim2.fromOffset(240, 64), Vector3.new(0, 2.6, 0)
+	tag.MaxDistance, tag.LightInfluence = 300, 0
+	tag.Parent = light
+	label(tag, "Level", "ALL CLEAR", UDim2.fromScale(1, 0.62), UDim2.new(), C.green)
+	label(tag, "Sub", "HAZARD INDEX 0", UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0.62), C.white, Enum.Font.GothamMedium)
+
+	floodGauge(f, R.X + 64, R.Z + 20)
+	conditionsBoard(CFrame.new(R + Vector3.new(-60, 0, 20)), "ConditionsBoardRiver")
+	local sp = ghost(part(f, "RiverSpawn", Vector3.new(4, 1, 4), CFrame.lookAt(R + Vector3.new(-40, 3, 70), R + Vector3.new(100, 3, 20)), C.white))
+	sp.Name = "RiverSpawn"
+
+	-- river side rises first, land side floods only past the levee top (WeatherFx drives both)
+	local riverFlood = ghost(part(workspace, "RiverFloodWater", Vector3.new(410, 0.4, 1000), CFrame.new(R + Vector3.new(295, -3.4, 0)), Color3.fromRGB(96, 84, 60), Enum.Material.Glass))
+	riverFlood.Reflectance = 0.05
+	local landFlood = ghost(part(workspace, "LandFloodWater", Vector3.new(570, 0.4, 1000), CFrame.new(R + Vector3.new(-215, -1.2, 0)), Color3.fromRGB(96, 84, 60), Enum.Material.Glass))
+	landFlood.Reflectance = 0.05
+
+	shots({
+		Wide = { R + Vector3.new(-160, 70, 160), R + Vector3.new(40, 0, 0) },
+		Levee = { R + Vector3.new(40, 9, 60), R + Vector3.new(140, 0, 0) },
+		Beacon = { R + Vector3.new(-26, 12, 26), R + Vector3.new(-10, 9, 10) },
+		Board = { R + Vector3.new(-60, 9, 44), R + Vector3.new(-60, 8, 20) },
+	}, "ShotsRiver")
+end
 
 -- The boardwalk swamp (workspace.PlanITSite, a hand made scene): deck top 4.4, open water everywhere at -0.6,
 -- a 28 x 24 research platform at the origin, the boardwalk running west to the truck at x -300.
@@ -660,14 +1088,25 @@ function Builder.build()
 	if scene then
 		-- the beacon pivots on its post, whose center is 5 studs up
 		workspace.Beacon:PivotTo(CFrame.new(-6, DECK_Y, -6) * CFrame.Angles(0, math.rad(-90), 0) * CFrame.new(0, 5, 0)) -- faces west, down the boardwalk
-		powerLine(site)
+		jobsite(site)
 		wildlife(site, {
 			swims = { { 40, -60, 30, 3.2 }, { -100, 50, 25, 2.6 }, { 120, 80, 40, 3.6 }, { -200, -60, 30, 2.2 } },
 			basks = { { -70, WATER_Y - 0.4, -12, 90 }, { 30, WATER_Y - 0.4, 22, 300 } }, -- lurking by the walkway
 		})
 		adopt(scene, site)
 		billboard(site, CFrame.new(-50, 0, 9) * CFrame.Angles(0, math.pi, 0))
-		markers(CFrame.lookAt(Vector3.new(-60, DECK_Y + 1, 0), Vector3.new(0, DECK_Y + 1, 0)), false)
+		conditionsBoard(CFrame.new(-75, -1, -8))
+		shots({
+			Wide = { Vector3.new(-170, 70, 120), Vector3.new(-60, 0, -20) },
+			Road = { Vector3.new(-125, 14, 10), Vector3.new(-60, 2, -26) },
+			Gator = { Vector3.new(-82, 9, -6), Vector3.new(-100, 1, -24) },
+			Tent = { Vector3.new(-70, 10, -18), Vector3.new(-86, 3, -38) },
+			Storm = { Vector3.new(-20, 30, 40), Vector3.new(-600, 120, -60) },
+			Beacon = { Vector3.new(-22, 12, 4), Vector3.new(-6, 9, -6) },
+			Flood = { Vector3.new(40, 9, 20), Vector3.new(0, 3, -6) },
+			Board = { Vector3.new(-75, 9, 16), Vector3.new(-75, 8, -8) },
+		})
+		markers(CFrame.lookAt(Vector3.new(-100, 1, -24), Vector3.new(0, 1, -24)), false) -- the gator walks the mat road toward the crew
 	else
 		terrain()
 		excavator(CFrame.new(-16, 0, -12) * CFrame.Angles(0, math.rad(30), 0))
@@ -686,10 +1125,23 @@ function Builder.build()
 			table.insert(swims, { c.X, c.Z, r, s[3] })
 		end
 		wildlife(site, { swims = swims, basks = { { 72, 1, -20, 63 }, { 100, 1, 140, 98 } }, egrets = true }) -- one bask in sight of the spawn
-		floodGauge(site)
+		floodGauge(site, 37, 37)
 		billboard(site, CFrame.new(-28, 0, 70))
+		conditionsBoard(CFrame.new(30, 0, 70))
+		shots({
+			Wide = { Vector3.new(0, 70, 190), Vector3.new(0, 0, 0) },
+			Road = { Vector3.new(-50, 14, 60), Vector3.new(-16, 2, -12) },
+			Gator = { Vector3.new(90, 9, 50), Vector3.new(66, 1, 30) },
+			Tent = { Vector3.new(30, 12, 110), Vector3.new(30, 8, 70) },
+			Storm = { Vector3.new(30, 30, 60), Vector3.new(-600, 120, 0) },
+			Beacon = { Vector3.new(0, 12, 22), Vector3.new(0, 9, 0) },
+			Flood = { Vector3.new(60, 10, 60), Vector3.new(0, 1, 0) },
+			Board = { Vector3.new(30, 9, 92), Vector3.new(30, 8, 70) },
+		})
 		markers(CFrame.lookAt(Vector3.new(66, 1, 30), Vector3.new(0, 1, 30)), true) -- gator crawls toward the zone
 	end
+	riverSite()
+	workspace:SetAttribute("ActiveSite", "everglades")
 	lighting()
 	print("[SceneBuilder] site built" .. (scene and " into the boardwalk swamp" or "") .. ". File > Save, then publish.")
 end

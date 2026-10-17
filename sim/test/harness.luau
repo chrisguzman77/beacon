@@ -16,6 +16,8 @@ local net = require("@lune/net")
 -- LIVE=1 sends the Bridge's requests to the real backend. Without SIM_TOKEN the posts come back 401, which still
 -- proves the route, the JSON, and the header. With SIM_TOKEN set they create real events on that site.
 local LIVE = process.env.LIVE == "1"
+-- the Bridge polls forever, so a test that stops on an error would never exit: give up after 10 minutes
+task.delay(600, function() print("WATCHDOG: test took over 10 minutes, giving up") process.exit(3) end)
 
 local Instance, Vector3, CFrame, Color3 = roblox.Instance, roblox.Vector3, roblox.CFrame, roblox.Color3
 
@@ -138,6 +140,7 @@ end)
 roblox.implementProperty("Player", "Character", function() return nil end)
 roblox.implementMethod("Player", "GetMouse", function() return { Target = nil } end)
 roblox.implementProperty("TextButton", "MouseButton1Click", function(self) return signalOf(self, "click") end)
+roblox.implementMethod("Camera", "GetPropertyChangedSignal", function(self, name) return signalOf(self, "prop:" .. name) end)
 roblox.implementProperty("UserInputService", "InputBegan", function(self) return signalOf(self, "InputBegan") end)
 
 local httpLog = {}
@@ -226,6 +229,12 @@ local function run(path, inPlace)
 	return load(src, inPlace and inPlace:GetFullName() or path, inPlace)()
 end
 
+local function shiftLogHas(text)
+	local ok, entries = pcall(serde.decode, "json", workspace:GetAttribute("ShiftLog") or "[]")
+	if not ok then return false end
+	for _, e in ipairs(entries) do if e:find(text, 1, true) then return true end end
+	return false
+end
 local function site_floating() return workspace.Site.Floating:GetChildren() end
 local failures = 0
 local function check(ok, what)
@@ -316,15 +325,37 @@ local beacon = workspace:FindFirstChild("Beacon")
 check(beacon and beacon:GetAttribute("Led") == "green" and beacon:FindFirstChild("Light"), "beacon with its nine attributes")
 check(workspace:FindFirstChild("ZonePart") and workspace:FindFirstChild("FloodWater") and (MERGED or workspace:FindFirstChild("SpawnLocation")), "zone, flood plane, spawn")
 check(game:GetService("ServerStorage"):FindFirstChild("Gator") ~= nil, "gator scenario template")
+if MERGED then
+	local dress = workspace.Site:FindFirstChild("Jobsite")
+	local words = {}
+	for _, d in ipairs(dress and dress:GetDescendants() or {}) do
+		if d.Name == "Signal" then words[d.Text] = (words[d.Text] or 0) + 1 end
+	end
+	check(words.DANGER and words.WARNING and words.CAUTION and words.NOTICE and words.SAFETY,
+		"ANSI style signs: DANGER, WARNING, CAUTION, NOTICE, SAFETY")
+	check(dress:FindFirstChild("ReelFlange") and dress:FindFirstChild("Generator") and dress:FindFirstChild("Drum"), "conductor reel, generator, road drums on site")
+end
 local rs = game:GetService("ReplicatedStorage")
 check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs:FindFirstChild("FlashEvent"), "SimEvents (4) and FlashEvent for the Bridge contract")
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
 local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
-check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 12, "client panel with 12 buttons (6 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
+check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 19, "client panel with 19 buttons (collapse, demo, 2 sites, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
 
-print("== storm_west (Studio auto play after 5 s)")
+print("== Studio auto play starts the guided demo after 5 s")
 task.wait(5.2)
+step(0.5)
+local caption = LOCAL_PLAYER.PlayerGui:FindFirstChild("DemoCaption")
+check(workspace:GetAttribute("DemoMode") == true and caption and caption:FindFirstChild("Caption", true).Text:find("06:45") ~= nil,
+	"demo mode on, caption narrating 06:45 (" .. (caption and caption:FindFirstChild("Caption", true).Text:sub(1, 60) or "no caption") .. ")")
+step(10, 0.25) -- 3000 s of the day at 300x, past the gator
+check(caption:FindFirstChild("Caption", true).Text:find("gator") ~= nil, "demo caption moves on to the gator (" .. caption:FindFirstChild("Caption", true).Text:sub(1, 50) .. ")")
+
+print("== storm_west")
+local control = rs.ScenarioControl
+control:FireServer("load", "storm_west")
+check(workspace:GetAttribute("DemoMode") == false, "picking a scenario takes over from the demo")
+control:FireServer("play")
 step(45, 0.25)
 local miles = {}
 for _, s in ipairs(fired.strike) do table.insert(miles, s[2]) end
@@ -368,6 +399,8 @@ if LIVE and bridgeScript then
 end
 
 print("== beacon follows the index")
+rs.ScenarioControl:FireServer("load", "tipped") -- a calm scenario: the sim's own hazards reset
+step(0.5)
 if LIVE and bridgeScript then print("  skipped in live mode, the Bridge rewrites these attributes from the backend every second") else
 local tag = beacon.Light.LevelTag
 beacon:SetAttribute("Countdown", 0); beacon:SetAttribute("Led", "green")
@@ -383,9 +416,30 @@ check(beacon.Display.SurfaceGui.Countdown.Text == "30:00", "countdown display 30
 beacon:SetAttribute("Countdown", 0); beacon:SetAttribute("Led", "green"); beacon:SetAttribute("Index", 2); step(0.3)
 check(tag.Level.Text == "ALL CLEAR", "clear -> ALL CLEAR")
 
+print("== a different alarm for each hazard")
+local light = beacon.Light
+local function hazard(attrName, value, label, alarmName)
+	workspace:SetAttribute(attrName, value)
+	step(0.3)
+	check(tag.Level.Text == label and light:GetAttribute("LastAlarm") == alarmName,
+		("%s -> %s with the %s alarm (%s, %s)"):format(attrName, label, alarmName, tag.Level.Text, tostring(light:GetAttribute("LastAlarm"))))
+end
+hazard("SimWildlife", true, "GATOR ON SITE", "wildlife")
+hazard("HeatIndexF", 108, "HEAT WARNING", "heat_warning")
+hazard("HeatIndexF", 117, "HEAT DANGER", "heat_danger")
+hazard("SimFloodMm", 40, "FLOOD", "flood")
+check(tag.Sub.Text:find("+2 MORE") ~= nil, "the tag counts the other active hazards (" .. tag.Sub.Text .. ")")
+workspace:SetAttribute("SimCountdown", 1500)
+hazard("SimStopWork", true, "STOP WORK  25:00", "stopwork")
+check(tag.Level.TextColor3.R > 0.8 and tag.Level.TextColor3.G < 0.3, "stop work shows in red")
+for _, a in ipairs({ "SimStopWork", "SimFloodMm", "HeatIndexF", "SimWildlife", "SimCountdown" }) do
+	workspace:SetAttribute(a, a == "SimStopWork" and false or a == "SimWildlife" and false or 0)
+end
+step(0.3)
+check(tag.Level.Text == "ALL CLEAR" and light:GetAttribute("LastAlarm") == "all_clear", "everything clears -> all clear chime (" .. tostring(light:GetAttribute("LastAlarm")) .. ")")
+
 end
 print("== hurricane")
-local control = rs.ScenarioControl
 local boat = site.Floating.Boat
 local boatY0 = boat.PrimaryPart.CFrame.Position.Y
 local strikes0 = #fired.strike
@@ -399,6 +453,8 @@ check(fired.water[#fired.water][1] == 100, "flood reaches 100 mm")
 check(top > 4 and flood.Transparency < 0.5, ("flood water over the pad, top at %.1f studs, transparency %.2f"):format(top, flood.Transparency))
 check(boat.PrimaryPart.CFrame.Position.Y > boatY0 + 3, ("boat floated up %.1f studs"):format(boat.PrimaryPart.CFrame.Position.Y - boatY0))
 check(workspace.GlobalWind.Magnitude > 30, ("hurricane wind %.0f"):format(workspace.GlobalWind.Magnitude))
+check(shiftLogHas("aerial lifts and bucket trucks grounded"), "hurricane gusts ground the aerial lifts, logged")
+check(workspace:GetAttribute("GoNoGo") == "NO-GO", "hurricane call is NO-GO (" .. tostring(workspace:GetAttribute("GoReasons")) .. ")")
 
 print("== flash flood and reset")
 control:FireServer("load", "flash_flood")
@@ -408,11 +464,148 @@ control:FireServer("play")
 step(40, 0.25)
 check(workspace.FloodWater.CFrame.Position.Y > 1, "flash flood rises")
 
+print("== everglades day (the challenge brief)")
+local crewFolder = workspace.Site:FindFirstChild("Crew")
+local matTruck = workspace.Site:FindFirstChild("MatTruck")
+local truckY0 = matTruck and matTruck.PrimaryPart.CFrame.Position.Y
+local boardRows = workspace.ConditionsBoard.SurfaceGui
+local function rowText(i) return boardRows["Row" .. i].Text end
+local function workers()
+	local list = {}
+	for _, m in ipairs(crewFolder and crewFolder:GetChildren() or {}) do if m.Name == "Worker" then table.insert(list, m) end end
+	return list
+end
+control:FireServer("load", "everglades_day")
+control:FireServer("play")
+step(2, 0.25) -- 06:55: the tailboard
+check(workspace:GetAttribute("Tailboard") == true and shiftLogHas("Tailboard: job hazard analysis reviewed"), "shift opens with the tailboard, logged")
+if crewFolder then
+	step(2, 0.25)
+	local spot = crewFolder.TailboardSpot.CFrame.Position
+	local far = 0
+	for _, w in ipairs(workers()) do far = math.max(far, (w:GetPivot().Position - spot).Magnitude) end
+	check(far < 6, ("crew gathered at the board for the tailboard (farthest %.1f studs)"):format(far))
+else
+	step(2, 0.25)
+end
+step(62, 0.25) -- past 12:00 at 300x
+local hiNoon = workspace:GetAttribute("HeatIndexF")
+check(hiNoon >= 110, ("noon heat index %d F, over 110 (%s)"):format(hiNoon, rowText(1)))
+check(rowText(6):find("alligator") ~= nil, "gator report on the board (" .. rowText(6) .. ")")
+check(rowText(3):find("SOIL 8") ~= nil, "a week of rain shows as soil saturation (" .. rowText(3) .. ")")
+local spent = 0 -- test seconds used by the optional crew check, taken off the next step so the strikes line up
+check(workspace:GetAttribute("GoNoGo") == "GO WITH CONTROLS" and (workspace:GetAttribute("GoReasons") or ""):find("work/rest 15/45", 1, true) ~= nil,
+	"noon call: GO WITH CONTROLS, heat work/rest 15/45 (" .. tostring(workspace:GetAttribute("GoReasons")) .. ")")
+check(workspace:FindFirstChild("HazardPin") ~= nil, "gator report pinned with a 30 ft buffer")
+if crewFolder and hiNoon >= 115 then
+	spent = 6
+	step(6, 0.25)
+	local shade = crewFolder.ShadeSpot.CFrame.Position
+	local most = 0 -- the resting group rotates every 15 sim minutes, so look across a moment, not one frame
+	for _ = 1, 8 do
+		local resting = 0
+		for _, w in ipairs(workers()) do if (w:GetPivot().Position - shade).Magnitude < 6 then resting += 1 end end
+		most = math.max(most, resting)
+		step(0.25, 0.25)
+	end
+	spent += 2
+	check(most == 3, ("heat index %d F: work/rest 15/45, 3 of 4 on break in the tent at a time (%d)"):format(hiNoon, most))
+end
+step(28 - spent, 0.25) -- past the 8 mile strike at 14:30 (93 s at 300x), before the 6 mile one (96 s)
+check(workspace:GetAttribute("SimStopWork") == true and rowText(4):find("STOP WORK") ~= nil, "8 mile strike opens stop work (" .. rowText(4) .. ")")
+check(workspace:GetAttribute("GoNoGo") == "NO-GO", "call goes to NO-GO on the strike")
+local before = workspace:GetAttribute("SimCountdown")
+step(2.5, 0.25) -- the 6 mile strike at 14:45
+check(workspace:GetAttribute("SimCountdown") > before, ("6 mile strike restarts the 30 minute countdown (%s -> %s)"):format(before, workspace:GetAttribute("SimCountdown")))
+check(shiftLogHas("STOP WORK: strike 8 mi") and shiftLogHas("COUNTDOWN RESET: strike 6 mi"), "shift log records the stop work and the reset")
+if crewFolder then
+	step(4, 0.25) -- still inside the 30 minutes the 6 mile strike restarted
+	local hidden = 0
+	for _, w in ipairs(workers()) do if w.Head.Transparency == 1 then hidden += 1 end end
+	check(hidden == #workers() and hidden == 4, ("crew sheltered in the truck (%d of %d)"):format(hidden, #workers()))
+	step(0.5, 0.25)
+	check(rowText(4):find("CREW 4/4 SHELTERED", 1, true) ~= nil and shiftLogHas("Headcount: crew 4/4 accounted for"), "headcount on the board and in the log (" .. rowText(4) .. ")")
+end
+step(42, 0.25) -- through the downpour past 18:00 (135 s)
+check(workspace:GetAttribute("Soil") >= 0.85, ("downpour saturates the soil (%d%%)"):format(workspace:GetAttribute("Soil") * 100))
+if matTruck then
+	step(8, 0.25)
+	local sunk = truckY0 - matTruck.PrimaryPart.CFrame.Position.Y
+	check(sunk > 0.5, ("mat truck bogged in the muck, down %.2f studs"):format(sunk))
+end
+local briefing = false
+for _, d in ipairs(LOCAL_PLAYER.PlayerGui:GetDescendants()) do
+	if d:IsA("TextLabel") and d.Text:find("18:00") and d.Text:find("briefing") then briefing = true end
+end
+check(briefing, "6 PM next-day briefing note shown")
+local panelLog = LOCAL_PLAYER.PlayerGui.ScenarioUI:FindFirstChild("Frame"):GetDescendants()
+local logShown = false
+for _, d in ipairs(panelLog) do if d:IsA("TextLabel") and d.Font == roblox.Enum.Font.RobotoMono and d.Text:find("  ") and d.Text:find(":") and d.Text ~= "No entries yet" then logShown = true end end
+check(logShown, "shift log shown in the operator panel")
+
+print("== lightning cell, first strike to all clear")
+local radarScope = LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true)
+local strikesBefore = #fired.strike
+control:FireServer("load", "lightning_cell")
+control:FireServer("play")
+step(16, 0.25) -- 14:32 at 120x: the 9 mile strike landed
+check(workspace:GetAttribute("SimStopWork") == true, "9 mile strike opens stop work")
+local radarCard = LOCAL_PLAYER.PlayerGui.LightningRadar
+local function radarDots()
+	local n = 0
+	for _, d in ipairs(radarScope:GetChildren()) do if d.Name == "Strike" then n += 1 end end
+	return n
+end
+step(0.5, 0.25)
+task.wait(0.4) -- the radar redraws every quarter of a real second
+check(radarDots() == 5 and radarCard:FindFirstChild("TrendLine", true).Text:find("APPROACHING") ~= nil,
+	("radar: 5 strikes plotted, storm approaching (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
+check(radarCard:FindFirstChild("StopLine", true).Text:find("STOP WORK") ~= nil, "radar shows the stop work countdown")
+step(15, 0.25) -- 15:03: the 8 mile strike east restarted it
+local left = workspace:GetAttribute("SimCountdown")
+check(left > 1450, ("8 mile strike east restarts the all clear (%d s left)"):format(left))
+step(16, 0.25) -- 15:35: 30 minutes after the last close strike
+check(workspace:GetAttribute("SimStopWork") == false, "all clear 30 minutes after the last strike inside 10 mi")
+check(#fired.strike - strikesBefore == 14, ("14 strikes in the cell (%d)"):format(#fired.strike - strikesBefore))
+step(0.5, 0.25)
+task.wait(0.4)
+check(radarDots() == 3 and radarCard:FindFirstChild("TrendLine", true).Text:find("RECEDING") ~= nil,
+	("radar: strikes older than 30 min age off, storm receding (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
+
+print("== the Mississippi crossing, river flood")
+control:FireServer("load", "mississippi_flood")
+check(workspace:GetAttribute("ActiveSite") == "river", "river scenario switches to the river crossing")
+control:FireServer("play")
+step(11, 0.25) -- 05:44 at 240x: the 12 mile strike at 05:40
+local o = workspace.RiverBeacon:GetPivot().Position
+check(#fired.strike > 0, "strike fired at the river setting")
+local riverTop = function() local w = workspace.RiverFloodWater return w.CFrame.Position.Y + w.Size.Y / 2 end
+step(13, 0.25) -- past 06:10, the levee overtops
+check(riverTop() > 4 and workspace:GetAttribute("RiverOvertop") == true, ("river over the levee top (river at %.1f)"):format(riverTop()))
+check(workspace.LandFloodWater.Transparency < 0.5, "land side floods once the levee is overtopped")
+check(workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text:find("LEVEE") ~= nil, "river board reports the levee (" .. workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text .. ")")
+check(workspace.RiverBeacon.Light.LevelTag.Level.Text == beacon.Light.LevelTag.Level.Text, "river beacon mirrors the main beacon (" .. workspace.RiverBeacon.Light.LevelTag.Level.Text .. ")")
+control:FireServer("site", "everglades")
+check(workspace:GetAttribute("ActiveSite") == "everglades", "site switch back to the Everglades")
+
 print("== free play bearing")
 local o = workspace.Beacon:GetPivot().Position
 rs.StrikeHere.OnServerEvent:Fire(LOCAL_PLAYER, Vector3.new(o.X - 240, 0, o.Z))
 local last = fired.strike[#fired.strike]
 check(math.abs(last[1] - 270) < 0.5 and math.abs(last[2] - 2) < 0.01, ("click 240 studs west -> bearing %.0f, %.1f mi"):format(last[1], last[2]))
+
+print("== the guided demo, start to finish")
+control:FireServer("demo")
+local capText = function() return LOCAL_PLAYER.PlayerGui.DemoCaption:FindFirstChild("Caption", true).Text end
+local seenStop, t0 = false, os.clock()
+for _ = 1, 400 do -- 0.25 s steps, up to 100 s of play
+	step(0.25, 0.25)
+	if capText():find("STOP WORK") then seenStop = true end
+	if capText():find("18:00") then break end
+end
+local played = 0
+for _ = 1, 1 do played = (workspace:GetAttribute("SimSpeed") or 0) end
+check(seenStop and capText():find("18:00") ~= nil, "demo reaches stop work and the 6 PM briefing")
 
 print(failures == 0 and "ALL CHECKS PASSED" or (failures .. " CHECK(S) FAILED"))
 process.exit(failures == 0 and 0 or 1)

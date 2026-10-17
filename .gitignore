@@ -37,3 +37,7 @@ Thumbs.db
 firmware/gateway/kiosk/
 firmware/gateway/queue.jsonl
 firmware/gateway/crew.json
+firmware/gateway/briefing.json
+firmware/gateway/lock.json
+firmware/gateway/.venv/
+firmware/gateway/voices/
