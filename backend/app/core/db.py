@@ -16,7 +16,7 @@ async def _init_conn(conn):
 
 async def connect():
     global _pool
-    _pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=10, init=_init_conn)
+    _pool = await asyncpg.create_pool(settings.database_url, min_size=4, max_size=10, init=_init_conn)
 
 
 async def close():
