@@ -12,7 +12,7 @@ Utility field crews get hurt by hazards that were knowable the night before, bec
 2. A lightning strike within 10 miles of a site creates a stop work alert with a 30 minute countdown that restarts on every new strike. A river site gets a flood warning after heavy rain. Heat index over the thresholds raises heat alerts.
 3. Every evening at 6 PM in each site's local time a next day briefing is generated (English and Spanish) and can also be run on demand.
 4. A crew member can take a photo of a hazard on their phone, it is tagged, pinned to the site map, and saved.
-5. The physical beacon detects a lightning flash and thunder with its own sensors, computes the distance, cuts the equipment motor, shows the countdown on its display and touchscreen, speaks the alert, and keeps doing all of this with no internet. A supervisor PIN restores power. Crew check in on the touchscreen and the radar confirms the work zone is clear.
+5. The physical beacon detects a lightning flash and thunder with its own sensors, computes the distance, cuts the equipment motor, shows the countdown on its 4 digit display and STOP WORK on its LCD, speaks the alert, and keeps doing all of this with no internet. A supervisor PIN entered on the IR remote restores power. Crew check in on the phone crew page (IR remote digit as backup), the beacon's 1 digit display shows the crew count, and the radar confirms the work zone is clear.
 6. In the Roblox experience, pressing play on the storm scenario makes lightning strike in world, the screen flashes and thunder plays, the real beacon reacts (through its sensors and through the backend), the in world beacon mirrors the real one, and a judge who joins and walks into the work zone appears on the muster list.
 
 If a task does not move one of those six forward, it waits.
@@ -46,7 +46,6 @@ Merging to main. Only the human merges `dev` into `main`, when the demo script r
 - contracts/intel-interface.md, how core calls intel
 - contracts/roblox-bridge.md, how the Roblox experience talks to the backend
 - contracts/env.md, every environment variable and who sets it
-- contracts/kiosk-ws.md, the Pi gateway to touchscreen kiosk page messages (Slavik and Cam)
 
 ## Guides (read yours before your first task)
 
@@ -58,12 +57,12 @@ Merging to main. Only the human merges `dev` into `main`, when the demo script r
 
 ## The demo script (what "working" means)
 
-1. Roblox on one laptop, dashboard on another, the beacon on the table with the fan spinning, the touchscreen showing the site status.
+1. Roblox on one laptop, dashboard on another, the beacon on the table with the fan spinning, the beacon LCD showing ALL CLEAR with the hazard index and crew count.
 2. Press play on Storm from the west. Sky darkens in Roblox, a bolt hits at 8 miles, the screen flashes, thunder rolls.
 3. The beacon's photoresistor and the laptop mic catch it. The beacon says "Lightning detected, eight miles, stop work, clear the zone." The fan stops, the countdown starts on the display and the touchscreen, the equipment LCD says LOCKED OUT, the in world beacon turns red, the site jumps to the top of the ranked map.
-4. A judge taps their name on the touchscreen to check in. A judge joins the Roblox experience on their phone and walks into the zone, and appears on the muster list. They step out, the zone reads clear.
-5. A second strike at 6 miles resets the countdown. The supervisor PIN on the touchscreen restores power and the LCD shows who released it.
-6. Tomorrow's briefing is shown and spoken. The hazard index is shown with its three reasons.
+4. A judge checks in on the phone crew page (or presses their number on the remote), the speaker confirms and the beacon's crew count goes up. A judge joins the Roblox experience on their phone and walks into the zone, and appears on the muster list. They step out, the zone reads clear.
+5. A second strike at 6 miles resets the countdown. The supervisor presses OK, the four digit PIN, and OK on the remote; the fan restarts and the beacon LCD shows who released it.
+6. Tomorrow's briefing is shown on the dashboard and spoken by the beacon (remote UP for English, DOWN for Spanish). The hazard index is shown with its three reasons.
 7. The Pi's hotspot is turned off. A phone flashlight and a clap still stop the fan. Reconnect, and the event appears on the dashboard.
 
 ## Git is your job, not the human's
