@@ -1,62 +1,16 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
-import { X } from 'lucide-react'
-import Panel from '@/components/Panel'
 import { color } from '@/tokens'
-import { groups } from './factors'
 import { minutesTo, project } from '@/sweet-treats/predict'
-import type { Bands, Factor } from './factors'
+import type { Bands } from './factors'
 
 export type Point = { t: number; v: number }
 
-// Side panel for one selected factor, the only place its readings show: value and status, where
-// it sits against its limits, the readings stored since the page opened as a trend with a short
-// forecast, and what it means for the crew.
-export default function FactorDetail({ x, history, onClose }: { x: Factor; history: Point[]; onClose: () => void }) {
-  const tint = x.status === 'ok' ? color.signal : x.status === 'info' ? color.muted : (x.tint ?? color.muted)
-  const status = { ok: 'OK', info: 'INFO', caution: 'CAUTION', danger: 'DANGER' }[x.status]
-
-  return (
-    <div className="absolute top-0 right-0 bottom-0 z-20 w-[380px]" onPointerDown={(e) => e.stopPropagation()}>
-      <Panel className="h-full" size={18} depth={3} edge={tint} fill={color.surface} inner="flex h-full flex-col gap-5 overflow-y-auto p-5">
-        <header className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim uppercase">{groups.find((g) => g.id === x.group)?.label}</p>
-            <h2 className="text-heading leading-tight font-semibold">{x.label}</h2>
-          </div>
-          <button onClick={onClose} className="p-1 text-dim hover:text-ink" aria-label="Close detail">
-            <X className="size-6" />
-          </button>
-        </header>
-
-        <div className="flex items-end justify-between">
-          <span className="text-[56px] leading-none font-bold" style={{ color: x.status === 'info' || x.status === 'ok' ? color.text : tint }}>{x.value}</span>
-          <span className="px-2 py-1 font-mono text-label font-bold tracking-wider" style={{ color: tint, boxShadow: `inset 0 0 0 1px ${tint}` }}>{status}</span>
-        </div>
-
-        {x.bands && x.raw !== undefined && <BandBar v={x.raw} b={x.bands} tint={x.tint ?? color.muted} />}
-
-        {x.raw !== undefined && (
-          <section className="flex flex-col gap-2">
-            <h3 className="flex justify-between font-mono text-[11px] font-bold tracking-[0.2em] text-dim uppercase">
-              <span>Trend and forecast</span>
-              <span>{history.length ? `${history.length} readings since ${hhmm(history[0].t)}` : 'No readings yet'}</span>
-            </h3>
-            <Trend points={history} bands={x.bands} tint={x.tint ?? color.text} unit={x.bands?.unit ?? ''} />
-          </section>
-        )}
-
-        <section className="flex flex-col gap-2">
-          <h3 className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim uppercase">What it means for the crew</h3>
-          <p className="text-body leading-snug">{x.guide}</p>
-        </section>
-      </Panel>
-    </div>
-  )
-}
+// The pieces of a factor's readings, laid out around the factor when it is opened in the web:
+// the limit band and the trend with its short forecast.
 
 // Horizontal limit band: OK, caution and danger zones on 0..max with a tick at the value.
-function BandBar({ v, b, tint }: { v: number; b: Bands; tint: string }) {
+export function BandBar({ v, b, tint }: { v: number; b: Bands; tint: string }) {
   const pct = (n: number) => `${Math.min(100, Math.max(0, (n / b.max) * 100))}%`
   return (
     <section className="flex flex-col gap-2">
@@ -78,12 +32,12 @@ function BandBar({ v, b, tint }: { v: number; b: Bands; tint: string }) {
   )
 }
 
-const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
+export const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 const W = 340
 const H = 120
 // Forecast drawn a third of the history past the last reading, between 10 s and a minute.
 const aheadMs = (points: Point[]) => Math.min(60_000, Math.max(10_000, (points[points.length - 1].t - points[0].t) / 3))
-const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+export const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 
 // What the forecast says, in one sentence.
 function outlook(points: Point[], bands: Bands | undefined, unit: string) {
@@ -102,7 +56,7 @@ function outlook(points: Point[], bands: Bands | undefined, unit: string) {
 
 // Single series line with the caution and danger zones shaded behind it, a dashed forecast past
 // the last reading, and a hover readout.
-function Trend({ points, bands, tint, unit }: { points: Point[]; bands?: Bands; tint: string; unit: string }) {
+export function Trend({ points, bands, tint, unit }: { points: Point[]; bands?: Bands; tint: string; unit: string }) {
   const [hover, setHover] = useState<number | null>(null)
   if (points.length < 2) return <p className="text-label text-dim">Collecting readings. The trend appears after a few seconds.</p>
 

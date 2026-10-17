@@ -1,18 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowRight, BookOpen, Gauge, Navigation, Radio, TriangleAlert, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Gauge, Radio, TriangleAlert, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
 import Frame, { useClock } from '@/components/Frame'
 import { color, indexColor } from '@/tokens'
 import FactorWeb from './FactorWeb'
-import type { FactorWebHandle } from './FactorWeb'
-import FactorDetail from './FactorDetail'
+import type { Focus } from './FactorWeb'
 import type { Point } from './FactorDetail'
 import SitePicker from './SitePicker'
 import DeviceCard from './DeviceCard'
 import MusterPanel from './MusterPanel'
 import BriefingPanel from './BriefingPanel'
-import { buildFactors, isHazard, worst } from './factors'
+import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
 // HUB, built to Cam's MARSH Figma screens: breadcrumb and headline, the amber warning banner,
@@ -23,33 +22,45 @@ import type { Snapshot } from './types'
 type Props = { s: Snapshot; live: boolean; idle: boolean; history: Record<string, Point[]> }
 
 function headline(s: Snapshot, level: 'clear' | 'caution' | 'danger') {
-  if (s.alert_type === 'stopwork' || s.interlock === 'locked') return { crumb: 'URGENT WARNING', text: 'Protect people. Pause the work.' }
-  if (level === 'danger') return { crumb: 'HAZARD WARNING', text: 'Hazards active. Act on them now.' }
-  if (level === 'caution') return { crumb: 'CAUTION', text: 'Conditions are changing. Stay alert.' }
-  return { crumb: 'SITE OVERVIEW', text: 'Read the site. Stay ahead.' }
+  if (s.alert_type === 'stopwork' || s.interlock === 'locked') return { crumb: 'URGENT WARNING', text: 'Stop work' }
+  if (level === 'danger') return { crumb: 'HAZARD WARNING', text: 'Act now' }
+  if (level === 'caution') return { crumb: 'CAUTION', text: 'Stay alert' }
+  return { crumb: 'SITE OVERVIEW', text: 'All clear' }
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
 export default function HubBoard({ s, live, idle, history }: Props) {
-  const web = useRef<FactorWebHandle>(null)
-  const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(location.search).get('node'))
+  // What the web has open. ?node=heat (the dashboard's Act links) opens that factor, ?node=weather a category.
+  const [focus, setFocus] = useState<Focus>(() => {
+    const node = new URLSearchParams(location.search).get('node')
+    const f = node ? buildFactors(s).find((x) => x.id === node) : undefined
+    if (f) return { group: f.group, factor: f.id }
+    return groups.some((g) => g.id === node) ? { group: node as Focus['group'] } : {}
+  })
   const { time, date } = useClock()
   const factors = buildFactors(s)
   const hazards = factors.filter(isHazard)
   const top = worst(hazards)
   const level = top ? (top.status === 'danger' ? 'danger' : 'caution') : 'clear'
   const h = headline(s, level)
-  const factor = selected ? factors.find((f) => f.id === selected) : undefined
+  const factor = focus.factor ? factors.find((f) => f.id === focus.factor) : undefined
   const crewIn = s.crew.filter((c) => c.in).length
   const fake = new URLSearchParams(location.search).has('fake')
 
+  // Back one level: factor to its category, category to the overview. Escape does the same.
+  const back = () => setFocus((f) => (f.factor ? { group: f.group } : {}))
   useEffect(() => {
-    if (!selected) return
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null)
+    if (!focus.group && !focus.factor) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && back()
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
-  }, [selected])
+  }, [focus])
+  // Left alone, the web returns to the overview.
+  useEffect(() => {
+    if (idle) setFocus({})
+  }, [idle])
+  const groupLabel = focus.group && groups.find((g) => g.id === focus.group)?.label
 
   return (
     <Frame
@@ -90,26 +101,32 @@ export default function HubBoard({ s, live, idle, history }: Props) {
             <b className="whitespace-nowrap uppercase">{top.label} {top.status === 'danger' ? 'warning' : 'caution'}</b>
             <span className="truncate">{top.note}{hazards.length > 1 ? ` · ${hazards.length - 1} more` : ''}</span>
           </span>
-          <button onClick={() => setSelected(top.id)} className="flex shrink-0 items-center gap-1 text-[15px]">
+          <button onClick={() => setFocus({ group: top.group, factor: top.id })} className="flex shrink-0 items-center gap-1 text-[15px]">
             View protective actions <ArrowRight className="size-4" />
           </button>
         </div>
       )}
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_380px] grid-rows-[minmax(0,1fr)] gap-4">
-        {/* The web lies straight on the page; labels and the detail panel float over its edges. */}
+        {/* The web lies straight on the page; labels float over its edges. */}
         <div className="relative min-h-0">
-          <FactorWeb ref={web} s={s} tour={idle && !selected} selected={selected} onSelect={setSelected} backdrop={color.bg} />
-          <Chip className="absolute top-0 left-0">FACTOR WEB / LIVE</Chip>
-          <button onClick={() => web.current?.fit()} className="absolute top-0 right-0" aria-label="Recenter the web" title="Recenter" style={{ display: factor ? 'none' : undefined }}>
-            <Chip><Navigation className="size-4" /> FIT</Chip>
-          </button>
-          <div className="pointer-events-none absolute bottom-0 left-0 max-w-[30%]">
+          <FactorWeb s={s} focus={focus} onFocus={setFocus} history={history} />
+          <div className="absolute top-0 left-0 flex items-center gap-2">
+            {(focus.group || focus.factor) && (
+              <button onClick={back} className="flex h-9 items-center gap-2 rounded-sm px-3 text-[14px] font-semibold" style={{ background: color.accent, color: color.accentInk }} aria-label="Back" title="Back (Esc)">
+                <ArrowLeft className="size-4" strokeWidth={2.5} /> Back
+              </button>
+            )}
+            <Chip>
+              FACTOR WEB{groupLabel ? ` / ${groupLabel.toUpperCase()}` : ' / LIVE'}{factor ? ` / ${factor.label.toUpperCase()}` : ''}
+            </Chip>
+          </div>
+          <div className="pointer-events-none absolute bottom-0 left-0 max-w-[30%]" style={{ display: factor ? 'none' : undefined }}>
             <p className="text-[24px] leading-tight font-semibold">{s.site.name}</p>
             <p className="text-[13px]" style={{ color: color.muted }}>
               {hazards.length ? `${hazards.length} factor${hazards.length > 1 ? 's' : ''} need attention` : 'All monitored factors normal'}
               <br />
-              Click a factor to see its readings
+              {focus.group ? 'Click a factor to see its readings' : 'Click a category to open it'}
             </p>
           </div>
           <p className="pointer-events-none absolute right-0 bottom-0 text-right font-mono text-[11px] leading-relaxed" style={{ color: color.muted, display: factor ? 'none' : undefined }}>
@@ -117,7 +134,6 @@ export default function HubBoard({ s, live, idle, history }: Props) {
             <br />
             INDEX {s.index} / 10
           </p>
-          {factor && <FactorDetail x={factor} history={history[factor.id] ?? []} onClose={() => setSelected(null)} />}
         </div>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {s.site.beacon !== false && <DeviceCard s={s} />}
