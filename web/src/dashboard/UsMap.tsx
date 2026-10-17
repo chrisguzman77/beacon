@@ -8,11 +8,14 @@ import usRaw from 'us-atlas/states-10m.json?raw'
 import type { SiteRow } from '@/api'
 import type { LatLon } from '@/sweet-treats/useDeviceLocation'
 import { color, hazard, indexColor } from '@/tokens'
+import { reportTint } from '@/site/ReportsPanel'
+import type { Report } from '@/site/types'
 
 // The dashboard's map: only the United States (Albers USA, Census state shapes), drawn as SVG in
 // the MARSH palette. Drag to pan, scroll to zoom, fit() shows the whole country. The selected
 // site is centered; markers keep their size at any zoom. Index color fill, a ring when crew are
-// on site, a pulsing red halo on stop work, an ink outline on the beacon site.
+// on site, a pulsing red halo on stop work, an ink outline on the beacon site, and a small pin
+// beside sites with crew hazard reports in the last 24 h (hazard color, count when more than one).
 
 const W = 975
 const H = 610
@@ -29,9 +32,9 @@ type View = { x: number; y: number; k: number }
 const whole: View = { x: 0, y: 0, k: 1 }
 const ZOOM_TO = 2
 
-type Props = { sites: SiteRow[]; selected: number | null; onSelect: (id: number) => void; here: LatLon | null; fitSignal: number }
+type Props = { sites: SiteRow[]; selected: number | null; onSelect: (id: number) => void; here: LatLon | null; fitSignal: number; reports?: Record<number, Report[]> }
 
-export default function UsMap({ sites, selected, onSelect, here, fitSignal }: Props) {
+export default function UsMap({ sites, selected, onSelect, here, fitSignal, reports = {} }: Props) {
   const svg = useRef<SVGSVGElement>(null)
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null)
   const [view, setView] = useState<View>(whole)
@@ -134,6 +137,7 @@ export default function UsMap({ sites, selected, onSelect, here, fitSignal }: Pr
               {on && <circle r={r(14)} fill="none" stroke={color.accent} strokeWidth={r(4)} />}
               {s.crew_on_site > 0 && <circle r={r(10)} fill="none" stroke={color.signal} strokeWidth={r(2)} />}
               <circle r={r(s.beacon ? 7.5 : 6)} fill={fill} stroke={s.beacon ? color.text : color.surface} strokeWidth={r(s.beacon ? 2.5 : 1.5)} />
+              {(reports[s.site_id]?.length ?? 0) > 0 && <ReportPin rs={reports[s.site_id]} k={view.k} />}
               <circle r={r(14)} fill="transparent" />
             </g>
           )
@@ -148,14 +152,32 @@ export default function UsMap({ sites, selected, onSelect, here, fitSignal }: Pr
 
         {label && lp && (
           <g transform={`translate(${lp[0]} ${lp[1]}) scale(${1 / view.k})`} className="pointer-events-none">
-            <rect x={18} y={-15} rx={4} height={30} width={label.name.length * 7.4 + 54} fill={color.chrome} />
+            <rect x={18} y={-15} rx={4} height={30} width={label.name.length * 7.4 + 54 + (reports[label.site_id]?.length ? 86 : 0)} fill={color.chrome} />
             <text x={28} y={5} fontSize={13} fontWeight={600} fill={color.chromeText} fontFamily="Space Grotesk Variable, sans-serif">
               {label.name}
               <tspan dx={8} fill={color.accent} fontFamily="JetBrains Mono Variable, monospace" fontSize={12}>{label.index ?? '–'}</tspan>
+              {reports[label.site_id]?.length ? <tspan dx={10} fontSize={12} fontWeight={500} fill={color.chromeText} opacity={0.8}>{reports[label.site_id].length} report{reports[label.site_id].length > 1 ? 's' : ''}</tspan> : null}
             </text>
           </g>
         )}
       </g>
     </svg>
+  )
+}
+
+// A small map pin up and to the right of the site, the newest report's hazard color, a count badge for more.
+function ReportPin({ rs, k }: { rs: Report[]; k: number }) {
+  const newest = [...rs].sort((a, b) => b.ts.localeCompare(a.ts))[0]
+  return (
+    <g transform={`translate(${9 / k} ${-6 / k}) scale(${1 / k})`} className="pointer-events-none">
+      <path d="M0 0 C -6 -8 -6 -15 0 -15 C 6 -15 6 -8 0 0 Z" fill={reportTint(newest.tag)} stroke={color.surface} strokeWidth={1.5} style={{ filter: 'drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.3))' }} />
+      <circle cy={-10} r={2.3} fill={color.surface} />
+      {rs.length > 1 && (
+        <g transform="translate(7 -15)">
+          <circle r={6} fill={color.chrome} />
+          <text y={3} textAnchor="middle" fontSize={8} fontWeight={700} fill={color.chromeText} fontFamily="Space Grotesk Variable, sans-serif">{rs.length}</text>
+        </g>
+      )}
+    </g>
   )
 }

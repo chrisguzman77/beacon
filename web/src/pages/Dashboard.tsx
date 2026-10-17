@@ -9,6 +9,7 @@ import UsMap from '@/dashboard/UsMap'
 import QuickView from '@/dashboard/QuickView'
 import StatusBar from '@/dashboard/StatusBar'
 import { useTitle } from '@/lib/useTitle'
+import { useRecentReports } from '@/sweet-treats/useRecentReports'
 import { miles, nearest, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { alertHazard, color, hazard, hazardLabel, indexColor, indexStops } from '@/tokens'
 import type { HazardKey } from '@/tokens'
@@ -55,6 +56,7 @@ export default function Dashboard() {
   const [group, setGroup] = useState<Group>('none')
   const [fitSignal, setFitSignal] = useState(0)
   const here = useDeviceLocation()
+  const reports = useRecentReports(sites)
 
   useEffect(() => connect(), [connect])
 
@@ -118,7 +120,7 @@ export default function Dashboard() {
 
           {/* Middle: the United States */}
           <div className="relative h-[340px] overflow-hidden rounded-md sm:h-[440px] lg:h-auto" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-            <UsMap sites={shown} selected={selected} onSelect={(id) => select(id)} here={here} fitSignal={fitSignal} />
+            <UsMap sites={shown} selected={selected} onSelect={(id) => select(id)} here={here} fitSignal={fitSignal} reports={reports} />
             <MapChip className="absolute top-4 left-4">UNITED STATES / LIVE</MapChip>
             <button onClick={() => setFitSignal((n) => n + 1)} className="absolute top-4 right-4" title="Show the whole country">
               <MapChip><Navigation className="size-4" /> FIT</MapChip>
@@ -229,6 +231,9 @@ function Legend({ located }: { located: boolean }) {
       <span className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">{dot(indexColor(2), `0 0 0 2px ${color.text}`)} Beacon</span>
         <span className="flex items-center gap-1.5">{dot('transparent', `inset 0 0 0 2px ${color.signal}`)} Crew on site</span>
+        <span className="flex items-center gap-1.5">
+          <svg width="10" height="13" viewBox="-6 -15 12 15" aria-hidden><path d="M0 0 C -6 -8 -6 -15 0 -15 C 6 -15 6 -8 0 0 Z" fill={hazard.wildlife} /></svg> Report, 24 h
+        </span>
         {located && <span className="flex items-center gap-1.5">{dot(color.text)} You</span>}
       </span>
     </div>
