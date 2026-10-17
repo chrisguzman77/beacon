@@ -128,6 +128,12 @@ async def gateway_ws(ws: WebSocket, site_id: int, token: str = ""):
         tf = idx["top_features"] or []
         await send(site_id, {"cmd": "INDEX", "value": idx["index"],
                              "reason": tf[0]["label"] if tf else "No weather risk stands out"})
+    # Same for the briefing, so remote UP/DOWN has something to speak
+    b = await db.fetchrow("SELECT english, spanish, for_date FROM briefings WHERE site_id=$1 ORDER BY for_date DESC LIMIT 1",
+                          site_id)
+    if b:
+        await send(site_id, {"cmd": "BRIEFING", "english": b["english"], "spanish": b["spanish"],
+                             "for_date": b["for_date"].isoformat()})
     try:
         while True:
             m = await ws.receive_json()
