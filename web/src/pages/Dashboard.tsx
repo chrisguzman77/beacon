@@ -82,7 +82,7 @@ export default function Dashboard() {
         : { crumb: 'OVERVIEW', text: 'All clear' }
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="min-h-dvh w-full lg:h-screen lg:overflow-hidden">
       <Frame
         unit="CONTROL / ALL SITES"
         active="dashboard"
@@ -103,7 +103,7 @@ export default function Dashboard() {
         </div>
         <StatusBar sites={sites} />
 
-        <div className="grid min-h-0 flex-1 grid-cols-[360px_1fr_420px] grid-rows-[minmax(0,1fr)] gap-4">
+        <div className="flex flex-col gap-4 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(300px,360px)_1fr_minmax(340px,420px)] lg:grid-rows-[minmax(0,1fr)]">
           {/* Left: the selected site, quick view */}
           {site ? (
             <QuickView site={site} rank={rankOf.get(site.site_id) ?? 0} total={sites.length} distance={here ? miles(here, site) : undefined} />
@@ -114,7 +114,7 @@ export default function Dashboard() {
           )}
 
           {/* Middle: the United States */}
-          <div className="relative overflow-hidden rounded-md" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
+          <div className="relative h-[340px] overflow-hidden rounded-md sm:h-[440px] lg:h-auto" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
             <UsMap sites={shown} selected={selected} onSelect={(id) => select(id)} here={here} fitSignal={fitSignal} />
             <MapChip className="absolute top-4 left-4">UNITED STATES / LIVE</MapChip>
             <button onClick={() => setFitSignal((n) => n + 1)} className="absolute top-4 right-4" title="Show the whole country">
@@ -124,7 +124,7 @@ export default function Dashboard() {
           </div>
 
           {/* Right: every site, filter, sort and group */}
-          <section className="flex min-h-0 flex-col gap-3 rounded-md p-4" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
+          <section className="flex h-[75dvh] min-h-0 flex-col gap-3 rounded-md p-4 lg:h-auto" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
             <header className="flex items-baseline justify-between">
               <h2 className="text-[12px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>Sites</h2>
               <span className="font-mono text-[11px]" style={{ color: color.muted }}>{shown.length} of {sites.length}</span>

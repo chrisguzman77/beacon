@@ -40,7 +40,7 @@ export default function Hub() {
   const alarm = isTakeover(snapshot)
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-bg text-ink select-none">
+    <div className="relative min-h-dvh w-full bg-bg text-ink select-none lg:h-screen lg:overflow-hidden">
       {alarm ? <AlarmState s={snapshot} /> : <HubBoard key={snapshot.site.id} s={snapshot} live={live} history={history} />}
     </div>
   )
