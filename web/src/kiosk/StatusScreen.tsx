@@ -1,17 +1,19 @@
-import { useState } from 'react'
-import { BookOpen, Camera, KeyRound, RotateCcw, Users } from 'lucide-react'
+import { useRef } from 'react'
+import { BookOpen, Camera, KeyRound, Scan, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
 import { color } from '@/tokens'
-import FactorWeb, { resetLayout } from './FactorWeb'
+import FactorWeb from './FactorWeb'
+import type { FactorWebHandle } from './FactorWeb'
 import KioskButton from './KioskButton'
 import type { Screen } from './Kiosk'
 import type { Snapshot } from './types'
 
-type Props = { s: Snapshot; gateway: boolean; go: (screen: Screen) => void }
+type Props = { s: Snapshot; gateway: boolean; idle: boolean; go: (screen: Screen) => void }
 
-export default function StatusScreen({ s, gateway, go }: Props) {
+export default function StatusScreen({ s, gateway, idle, go }: Props) {
   const crewIn = s.crew.filter((c) => c.in).length
-  const [layout, setLayout] = useState(0)
+  const web = useRef<FactorWebHandle>(null)
+
 
   return (
     <div className="flex h-full flex-col gap-4 p-5">
@@ -24,20 +26,17 @@ export default function StatusScreen({ s, gateway, go }: Props) {
         <div className="flex items-center gap-4">
           <KioskButton
             className="h-tap w-52"
-            icon={RotateCcw}
-            label="Reset"
-            detail="Factor layout"
-            onClick={() => {
-              resetLayout()
-              setLayout((n) => n + 1)
-            }}
+            icon={Scan}
+            label="Recenter"
+            detail="Fit the web"
+            onClick={() => web.current?.fit()}
           />
           <Connection online={s.online} gateway={gateway} />
         </div>
       </header>
 
-      <Panel className="min-h-0 flex-1" size={22} fill={color.bg}>
-        <FactorWeb key={layout} s={s} />
+      <Panel className="min-h-0 flex-1" size={22} fill={color.bg} depth={2}>
+        <FactorWeb ref={web} s={s} tour={idle} />
       </Panel>
 
       <nav className="grid grid-cols-4 gap-4">
@@ -74,7 +73,7 @@ function Legend() {
           {i.label}
         </span>
       ))}
-      <span className="normal-case tracking-normal">· drag nodes to arrange</span>
+      <span className="normal-case tracking-normal">· drag to pan · scroll to zoom</span>
     </div>
   )
 }

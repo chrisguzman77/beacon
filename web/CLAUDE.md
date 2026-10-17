@@ -15,7 +15,7 @@ Guide: docs/web-guide.md. Section 2 is the Figma conversation to have first.
 
 Polish matters here (the Easy On The Eyes prize). One dark theme shared by dashboard and kiosk, one accent per hazard type used identically everywhere, large type hierarchy, real loading and empty states, 20 mm tap targets on the kiosk. Design the kiosk screens first, judges look at them longest.
 
-Run: scripts/dev.sh web. Kiosk in dev: `npm run dev:beacon` opens the kiosk against the fake gateway (`?fake=1`, add `&t=12` to jump to second 12 of src/kiosk/fake-snapshots.json).
+Run: scripts/dev.sh web. Kiosk in dev: `npm run dev:beacon`. `?fake=1` runs the hazard showcase (advances only while idle, `&step=6` starts at a scenario, `&idle=5` shortens the idle time); `?fake=storm` runs the old stop work replay (`&t=12` jumps to second 12).
 
 ## Decisions
 
@@ -37,3 +37,7 @@ Run: scripts/dev.sh web. Kiosk in dev: `npm run dev:beacon` opens the kiosk agai
 - No touchscreen (Cam, 2026-10-17): the beacon screen is now a desktop platform (mouse and keyboard, full browser window, not 800x480). Conflicts with root definition of done #5, demo steps 4-5, contracts/kiosk-ws.md and the hardware guide; Cam to announce, Chris to update contracts. Web still consumes the kiosk-ws snapshot unchanged.
 - Status screen is a factor web (Cam): hazard index node in the center, every factor the snapshot can determine linked to it, nodes draggable with the mouse, layout kept in localStorage with a Reset button. Node and link color by condition: green OK, hazard color caution, strong fill plus pulsing tag and flowing dashed link for danger, dim for info. Thresholds in src/kiosk/factors.ts (heat index 91 caution / 103 danger, water >0 / 30%, tilt 5 / 15 deg). Wind, rain and river are not in the snapshot, so not shown.
 - Idle caution screen (Cam): after 30 s with no mouse or key input, a full screen CAUTION card listing current hazards flashes for 3 s every 10 s; with no hazards a steady NO HAZARDS card holds until activity. Never shown over the stop work takeover. `?idle=5` shortens the idle time for testing.
+- Showcase replaces the storm replay as the default fake (Cam): `?fake=1` cycles all clear, heat caution/danger, flood caution/danger, wildlife, lightning (display only, no takeover), beacon unsafe, offline, combined; one step per 10 s, advancing only while idle and synced with the caution flash. The storm sequence stays at `?fake=storm`.
+- Factor web v2 (Cam, supersedes draggable nodes): the web is fixed and the view moves. Five clusters (weather, water, wildlife, equipment, site) with hubs colored by their worst factor; drag to pan, wheel to zoom, Recenter fits. While idle the camera glides to the cluster with the worst hazard, or fits the whole web when clear. New factors only need a line in factors.ts with a group.
+- Wildlife (Cam): a factor from hazard photo reports tagged with an animal in the last 2 h (contract has no wildlife field); alligator, snake, bear, wasp, hornet, bees are danger, other animals caution.
+- Depth (Cam): panels and buttons have drop shadows on an unclipped wrapper, a lit top face, colored glow on caution/danger nodes, pressed buttons sink; the web background has two grid layers at different speeds and a dark vignette.

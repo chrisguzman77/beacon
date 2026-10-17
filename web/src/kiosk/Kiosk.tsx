@@ -17,11 +17,13 @@ export default function Kiosk() {
   const snapshot = useKiosk((s) => s.snapshot)
   const gateway = useKiosk((s) => s.gateway)
   const connect = useKiosk((s) => s.connect)
+  const setSimPaused = useKiosk((s) => s.setSimPaused)
   const [screen, setScreen] = useState<Screen>('status')
   const idle = useIdle(30)
   const [flash, setFlash] = useState(false)
 
   useEffect(() => connect(), [connect])
+  useEffect(() => setSimPaused(!idle), [idle, setSimPaused])
 
   const hazards = snapshot ? buildFactors(snapshot).filter(isHazard) : []
   const anyHazard = hazards.length > 0
@@ -46,7 +48,7 @@ export default function Kiosk() {
   if (!snapshot) body = <Connecting gateway={gateway} />
   else if (screen === 'supervisor') body = <PendingScreen title="Supervisor" onBack={() => setScreen('status')} />
   else if (isTakeover(snapshot)) body = <StopWorkScreen s={snapshot} onSupervisor={() => setScreen('supervisor')} />
-  else if (screen === 'status') body = <StatusScreen s={snapshot} gateway={gateway} go={setScreen} />
+  else if (screen === 'status') body = <StatusScreen s={snapshot} gateway={gateway} idle={idle} go={setScreen} />
   else body = <PendingScreen title={screen} onBack={() => setScreen('status')} />
 
   const caution = snapshot && idle && !isTakeover(snapshot) && (anyHazard ? flash : true)

@@ -1,6 +1,6 @@
 // The kiosk's one socket, to the gateway on the same Pi (contracts/kiosk-ws.md).
 // Components read the snapshot from here and never open sockets themselves.
-// Add ?fake=1 to the URL to replay fake-snapshots.json instead.
+// Add ?fake=1 (hazard showcase) or ?fake=storm to the URL to use the fake gateway instead.
 import { create } from 'zustand'
 import { startFakeGateway } from './fakeGateway'
 import type { Snapshot, UpMessage } from './types'
@@ -9,6 +9,7 @@ type KioskStore = {
   snapshot: Snapshot | null
   gateway: boolean // socket to the Pi gateway is open
   send: (msg: UpMessage) => void
+  setSimPaused: (paused: boolean) => void // fake gateway only: the showcase advances while idle
   connect: () => () => void
 }
 
@@ -16,10 +17,12 @@ export const useKiosk = create<KioskStore>((set) => ({
   snapshot: null,
   gateway: false,
   send: () => {},
+  setSimPaused: () => {},
   connect: () => {
-    if (new URLSearchParams(location.search).has('fake')) {
-      const fake = startFakeGateway((snapshot) => set({ snapshot, gateway: true }))
-      set({ send: fake.send })
+    const mode = new URLSearchParams(location.search).get('fake')
+    if (mode !== null) {
+      const fake = startFakeGateway((snapshot) => set({ snapshot, gateway: true }), mode)
+      set({ send: fake.send, setSimPaused: fake.setPaused })
       return fake.stop
     }
 

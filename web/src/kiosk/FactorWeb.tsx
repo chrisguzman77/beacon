@@ -1,155 +1,224 @@
-import { useEffect, useRef, useState } from 'react'
-import type { PointerEvent } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
+import type { PointerEvent, WheelEvent } from 'react'
 import Panel from '@/components/Panel'
 import { color, indexColor } from '@/tokens'
-import { buildFactors } from './factors'
-import type { Factor } from './factors'
+import { buildFactors, groups, worst } from './factors'
+import type { Factor, Status } from './factors'
 import type { Snapshot } from './types'
 
-// The hazard index in the middle, every factor linked to it. Drag any node with the mouse;
-// the layout is remembered in this browser. Reset clears it and remounts (key change).
+// A fixed web: hazard index in the middle, one hub per cluster, factors around each hub.
+// The web never moves; the view does. Drag to pan, wheel to zoom, fit() recenters,
+// tour glides the view to the worst hazard while the screen is idle.
 
-type Pos = Record<string, { x: number; y: number }>
-const KEY = 'beacon.web.layout'
+type Pt = { x: number; y: number }
+export type FactorWebHandle = { fit: () => void }
 
-function load(): Pos {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '{}')
-  } catch {
-    return {}
-  }
+const HUB_R = { x: 600, y: 330 }
+const CELL = { w: 200, h: 92 } // factor node 184 x ~70 plus gap
+const COLS = 2
+
+// Hubs on an ellipse; each cluster's factors sit in a two column block just beyond its hub.
+function layout(factors: Factor[]) {
+  const pos: Record<string, Pt> = {}
+  groups.forEach((g, gi) => {
+    const a = -Math.PI / 2 + (gi * 2 * Math.PI) / groups.length
+    const dir = { x: Math.cos(a), y: Math.sin(a) }
+    const hub = { x: HUB_R.x * dir.x, y: HUB_R.y * dir.y }
+    pos[`hub:${g.id}`] = hub
+    const kids = factors.filter((f) => f.group === g.id)
+    const cols = Math.min(COLS, kids.length)
+    const rows = Math.ceil(kids.length / cols)
+    const bw = cols * CELL.w
+    const bh = rows * CELL.h
+    const off = 0.5 * Math.abs(dir.x) * bw + 0.5 * Math.abs(dir.y) * bh + 110
+    const c = { x: hub.x + dir.x * off, y: hub.y + dir.y * off }
+    kids.forEach((k, i) => {
+      const row = Math.floor(i / cols)
+      const inRow = Math.min(cols, kids.length - row * cols)
+      const col = i % cols
+      pos[k.id] = { x: c.x + (col - (inRow - 1) / 2) * CELL.w, y: c.y + (row - (rows - 1) / 2) * CELL.h }
+    })
+  })
+  return pos
 }
 
-export function resetLayout() {
-  try {
-    localStorage.removeItem(KEY)
-  } catch {
-    /* storage blocked, layout just resets on reload */
-  }
+function look(status: Status, tint = color.border) {
+  if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 42%, ${color.bg})`, value: color.text, line: tint, glow: tint, depth: 3 }
+  if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.bg})`, value: tint, line: tint, glow: `color-mix(in srgb, ${tint} 55%, transparent)`, depth: 2 }
+  if (status === 'ok') return { edge: color.signal, fill: color.surface, value: color.text, line: `color-mix(in srgb, ${color.signal} 55%, transparent)`, glow: undefined, depth: 2 }
+  return { edge: color.border, fill: color.surface, value: color.text, line: color.border, glow: undefined, depth: 1 }
 }
 
-const ring = (i: number, n: number) => {
-  const a = -Math.PI / 2 + (i * 2 * Math.PI) / n
-  return { x: 0.5 + 0.4 * Math.cos(a), y: 0.5 + 0.38 * Math.sin(a) }
-}
-const clamp = (v: number) => Math.min(0.94, Math.max(0.06, v))
+const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '12 8' : undefined)
+const tag: Record<Status, string> = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
 
-function look(x: Factor) {
-  const tint = x.tint ?? color.border
-  if (x.status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 42%, ${color.bg})`, value: color.text, line: tint }
-  if (x.status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.bg})`, value: tint, line: tint }
-  if (x.status === 'ok') return { edge: color.signal, fill: color.surface, value: color.text, line: `color-mix(in srgb, ${color.signal} 55%, transparent)` }
-  return { edge: color.border, fill: color.surface, value: color.text, line: color.border }
-}
-
-const tag = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
-
-export default function FactorWeb({ s }: { s: Snapshot }) {
+const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(function FactorWeb({ s, tour }, ref) {
   const factors = buildFactors(s)
+  const pos = layout(factors)
   const box = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
-  const [pos, setPos] = useState<Pos>(load)
+  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
 
+  const fit = useCallback(() => {
+    const el = box.current
+    if (!el) return
+    const pts = Object.values(layout(buildFactors(s)))
+    const xs = pts.map((p) => p.x)
+    const ys = pts.map((p) => p.y)
+    const w = Math.max(...xs) - Math.min(...xs) + 260
+    const h = Math.max(...ys) - Math.min(...ys) + 160
+    const k = Math.min(el.clientWidth / w, el.clientHeight / h, 1.1)
+    setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
+  }, [s])
+  useImperativeHandle(ref, () => ({ fit }), [fit])
+
+  // Tour (idle): glide to the cluster holding the worst hazard, or show the whole web when clear.
+  const target = worst(factors.filter((f) => f.status === 'caution' || f.status === 'danger'))
+  const focusGroup = target?.group
   useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(pos))
-    } catch {
-      /* storage blocked, layout lasts this session */
-    }
-  }, [pos])
+    if (!tour) return
+    if (!focusGroup) return fit()
+    const p = layout(buildFactors(s))
+    const ids = [`hub:${focusGroup}`, ...buildFactors(s).filter((f) => f.group === focusGroup).map((f) => f.id)]
+    const xs = [0, ...ids.map((id) => p[id].x)]
+    const ys = [0, ...ids.map((id) => p[id].y)]
+    const el = box.current!
+    const k = Math.min(el.clientWidth / (Math.max(...xs) - Math.min(...xs) + 320), el.clientHeight / (Math.max(...ys) - Math.min(...ys) + 220), 1)
+    setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
+  }, [tour, focusGroup]) // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(fit, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [fit])
 
-  const at = (id: string, i: number) => pos[id] ?? (id === 'index' ? { x: 0.5, y: 0.5 } : ring(i, factors.length))
-  const center = at('index', 0)
-
-  const grab = (id: string, i: number) => (e: PointerEvent) => {
-    const r = box.current!.getBoundingClientRect()
-    const p = at(id, i)
+  const down = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { id, dx: e.clientX - (r.left + p.x * r.width), dy: e.clientY - (r.top + p.y * r.height) }
+    drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y }
   }
   const move = (e: PointerEvent) => {
     const d = drag.current
-    if (!d) return
+    if (d) setView((v) => ({ ...v, x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y }))
+  }
+  const wheel = (e: WheelEvent) => {
     const r = box.current!.getBoundingClientRect()
-    setPos((prev) => ({
-      ...prev,
-      [d.id]: { x: clamp((e.clientX - d.dx - r.left) / r.width), y: clamp((e.clientY - d.dy - r.top) / r.height) },
-    }))
+    const cx = e.clientX - r.left - r.width / 2
+    const cy = e.clientY - r.top - r.height / 2
+    setView((v) => {
+      const k = Math.min(1.8, Math.max(0.4, v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)))
+      return { k, x: cx - (cx - v.x) * (k / v.k), y: cy - (cy - v.y) * (k / v.k) }
+    })
   }
-  const drop = () => {
-    drag.current = null
-  }
+
+  const hubs = groups.map((g) => {
+    const kids = factors.filter((f) => f.group === g.id)
+    const w = worst(kids)
+    const st: Status = w && (w.status === 'danger' || w.status === 'caution') ? w.status : kids.some((k) => k.status === 'ok') ? 'ok' : 'info'
+    return { ...g, kids, status: st, tint: w?.tint }
+  })
+
+  // Two grid layers moving at different speeds give the background distance.
+  const grid = (size: number, alpha: string, speed: number) => ({
+    backgroundImage: `linear-gradient(${color.border}${alpha} 1px, transparent 1px), linear-gradient(90deg, ${color.border}${alpha} 1px, transparent 1px)`,
+    backgroundSize: `${size * view.k}px ${size * view.k}px`,
+    backgroundPosition: `calc(50% + ${view.x * speed}px) calc(50% + ${view.y * speed}px)`,
+  })
 
   return (
     <div
       ref={box}
-      className="relative h-full w-full touch-none overflow-hidden"
-      style={{
-        backgroundImage: `linear-gradient(${color.border}33 1px, transparent 1px), linear-gradient(90deg, ${color.border}33 1px, transparent 1px)`,
-        backgroundSize: '40px 40px',
-      }}
+      className="relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
+      onPointerDown={down}
       onPointerMove={move}
-      onPointerUp={drop}
+      onPointerUp={() => (drag.current = null)}
+      onWheel={wheel}
     >
-      <svg className="pointer-events-none absolute inset-0 h-full w-full">
-        {factors.map((x, i) => {
-          const p = at(x.id, i)
-          const l = look(x)
-          return (
-            <line
-              key={x.id}
-              x1={`${center.x * 100}%`} y1={`${center.y * 100}%`} x2={`${p.x * 100}%`} y2={`${p.y * 100}%`}
-              stroke={l.line}
-              strokeWidth={x.status === 'danger' ? 3 : 2}
-              strokeDasharray={x.status === 'info' ? '2 6' : x.status === 'danger' ? '12 8' : undefined}
-              className={x.status === 'danger' ? 'web-flow' : undefined}
-            />
-          )
-        })}
-      </svg>
-
-      {factors.map((x, i) => {
-        const p = at(x.id, i)
-        const l = look(x)
-        return (
-          <div
-            key={x.id}
-            onPointerDown={grab(x.id, i)}
-            className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2 cursor-grab select-none active:cursor-grabbing"
-            style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
-          >
-            <Panel size={12} edge={l.edge} fill={l.fill} inner="flex flex-col gap-1 px-4 py-3">
-              <span className="flex items-center justify-between text-label font-semibold uppercase tracking-[0.14em] text-dim">
-                {x.label}
-                {tag[x.status] && (
-                  <span
-                    className={`font-mono text-[11px] font-bold ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`}
-                    style={{ color: x.status === 'ok' ? color.signal : x.status === 'danger' ? color.text : x.tint }}
-                  >
-                    {tag[x.status]}
-                  </span>
-                )}
-              </span>
-              <span className="text-[30px] leading-none font-bold" style={{ color: l.value }}>{x.value}</span>
-            </Panel>
-          </div>
-        )
-      })}
+      <div className="absolute inset-0" style={grid(160, '40', 0.4)} />
+      <div className="absolute inset-0" style={grid(40, '2a', 1)} />
 
       <div
-        onPointerDown={grab('index', 0)}
-        className="absolute w-[240px] -translate-x-1/2 -translate-y-1/2 cursor-grab select-none active:cursor-grabbing"
-        style={{ left: `${center.x * 100}%`, top: `${center.y * 100}%` }}
+        className="absolute top-1/2 left-1/2"
+        style={{
+          transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
+          transformOrigin: '0 0',
+          transition: tour ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
+        }}
       >
-        <Panel size={20} edge={indexColor(s.index)} fill={color.raised} inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
-          <span className="text-label font-semibold uppercase tracking-[0.18em] text-dim">Hazard index</span>
-          <span className="flex items-baseline gap-1">
-            <span className="text-[88px] leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>{s.index}</span>
-            <span className="text-heading font-semibold text-dim">/10</span>
-          </span>
-          <span className="line-clamp-2 text-label leading-snug">{s.index_reason}</span>
-        </Panel>
+        <svg className="pointer-events-none absolute overflow-visible" width="1" height="1">
+          {hubs.map((h) => {
+            const hp = pos[`hub:${h.id}`]
+            const hl = look(h.status, h.tint)
+            return (
+              <g key={h.id}>
+                <line x1={0} y1={0} x2={hp.x} y2={hp.y} stroke={hl.line} strokeWidth={h.status === 'danger' ? 4 : 3}
+                  strokeDasharray={dash(h.status)} className={h.status === 'danger' ? 'web-flow' : undefined} />
+                {h.kids.map((k) => {
+                  const kp = pos[k.id]
+                  const kl = look(k.status, k.tint)
+                  return (
+                    <line key={k.id} x1={hp.x} y1={hp.y} x2={kp.x} y2={kp.y} stroke={kl.line} strokeWidth={k.status === 'danger' ? 3 : 2}
+                      strokeDasharray={dash(k.status)} className={k.status === 'danger' ? 'web-flow' : undefined} />
+                  )
+                })}
+              </g>
+            )
+          })}
+        </svg>
+
+        {factors.map((x) => {
+          const p = pos[x.id]
+          const l = look(x.status, x.tint)
+          return (
+            <div key={x.id} className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
+              <Panel size={12} edge={l.edge} fill={l.fill} depth={l.depth} glow={l.glow} inner="flex flex-col gap-1 px-4 py-3">
+                <span className="flex items-center justify-between text-label font-semibold uppercase tracking-[0.14em] text-dim">
+                  {x.label}
+                  {tag[x.status] && (
+                    <span
+                      className={`font-mono text-[11px] font-bold ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`}
+                      style={{ color: x.status === 'ok' ? color.signal : x.status === 'danger' ? color.text : x.tint }}
+                    >
+                      {tag[x.status]}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[28px] leading-none font-bold" style={{ color: l.value }}>{x.value}</span>
+              </Panel>
+            </div>
+          )
+        })}
+
+        {hubs.map((h) => {
+          const p = pos[`hub:${h.id}`]
+          const l = look(h.status, h.tint)
+          return (
+            <div key={h.id} className="absolute w-[150px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
+              <Panel size={16} edge={l.edge} fill={color.raised} depth={3} glow={l.glow} inner="flex flex-col items-center gap-1 px-3 py-3">
+                <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim">CLUSTER</span>
+                <span className="text-body font-black tracking-[0.12em] uppercase" style={{ color: h.status === 'info' ? color.text : l.edge }}>
+                  {h.label}
+                </span>
+              </Panel>
+            </div>
+          )
+        })}
+
+        <div className="absolute w-[250px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
+          <Panel size={22} edge={indexColor(s.index)} fill={color.raised} depth={3} glow={`color-mix(in srgb, ${indexColor(s.index)} 45%, transparent)`}
+            inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
+            <span className="text-label font-semibold uppercase tracking-[0.18em] text-dim">Hazard index</span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-[88px] leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>{s.index}</span>
+              <span className="text-heading font-semibold text-dim">/10</span>
+            </span>
+            <span className="line-clamp-2 text-label leading-snug">{s.index_reason}</span>
+          </Panel>
+        </div>
       </div>
+
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 55%, ${color.bg} 100%)` }} />
     </div>
   )
-}
+})
+
+export default FactorWeb

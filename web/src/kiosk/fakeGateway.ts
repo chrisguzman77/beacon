@@ -1,18 +1,52 @@
-// Stands in for the Pi gateway until it exists: replays fake-snapshots.json and
-// sends a snapshot every 250 ms, as the contract requires while counting.
+// Stands in for the Pi gateway until it exists, sending a snapshot every 250 ms.
+// ?fake=1      hazard showcase (showcase.ts), advances only while the screen is idle; &step=6 starts at step 6
+// ?fake=storm  the stop work storm replay (fake-snapshots.json); &t=12 jumps to second 12
 import script from './fake-snapshots.json'
+import { allClear, steps, STEP_MS } from './showcase'
 import type { Snapshot, UpMessage } from './types'
 
 type Frame = { at: number; patch: Partial<Snapshot> }
+const base = script.base as Snapshot
 
-export function startFakeGateway(onSnapshot: (s: Snapshot) => void) {
+export function startFakeGateway(onSnapshot: (s: Snapshot) => void, mode: string) {
+  return mode === 'storm' ? storm(onSnapshot) : showcase(onSnapshot)
+}
+
+function showcase(onSnapshot: (s: Snapshot) => void) {
+  let elapsed = Number(new URLSearchParams(location.search).get('step') ?? 0) * STEP_MS
+  let paused = true
+  let last = Date.now()
+  const emit = () => {
+    const step = steps[Math.floor(elapsed / STEP_MS) % steps.length]
+    onSnapshot({ ...base, ...allClear, ...step.patch() } as Snapshot)
+  }
+  const timer = setInterval(() => {
+    const t = Date.now()
+    if (!paused) elapsed += t - last
+    last = t
+    emit()
+  }, 250)
+  emit()
+  return {
+    send: (msg: UpMessage) => console.info('[fake gateway] up', msg),
+    stop: () => clearInterval(timer),
+    setPaused(p: boolean) {
+      // Resuming jumps to the next step so the idle caution flash lines up with it.
+      if (paused && !p && elapsed > 0) elapsed = Math.ceil(elapsed / STEP_MS) * STEP_MS
+      paused = p
+      last = Date.now()
+      emit()
+    },
+  }
+}
+
+function storm(onSnapshot: (s: Snapshot) => void) {
   const frames = script.frames as Frame[]
-  // ?fake=1&t=12 starts the replay at second 12, handy for jumping to a screen.
   const offset = Number(new URLSearchParams(location.search).get('t') ?? 0)
   const start = Date.now() - offset * 1000
 
   function snapshotAt(t: number): Snapshot {
-    let s = { ...(script.base as Snapshot) }
+    let s = { ...base }
     let setCountdown = 0
     let setAt = 0
     for (const f of frames) {
@@ -27,17 +61,10 @@ export function startFakeGateway(onSnapshot: (s: Snapshot) => void) {
     return s
   }
 
-  const timer = setInterval(() => {
-    const t = ((Date.now() - start) / 1000) % script.loop_s
-    onSnapshot(snapshotAt(t))
-  }, 250)
-
+  const timer = setInterval(() => onSnapshot(snapshotAt(((Date.now() - start) / 1000) % script.loop_s)), 250)
   return {
-    send(msg: UpMessage) {
-      console.info('[fake gateway] up', msg)
-    },
-    stop() {
-      clearInterval(timer)
-    },
+    send: (msg: UpMessage) => console.info('[fake gateway] up', msg),
+    stop: () => clearInterval(timer),
+    setPaused: () => {},
   }
 }
