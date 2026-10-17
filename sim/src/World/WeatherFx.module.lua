@@ -25,7 +25,7 @@ local targets = {
 
 local CLEAR = {
 	lighting = { ClockTime = 15, Brightness = 2.5, OutdoorAmbient = Color3.fromRGB(140, 140, 150) },
-	atmosphere = { Density = 0.3, Haze = 1, Glare = 0.2, Color = Color3.fromRGB(199, 190, 170), Decay = Color3.fromRGB(106, 112, 125) },
+	atmosphere = { Density = 0.34, Haze = 1.6, Glare = 0.25, Color = Color3.fromRGB(196, 198, 172), Decay = Color3.fromRGB(96, 112, 96) },
 	grade = { Brightness = 0, Contrast = 0.05, Saturation = 0.1, TintColor = Color3.new(1, 1, 1) },
 	clouds = { Cover = 0.45, Density = 0.6, Color = Color3.new(1, 1, 1) },
 }
@@ -85,6 +85,7 @@ end
 
 function WeatherFx.reset()
 	set(blend(0), 0)
+	workspace:SetAttribute("Storm", 0)
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
 	WeatherFx.setWater(0, true)
@@ -93,7 +94,9 @@ function WeatherFx.reset()
 end
 
 function WeatherFx.apply(e)
-	set(blend(math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)), 4)
+	local k = math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)
+	set(blend(k), 4)
+	workspace:SetAttribute("Storm", k) -- Wildlife flushes the egrets past 0.6
 	local rain = emitter()
 	if rain then
 		rain.Enabled = (e.rain or 0) > 0
