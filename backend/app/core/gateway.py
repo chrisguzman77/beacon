@@ -39,11 +39,6 @@ async def send(site_id, msg):
         return False
 
 
-async def send_crew(site_id):
-    crew = await db.fetch("SELECT crew_id AS id, name FROM crew WHERE site_id=$1 ORDER BY crew_id", site_id)
-    await send(site_id, {"cmd": "CREW", "crew": [dict(r) for r in crew]})
-
-
 def _ts(msg):
     """Replayed messages keep their original time."""
     try:
@@ -100,8 +95,7 @@ async def _handle(site_id, m):
     elif kind == "local_stopwork":
         await _local_stopwork(site_id, m)
     elif kind == "checkin":
-        await muster.checkin(site_id, int(m["crew_id"]), m.get("action", "in"), m.get("via", "kiosk"), ts=_ts(m))
-        await muster.push(site_id)
+        await muster.remote_checkin(site_id, int(m["crew_number"]), m.get("action"), ts=_ts(m))
     elif kind == "flash":
         last_flash[site_id] = int(m["ts_us"])
     elif kind == "count":
@@ -127,7 +121,6 @@ async def gateway_ws(ws: WebSocket, site_id: int, token: str = ""):
     await ws.accept()
     _conns[site_id] = ws
     log.info("gateway %s connected", site_id)
-    await send_crew(site_id)
     try:
         while True:
             m = await ws.receive_json()

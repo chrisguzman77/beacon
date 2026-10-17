@@ -52,16 +52,28 @@ async def checkin(site_id, crew_id, action, via, ts=None, extra=None):
                      {"crew_id": crew_id, "action": action, "via": via, **(extra or {})})
 
 
+async def remote_checkin(site_id, crew_number, action=None, ts=None):
+    """IR remote digit N is crew member N of the site in crew_id order, Roblox players excluded. No action toggles."""
+    rows = await db.fetch("SELECT crew_id, name FROM crew WHERE site_id=$1 AND coalesce(auth0_sub, '') NOT LIKE 'roblox:%'"
+                          " ORDER BY crew_id", site_id)
+    if not 1 <= crew_number <= len(rows):
+        log.info("site %s remote checkin for unknown crew_number %s", site_id, crew_number)
+        return
+    crew = rows[crew_number - 1]
+    if action not in ("in", "out"):
+        action = "out" if crew["name"] in (await roster(site_id))["in"] else "in"
+    await checkin(site_id, crew["crew_id"], action, "remote", ts=ts, extra={"crew_number": crew_number})
+    await push(site_id)
+
+
 async def roblox_presence(site_id, users):
     """Players inside the ZonePart are checked in, players who left are checked out."""
     rows = await db.fetch("SELECT crew_id, name FROM crew WHERE site_id=$1 AND auth0_sub LIKE 'roblox:%'", site_id)
     ids = {r["name"]: r["crew_id"] for r in rows}
-    roster_changed = False
     for u in users:
         if u not in ids:
             ids[u] = await db.fetchval(
                 "INSERT INTO crew (site_id, name, auth0_sub) VALUES ($1,$2,$3) RETURNING crew_id", site_id, u, f"roblox:{u}")
-            roster_changed = True
     current = set((await roster(site_id))["in"])
     changed = False
     for name, cid in ids.items():
@@ -69,8 +81,6 @@ async def roblox_presence(site_id, users):
         if want_in != (name in current):
             await checkin(site_id, cid, "in" if want_in else "out", "roblox", extra={"roblox_user": name})
             changed = True
-    if roster_changed:
-        await gateway.send_crew(site_id)
     if changed:
         await push(site_id)
 
