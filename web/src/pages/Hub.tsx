@@ -10,14 +10,21 @@ import AlarmState from '@/site/AlarmState'
 import CautionScreen from '@/site/CautionScreen'
 import AppNav from '@/components/AppNav'
 import { beaconSiteId } from '@/site/fakeGateway'
+import { useDash } from '@/dashboard/store'
 
 const FLASH_EVERY_MS = 10_000
 const FLASH_FOR_MS = 3_000
 
-// HUB: the site page, built on the live factor web for one site (default: the beacon site), with the idle caution
-// screen and the full screen alarm state during stop work.
+// HUB: the site page, built on the live factor web for one site, with the idle caution screen and the full
+// screen alarm state during stop work. It follows the dashboard: /hub opens the site selected there (the
+// beacon site if none), and a site opened here becomes the dashboard's selection.
 export default function Hub() {
-  const id = Number(useParams().id ?? beaconSiteId)
+  const param = useParams().id
+  const dashSelected = useDash((s) => s.selected)
+  const id = Number(param ?? dashSelected ?? beaconSiteId)
+  useEffect(() => {
+    if (param) useDash.getState().select(Number(param))
+  }, [param])
   const snapshot = useSite((s) => s.snapshot)
   const live = useSite((s) => s.live)
   const connect = useSite((s) => s.connect)

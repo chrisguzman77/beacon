@@ -3,7 +3,7 @@ import { buildFactors } from '@/site/factors'
 import type { Point } from '@/site/FactorDetail'
 import type { Snapshot } from '@/site/types'
 
-// Keeps one reading a second per numeric factor for the detail trend (last 3 minutes),
+// Keeps one reading a second per numeric factor for the detail trend (last 10 minutes),
 // starting over when the site changes.
 export function useFactorHistory(siteId: number, snapshot: Snapshot | null) {
   const history = useRef<Record<string, Point[]>>({})
@@ -19,7 +19,7 @@ export function useFactorHistory(siteId: number, snapshot: Snapshot | null) {
       if (f.raw === undefined) continue
       const h = (history.current[f.id] ??= [])
       if (!h.length || t - h[h.length - 1].t >= 1000) h.push({ t, v: f.raw })
-      if (h.length > 180) h.shift()
+      if (h.length > 600) h.shift()
     }
   }, [snapshot])
 

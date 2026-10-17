@@ -1,5 +1,6 @@
 // Dashboard data: every site from GET /sites, refreshed every 15 s, plus the beacon site's
 // websocket so its alerts land instantly (the live re-sort the room watches).
+// `selected` is shared with HUB: whatever is picked on the dashboard is what HUB opens.
 // ?fake=1 uses the real 50 sites with made up indexes and a strike on the beacon site every 30 s.
 import { create } from 'zustand'
 import { get, WS } from '@/api'
@@ -13,7 +14,8 @@ type DashStore = {
   status: Status
   error: string
   selected: number | null
-  select: (id: number | null) => void
+  picked: boolean // a person chose `selected`; automatic picks (device location, beacon site) never override it
+  select: (id: number | null, auto?: boolean) => void
   connect: () => () => void
 }
 
@@ -37,7 +39,11 @@ export const useDash = create<DashStore>((set, getState) => ({
   status: 'loading',
   error: '',
   selected: null,
-  select: (selected) => set({ selected }),
+  picked: false,
+  select: (selected, auto = false) => {
+    if (auto && getState().picked) return
+    set({ selected, picked: getState().picked || !auto })
+  },
   connect: () => {
     if (new URLSearchParams(location.search).has('fake')) return fake(set, getState)
 

@@ -8,14 +8,15 @@ import type { Factor, Status } from './factors'
 import type { Snapshot } from './types'
 
 // A fixed web: hazard index in the middle, one hub per cluster, factors around each hub.
+// Nodes show only their name and condition; the readings open on click (FactorDetail).
 // The web never moves; the view does. Drag to pan, wheel to zoom, fit() recenters,
 // tour glides the view to the worst hazard while the screen is idle.
 
 type Pt = { x: number; y: number }
 export type FactorWebHandle = { fit: () => void }
 
-const HUB_R = { x: 470, y: 270 }
-const CELL = { w: 200, h: 92 } // factor node 184 x ~70 plus gap
+const HUB_R = { x: 250, y: 250 }
+const CELL = { w: 172, h: 52 } // factor node 160 x ~44 plus gap
 const COLS = 2
 
 // Hubs on an ellipse; each cluster's factors sit in a two column block just beyond its hub.
@@ -31,7 +32,7 @@ function layout(factors: Factor[]) {
     const rows = Math.ceil(kids.length / cols)
     const bw = cols * CELL.w
     const bh = rows * CELL.h
-    const off = 0.5 * Math.abs(dir.x) * bw + 0.5 * Math.abs(dir.y) * bh + 110
+    const off = 0.5 * Math.abs(dir.x) * bw + 0.5 * Math.abs(dir.y) * bh + 60
     const c = { x: hub.x + dir.x * off, y: hub.y + dir.y * off }
     kids.forEach((k, i) => {
       const row = Math.floor(i / cols)
@@ -67,18 +68,15 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
   const fit = useCallback(() => {
     const el = box.current
     if (!el) return
-    const pts = Object.values(layout(buildFactors(s)))
-    const xs = pts.map((p) => p.x)
-    const ys = pts.map((p) => p.y)
-    const w = Math.max(...xs) - Math.min(...xs) + 260
-    const h = Math.max(...ys) - Math.min(...ys) + 160
-    // Never smaller than 0.6 so node text stays readable; pan to reach the edges.
-    const k = Math.max(0.6, Math.min(el.clientWidth / w, el.clientHeight / h, 1.1))
-    setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
+    // The window is round: fit the farthest node (plus its half width) inside the circle.
+    const far = Math.max(...Object.values(layout(buildFactors(s))).map((p) => Math.hypot(Math.abs(p.x) + 84, Math.abs(p.y) + 22)))
+    // Never smaller than 0.5 so node names stay readable; pan to reach the edges.
+    const k = Math.max(0.5, Math.min((Math.min(el.clientWidth, el.clientHeight) / 2 - 8) / far, 1.1))
+    setView({ x: 0, y: 0, k })
   }, [s])
   useImperativeHandle(ref, () => ({ fit }), [fit])
 
-  // Selecting a node glides it into view just left of the detail panel (about 400 px wide).
+  // Selecting a node glides it to the middle of the window (the detail panel sits beside the circle).
   const [glide, setGlide] = useState(false)
   useEffect(() => {
     if (!selected || !box.current) return
@@ -86,7 +84,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
     if (!p) return
     const k = Math.max(view.k, 0.9)
     setGlide(true)
-    setView({ k, x: -p.x * k - 200, y: -p.y * k })
+    setView({ k, x: -p.x * k, y: -p.y * k })
     const t = setTimeout(() => setGlide(false), 1200)
     return () => clearTimeout(t)
   }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -198,18 +196,19 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
             <div
               key={x.id}
               data-node={x.id}
-              className="absolute w-[188px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              className="absolute w-[160px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
               style={{ left: p.x, top: p.y, zIndex: on ? 5 : undefined }}
+              title={statusText[x.status] ? `${x.label}: ${statusText[x.status]}` : x.label}
             >
-              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} depth={on ? 3 : l.depth} inner="flex flex-col gap-1 px-4 py-3">
-                <span className="truncate text-[13px]" style={{ color: color.muted }}>{x.label}</span>
-                <span className="text-[26px] leading-none" style={{ color: color.text }}>{x.value}</span>
-                {statusText[x.status] && (
-                  <span className="flex items-center gap-1.5 text-[12px]" style={{ color: x.status === 'ok' ? color.muted : x.tint }}>
-                    {x.status === 'ok' ? <Check className="size-3.5" strokeWidth={2.5} /> : <TriangleAlert className={`size-3.5 ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`} strokeWidth={2.5} />}
-                    <span className={x.status === 'ok' ? '' : 'font-semibold'}>{statusText[x.status]}</span>
-                  </span>
+              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} depth={on ? 3 : l.depth} inner="flex items-center gap-2 px-3 py-2">
+                {x.status === 'ok' ? (
+                  <Check className="size-3.5 shrink-0" style={{ color: color.signal }} strokeWidth={3} />
+                ) : x.status === 'info' ? (
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: color.muted, opacity: 0.6 }} />
+                ) : (
+                  <TriangleAlert className={`size-3.5 shrink-0 ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`} style={{ color: x.tint }} strokeWidth={2.5} />
                 )}
+                <span className={`truncate text-[15px] ${x.status === 'caution' || x.status === 'danger' ? 'font-semibold' : ''}`} style={{ color: color.text }}>{x.label}</span>
               </Panel>
             </div>
           )
@@ -243,7 +242,7 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 72%, ${backdrop} 100%)` }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at center, transparent 64%, ${backdrop} 71%)` }} />
     </div>
   )
 })

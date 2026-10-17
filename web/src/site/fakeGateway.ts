@@ -4,7 +4,7 @@
 // ?fake=storm  the stop work storm replay (fake-snapshots.json); &t=12 jumps to second 12
 import script from './fake-snapshots.json'
 import fakeSites from '@/dashboard/fake-sites.json'
-import { allClear, steps, STEP_MS } from '@/sweet-treats/showcase'
+import { allClear, drift, steps, STEP_MS } from '@/sweet-treats/showcase'
 import type { Snapshot } from './types'
 import { formatCountdown } from './store'
 
@@ -35,7 +35,7 @@ function showcase(onSnapshot: (s: Snapshot) => void, site: Snapshot['site']) {
   let last = Date.now()
   const emit = () => {
     const step = steps[Math.floor(elapsed / STEP_MS) % steps.length]
-    onSnapshot(withLcd({ ...base, ...allClear, ...step.patch(), site } as Snapshot))
+    onSnapshot(withLcd(drift({ ...base, ...allClear, ...step.patch(), site } as Snapshot)))
   }
   const timer = setInterval(() => {
     const t = Date.now()
