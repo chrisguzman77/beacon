@@ -162,7 +162,8 @@ local function applyLcd()
 end
 
 local function applyBillboard()
-	local site = billboardPart:GetAttribute("SiteName") or "SITE 1"
+	-- the Bridge writes the backend's site name onto the Beacon, the scene's own label is the fallback
+	local site = (attr("SiteName", nil) or billboardPart:GetAttribute("SiteName") or "SITE 1"):upper()
 	if attr("Online", false) ~= true then
 		billboard.Text = site .. "\nBEACON OFFLINE"
 		return
@@ -246,7 +247,7 @@ local handlers = {
 	Countdown = { onLevel, applyCountdown, applyTag },
 	Index = { onLevel, applyIndex, applyTag, applyBillboard },
 	Lcd1 = { applyLcd }, Lcd2 = { applyLcd },
-	Online = { applyBillboard }, Alerts = { applyBillboard },
+	Online = { applyBillboard }, Alerts = { applyBillboard }, SiteName = { applyBillboard },
 	Presence = { applyPresence },
 	AlarmSoundId = { function() alarm.SoundId = attr("AlarmSoundId", alarm.SoundId) end },
 }

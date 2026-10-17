@@ -37,6 +37,8 @@ end
 local function thunder(miles)
 	local s = thunderTemplate:Clone()
 	s.Volume = math.clamp(1.3 - miles * 0.04, 0.6, 1)
+	-- far strikes sound lower and longer, the air soaks up the crack and leaves the rumble
+	s.PlaybackSpeed = math.clamp(1.05 - miles * 0.02, 0.75, 1)
 	s.Parent = SoundService
 	s.Ended:Connect(function() s:Destroy() end)
 	s:Play()

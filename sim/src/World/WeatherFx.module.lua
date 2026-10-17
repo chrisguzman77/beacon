@@ -90,6 +90,7 @@ end
 function WeatherFx.reset()
 	set(blend(0), 0)
 	workspace:SetAttribute("Storm", 0)
+	workspace:SetAttribute("Rain", 0)
 	workspace.GlobalWind = Vector3.new(4, 0, 0)
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
@@ -102,6 +103,7 @@ function WeatherFx.apply(e)
 	local k = math.clamp(((e.clouds or 0) - 0.2) / 0.6, 0, 1)
 	set(blend(k), 4)
 	workspace:SetAttribute("Storm", k) -- Wildlife flushes the egrets past 0.6
+	workspace:SetAttribute("Rain", e.rain or 0) -- Ambience fades the rain loop to this
 	-- wind from the scenario's gust (mph), blowing east off the storm: bends the rain, the grass, and the clouds
 	workspace.GlobalWind = Vector3.new(math.max(4, (e.gust or 0) * 0.8), 0, (e.gust or 0) * 0.15)
 	local rain = emitter()

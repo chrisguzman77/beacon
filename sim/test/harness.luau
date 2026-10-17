@@ -11,6 +11,11 @@ local luau = require("@lune/luau")
 local fs = require("@lune/fs")
 local task = require("@lune/task")
 local process = require("@lune/process")
+local serde = require("@lune/serde")
+local net = require("@lune/net")
+-- LIVE=1 sends the Bridge's requests to the real backend. Without SIM_TOKEN the posts come back 401, which still
+-- proves the route, the JSON, and the header. With SIM_TOKEN set they create real events on that site.
+local LIVE = process.env.LIVE == "1"
 
 local Instance, Vector3, CFrame, Color3 = roblox.Instance, roblox.Vector3, roblox.CFrame, roblox.Color3
 
@@ -135,6 +140,22 @@ roblox.implementMethod("Player", "GetMouse", function() return { Target = nil } 
 roblox.implementProperty("TextButton", "MouseButton1Click", function(self) return signalOf(self, "click") end)
 roblox.implementProperty("UserInputService", "InputBegan", function(self) return signalOf(self, "InputBegan") end)
 
+local httpLog = {}
+roblox.implementMethod("HttpService", "JSONEncode", function(_, v) return serde.encode("json", v) end)
+roblox.implementMethod("HttpService", "JSONDecode", function(_, s) return serde.decode("json", s) end)
+roblox.implementMethod("HttpService", "RequestAsync", function(_, req)
+	assert(type(req.Url) == "string" and type(req.Method) == "string", "RequestAsync needs Url and Method")
+	local entry = { method = req.Method, url = req.Url, body = req.Body, token = req.Headers and req.Headers["X-Token"] }
+	table.insert(httpLog, entry)
+	if not LIVE then
+		entry.status = 0
+		return { Success = false, StatusCode = 0, StatusMessage = "offline test", Body = "" }
+	end
+	local res = net.request({ url = req.Url, method = req.Method, headers = req.Headers, body = req.Body })
+	entry.status, entry.response = res.statusCode, res.body
+	return { Success = res.ok, StatusCode = res.statusCode, StatusMessage = res.statusMessage, Body = res.body }
+end)
+
 local TweenInfo = { new = function() return {} end }
 local RaycastParams = { new = function() return {} end }
 local OverlapParams = { new = function() return {} end }
@@ -185,13 +206,24 @@ local env = {
 	LOCAL_PLAYER = LOCAL_PLAYER, task = task, typeof = typeof, warn = function(...) print("WARN", ...) end,
 }
 local scriptErrors = 0
+local loaded = {}
+local function load(src, name, inst)
+	-- Lune cannot set Players.LocalPlayer, so the client reads the test player directly
+	src = src:gsub("Players%.LocalPlayer", "LOCAL_PLAYER")
+	-- Lune puts its own metatable on the environment, so copy the shared globals in rather than inherit them
+	local scriptEnv = table.clone(env)
+	scriptEnv.script = inst
+	scriptEnv.require = function(mod)
+		if typeof(mod) ~= "Instance" then return require(mod) end
+		if loaded[mod] == nil then loaded[mod] = load(mod.Source, mod:GetFullName(), mod)() end
+		return loaded[mod]
+	end
+	return luau.load(src, { debugName = name, environment = scriptEnv })
+end
 local function run(path, inPlace)
 	-- a place under test runs the scripts saved inside it, otherwise the bundle files
 	local src = inPlace and inPlace.Source or fs.readFile(path)
-	-- Lune cannot set Players.LocalPlayer, so the client reads the test player directly
-	src = src:gsub("Players%.LocalPlayer", "LOCAL_PLAYER")
-	local fn = luau.load(src, { debugName = path, environment = setmetatable(env, { __index = _G }) })
-	return fn()
+	return load(src, inPlace and inPlace:GetFullName() or path, inPlace)()
 end
 
 local function site_floating() return workspace.Site.Floating:GetChildren() end
@@ -233,11 +265,21 @@ print("== server bundle")
 if PLACE then
 	local n = 0
 	for _, d in ipairs(game:GetDescendants()) do if d:IsA("LuaSourceContainer") then n += 1 print("  script in place: " .. d:GetFullName()) end end
-	assert(n == 2, "the place should hold exactly our two scripts, found " .. n)
+	assert(n == 4, "the place should hold our two scripts plus the Bridge and its Http module, found " .. n)
 end
 run("sim/place/PlanITServer.server.lua", PLACE and game:GetService("ServerScriptService"):FindFirstChild("PlanITServer"))
 print("== client bundle")
 run("sim/place/PlanITClient.client.lua", PLACE and game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts"):FindFirstChild("PlanITClient"))
+local bridgeScript = PLACE and game:GetService("ServerScriptService"):FindFirstChild("Bridge")
+bridgeScript = bridgeScript and bridgeScript:FindFirstChild("Bridge")
+if bridgeScript then
+	print("== Viet's Bridge from the place" .. (LIVE and ", LIVE against " .. bridgeScript:GetAttribute("BACKEND_URL") or ", offline"))
+	bridgeScript:SetAttribute("SIM_TOKEN", process.env.SIM_TOKEN or "harness-no-token")
+	task.spawn(function()
+		local ok, err = pcall(run, nil, bridgeScript)
+		if not ok then print("BRIDGE ERROR", err) end
+	end)
+end
 task.wait(0.2)
 
 print("== build")
@@ -293,7 +335,40 @@ check(workspace:GetAttribute("Storm") and workspace:GetAttribute("Storm") > 0.6,
 local Lightning = nil
 check(#fired.water >= 1 and fired.water[#fired.water][1] == 10, "water pools at the end (10 mm)")
 
+if LIVE and bridgeScript then
+	print("== backend link (live)")
+	task.wait(4)
+	local dev = serde.decode("json", net.request(bridgeScript:GetAttribute("BACKEND_URL") .. "/sites/12/device").body)
+	local b = workspace.Beacon
+	check(b:GetAttribute("SiteName") == "Seminole (FL)", "site name from GET /sites/12 (" .. tostring(b:GetAttribute("SiteName")) .. ")")
+	check(b:GetAttribute("Lcd1") == dev.lcd[1] and b:GetAttribute("Index") == dev.index and b:GetAttribute("Led") == dev.led,
+		("Beacon mirrors GET /sites/12/device (led %s, index %s, lcd %q)"):format(dev.led, tostring(dev.index), dev.lcd[1]))
+	check(string.find(b:GetAttribute("Alerts") or "", "flood") ~= nil, "active alerts from the backend (" .. tostring(b:GetAttribute("Alerts")) .. ")")
+	local posts = {}
+	for _, h in ipairs(httpLog) do
+		if h.method == "POST" then
+			local route = h.url:match("/sim/%w+")
+			posts[route] = posts[route] or {}
+			table.insert(posts[route], h.status)
+		end
+	end
+	for route, codes in pairs(posts) do
+		print(("  POST %s x%d -> %s"):format(route, #codes, table.concat(codes, ",")))
+	end
+	check(posts["/sim/strike"] and #posts["/sim/strike"] >= 4, "every strike posted to /sim/strike")
+	check(posts["/sim/weather"] and posts["/sim/water"], "weather and water posted")
+	local sample
+	for _, h in ipairs(httpLog) do if h.url:find("/sim/strike") then sample = h break end end
+	local body = sample and serde.decode("json", sample.body)
+	check(body and body.site_id == 12 and body.bearing == 270 and body.miles == 15 and sample.token ~= "",
+		"strike body matches the contract {site_id, bearing, miles} with X-Token (" .. tostring(sample and sample.body) .. ")")
+	if not process.env.SIM_TOKEN then
+		print("  (no SIM_TOKEN given, so 401 or 403 on posts is expected; set SIM_TOKEN to send real events)")
+	end
+end
+
 print("== beacon follows the index")
+if LIVE and bridgeScript then print("  skipped in live mode, the Bridge rewrites these attributes from the backend every second") else
 local tag = beacon.Light.LevelTag
 beacon:SetAttribute("Countdown", 0); beacon:SetAttribute("Led", "green")
 beacon:SetAttribute("Index", 5); step(0.3)
@@ -308,6 +383,7 @@ check(beacon.Display.SurfaceGui.Countdown.Text == "30:00", "countdown display 30
 beacon:SetAttribute("Countdown", 0); beacon:SetAttribute("Led", "green"); beacon:SetAttribute("Index", 2); step(0.3)
 check(tag.Level.Text == "ALL CLEAR", "clear -> ALL CLEAR")
 
+end
 print("== hurricane")
 local control = rs.ScenarioControl
 local boat = site.Floating.Boat

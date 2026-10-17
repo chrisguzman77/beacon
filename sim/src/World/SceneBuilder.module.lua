@@ -141,7 +141,9 @@ local function plumbing()
 	end
 	local thunder = ensure(ReplicatedStorage, "Sound", "Thunder")
 	if thunder.SoundId == "" then
-		warn("[SceneBuilder] set ReplicatedStorage.Thunder.SoundId from a Toolbox thunder clip")
+		-- "Thunder Sharp Booming Strikes Rumbling 1", ProSoundEffects, Roblox licensed library audio, 12.9 s.
+		-- A deep boom with a long tail, which is what the mic listener's 120 Hz band pass hears best.
+		thunder.SoundId = "rbxassetid://9120021540"
 	end
 end
 
