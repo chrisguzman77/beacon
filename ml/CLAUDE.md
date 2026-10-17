@@ -14,3 +14,8 @@ Never commit data/raw, data/processed, or model files. Commit the scripts and re
 - sites.py sums EIA-860M generator rows per Plant ID before picking the top 25 FL and top 25 other (the sheet is per generator). Source file: august_generator2026.xlsx.
 - coastal = within 15 km of a NOAA CO-OPS water level station; river = Open-Meteo flood API 90 day mean discharge > 50 m3/s.
 - openpyxl added to requirements.txt (pandas needs it to read the EIA xlsx).
+- weather.py asks the archive for daily rh max and soil moisture mean instead of aggregating hourly (same features, lighter). Free tier counts a 9 year call as ~235 calls, so ~40 sites fit per day; sites are cached in data/raw/weather/ and a rerun after 00:00 UTC fetches the rest.
+- heat_index feature = apparent_temperature_max in F, not the guide's Rothfusz(tmax, rh_max): dawn humidity with afternoon heat read 15 to 20 F high and the 103 baseline rule fired on 84% of summer days (11% now). Shared transform in backend/app/intel/features.py.
+- labels.py: Storm Events STATE is the full name (FLORIDA, not FL) and zone names carry qualifiers (COASTAL MIAMI-DADE COUNTY), both normalized; Hurricane (Typhoon) kept. Zone matching now hits all 50 sites. 2.2 check: Irma and Ian stand out in damage ($3.9B, $16.5B), not in raw counts.
+- First labels.py run on python.org Python needs SSL_CERT_FILE=$(python -c "import certifi; print(certifi.where())") so pgeocode can download its zip table; cached after that.
+- Block four trains on the sites that have weather (39 or so on day one) and retrains on 50 after the quota resets if there is time. Scoring covers all 50 either way.

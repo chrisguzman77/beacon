@@ -1,6 +1,6 @@
 # web
 
-Owner: Cam. One Vite React app with three faces: the supervisor dashboard (/dashboard, /site/:id), the crew phone page (/crew), and the beacon kiosk (/beacon, built with VITE_MODE=beacon and served from the Pi by the gateway, talks to the gateway's local websocket so it works offline).
+Owner: Cam. One Vite React app with two faces: the supervisor dashboard (/dashboard, /site/:id) and the crew phone page (/crew).
 
 Cam has been designing in Figma. Before building anything, ask Cam what is done in Figma (which screens, is there a token set, does the plan include Dev Mode), and then agree on the handoff path together. The options, with tradeoffs:
 - Screenshots plus a tokens file. Cam exports frames as PNG, writes colors, type scale, spacing, radius, and the hazard color scale into src/tokens.ts, and you build each screen from the image and the tokens. Works on any plan, reliable, fast. Default if nothing else is decided in five minutes.
@@ -9,12 +9,30 @@ Cam has been designing in Figma. Before building anything, ask Cam what is done 
 
 Suggested stack, discuss if Cam prefers otherwise: React with Tailwind and shadcn/ui (fastest path to a finished look), MapLibre GL with MapTiler tiles for the map, Recharts for charts, Auth0 React SDK, zustand for the websocket store. Alternatives: plain CSS modules if Cam dislikes Tailwind; Mapbox GL if a token exists.
 
-Fixed: the routes above, the API and websocket contracts in contracts/api.md, the kiosk websocket in contracts/kiosk-ws.md, the kiosk's seven screens (status, crew, stop work, supervisor PIN, briefing, report, health) described in docs/web-guide.md section 9, and that the stop work screen cannot be dismissed by touch.
+Fixed: the routes above, the API and websocket contracts in contracts/api.md, and the site page alarm state: on the beacon site, an active stop work takes over the site page full screen (it is on the room display during the demo) and cannot be dismissed by a click; it leaves only when the alert clears.
 
 Guide: docs/web-guide.md. Section 2 is the Figma conversation to have first.
 
-Polish matters here (the Easy On The Eyes prize). One dark theme shared by dashboard and kiosk, one accent per hazard type used identically everywhere, large type hierarchy, real loading and empty states, 20 mm tap targets on the kiosk. Design the kiosk screens first, judges look at them longest.
+Polish matters here (the Easy On The Eyes prize). One dark theme shared by the dashboard, site page and crew page, one accent per hazard type used identically everywhere, large type hierarchy, real loading and empty states, big tap targets on the crew phone page.
+
+Order of work: dashboard map and ranked list with live re-sort, site page with the alarm state and device card, crew phone page, briefing panel, polish.
 
 Run: scripts/dev.sh web.
 
 ## Decisions
+
+- Figma screens: none exist yet for any face.
+- Figma tokens: none; tokens are defined in code (web/src/tokens.ts and the Tailwind theme).
+- Figma plan: Starter, View seat, no Dev Mode, MCP calls heavily rate limited, so no MCP handoff.
+- Handoff: tokens first, built directly in code, reviewed by Cam from browser screenshots.
+- Styling: Tailwind with shadcn/ui, no CSS modules.
+- Stack as of setup: Vite 8, React 19, TypeScript 6 (no baseUrl, it is deprecated; paths alone), Tailwind 4, shadcn radix-nova preset, Node 24 LTS.
+- Tokens: src/tokens.ts is the single source; applyTokens() writes CSS variables that index.css maps into Tailwind (bg-surface, text-hz-heat, text-countdown, h-tap...).
+- Typeface: Geist Variable via @fontsource (bundled locally), tabular figures on by default.
+- Palette (Cam): technical safety, near-black #040806 with green-tinted panels, signal green #00FF88 for UI chrome (edges, control stripes, pressed state, label markers), never a hazard meaning. Hazards: stop work red #FF3B30, heat amber #FFB300, flood cyan #00D4FF, wildlife magenta #FF5FD2 (green is taken by the UI and "safe"), beacon unsafe violet #C77DFF. Index scale green, yellow, red.
+- Shape (Cam): every panel, window, badge and control is chamfered (top left and bottom right) via components/Panel.tsx; no rounded corners anywhere.
+- Controls (Cam): one chamfered button style: 2 px edge, signal green stripe foot, mono code tag, instant 2 px press.
+- Depth (Cam): panels and buttons have drop shadows on an unclipped wrapper, a lit top face, colored glow on caution/danger elements, pressed buttons sink.
+- Factor web (Cam): a fixed web of every determinable factor in five clusters (weather, water, wildlife, equipment, site) around the hazard index; nodes, hubs and links color by condition (green OK, hazard color caution, strong fill plus pulse and flowing link for danger, dim info); drag to pan, wheel to zoom, Recenter fits. Thresholds in factors.ts (heat index 91 caution / 103 danger, water >0 / 30%, tilt 5 / 15 deg). Wildlife comes from hazard photo reports tagged with an animal in the last 2 h; alligator, snake, bear, wasp, hornet, bees are danger. Kept as a component for the site page.
+- Idle caution screen (Cam): after 30 s with no input, a full screen CAUTION card of current hazards flashes 3 s every 10 s, or a steady NO HAZARDS card; while idle the factor web glides to the worst hazard. A fake hazard showcase cycles every hazard display while idle for demos. Kept as components for the site page.
+- Touchscreen removed, kiosk work repurposed as site page alarm state (Chris, 2026-10-17): no /beacon route, no VITE_MODE=beacon, no kiosk websocket. The Stop work screen becomes the site page's full screen alarm state on the beacon site, fed by the site websocket.

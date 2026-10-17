@@ -20,3 +20,4 @@ Build order for core, because the Pi and the Roblox bridge need the backend befo
 (append one line per decision, newest last)
 - 2026-10-17 Viet: FastAPI + asyncpg for core (one language with intel).
 - 2026-10-17 Viet: Tiger Data as the database; local dev against the timescale/timescaledb Docker image until the Tiger service exists.
+- intel: GEMINI_MODEL is gemini-3.8-flash. The guide's gemini-2.5-flash returns 404 for new API keys (checked against the live model list).

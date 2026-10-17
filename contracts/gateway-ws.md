@@ -8,13 +8,12 @@ Up (Pi to backend)
 {"kind":"flash","ts_us":1729170131045123}
 {"kind":"local_stopwork","ts":"...","distance_m":1030,"flash_ts_us":...,"bang_ts_us":...}
 {"kind":"count","seconds":1793}
-{"kind":"checkin","ts":"...","crew_id":3,"action":"in","via":"kiosk"}        kiosk taps and IR remote fallback (via "remote", crew_id from the remote digit) both arrive here so they work offline
+{"kind":"checkin","ts":"...","crew_number":3,"action":"in","via":"remote"}        IR remote digit 1..9 toggles crew N; arrives here so it works offline
 {"kind":"estop","ts":"..."}
 {"kind":"pin","value":"1234","ok":true}                                        the Pi already checked SUPERVISOR_PIN and cleared locally; ok false is logged only
 {"kind":"state","led":"strobe","countdown":1793,"index":7,"interlock":"locked","presence":true,"online":true,"lcd":["LOCKED OUT","LIGHTNING 8MI 29:53"]}
 
 Down (backend to Pi)
-{"cmd":"CREW","crew":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}        sent on connect and whenever the roster changes; the gateway caches it for the kiosk
 {"cmd":"STOPWORK","seconds":1800,"distance_m":12874,"source":"sim"}
 {"cmd":"CLEAR","by":"J. Smith"}
 {"cmd":"INDEX","value":7,"reason":"Heat index 108"}
@@ -30,3 +29,4 @@ Change log
 - contract: checkin carries crew_id and via (kiosk | remote) instead of crew_number, and ts for replay
 - contract: added CREW down so the kiosk has the roster offline
 - contract: pin carries ok so the backend records who released without re-checking the PIN
+- contract: touchscreen and kiosk removed; checkin is crew_number via remote only, CREW command removed
