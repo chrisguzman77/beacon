@@ -8,6 +8,8 @@ import AlarmState from '@/site/AlarmState'
 import { RotateCcw, Scan } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSlow } from '@/lib/useSlow'
+import { useTitle } from '@/lib/useTitle'
+import { formatCountdown } from '@/site/store'
 import { color } from '@/tokens'
 import { beaconSiteId } from '@/site/fakeGateway'
 import { useDash } from '@/dashboard/store'
@@ -30,6 +32,7 @@ export default function Hub() {
 
   const history = useFactorHistory(id, snapshot)
   const slow = useSlow(!snapshot, 8000, id)
+  useTitle(!snapshot ? 'Hub' : isTakeover(snapshot) ? `Stop work${snapshot.countdown > 0 ? ` ${formatCountdown(snapshot.countdown)}` : ''} · ${snapshot.site.name}` : `${snapshot.site.name} · Hub`)
 
   if (!snapshot)
     return (

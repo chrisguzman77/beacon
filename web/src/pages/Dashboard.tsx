@@ -8,6 +8,7 @@ import RankedList from '@/dashboard/RankedList'
 import UsMap from '@/dashboard/UsMap'
 import QuickView from '@/dashboard/QuickView'
 import StatusBar from '@/dashboard/StatusBar'
+import { useTitle } from '@/lib/useTitle'
 import { miles, nearest, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { alertHazard, color, hazard, hazardLabel, indexColor, indexStops } from '@/tokens'
 import type { HazardKey } from '@/tokens'
@@ -73,6 +74,8 @@ export default function Dashboard() {
   const attention = sites.filter((s) => s.alerts.length).length
   const crew = sites.reduce((n, s) => n + s.crew_on_site, 0)
   const fake = new URLSearchParams(location.search).has('fake')
+
+  useTitle(stops > 0 ? `Stop work at ${stops} site${stops > 1 ? 's' : ''}` : 'Dashboard')
 
   const head =
     stops > 0

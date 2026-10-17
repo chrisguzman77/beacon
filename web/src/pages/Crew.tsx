@@ -8,6 +8,7 @@ import { formatCountdown, useSite } from '@/site/store'
 import { isTakeover } from '@/site/types'
 import { authOn, useAuth } from '@/lib/auth'
 import { useSlow } from '@/lib/useSlow'
+import { useTitle } from '@/lib/useTitle'
 import { miles, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { color, hazard } from '@/tokens'
 
@@ -73,6 +74,7 @@ export default function Crew() {
   const site = sites.find((s) => s.site_id === siteId)
   const ready = site && name.trim()
   const needSignIn = authOn && auth.ready && !auth.signedIn && !fake
+  useTitle(site ? `Crew · ${site.name}` : 'Crew')
 
   useEffect(() => {
     if (!name && auth.name) setName(auth.name)
