@@ -13,6 +13,7 @@ import MusterPanel from './MusterPanel'
 import BriefingPanel from './BriefingPanel'
 import ReportsPanel from './ReportsPanel'
 import CompliancePanel from './CompliancePanel'
+import ScenarioPanel from './ScenarioPanel'
 import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
@@ -129,6 +130,7 @@ export default function HubBoard({ s, live, history }: Props) {
         </div>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {s.site.beacon !== false && <DeviceCard s={s} />}
+          {s.site.beacon !== false && <ScenarioPanel s={s} />}
           <MusterPanel s={s} />
           <ReportsPanel s={s} />
           <BriefingPanel s={s} />

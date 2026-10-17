@@ -34,7 +34,14 @@ const fakeLog = (siteId: number) => [
   { alert_id: 9102, site_id: siteId, type: 'stopwork', started: at(1500), expires: at(1470), cleared: null, cleared_by: null, awaiting_clear: false,
     payload: { resets: 0, history: [strike(1500, 9)] } },
 ]
-const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s), alert_log: s.alert_log ?? fakeLog(s.site.id) })
+// What the Roblox twin's storm scenario sent, for the scenario panel.
+const fakeSim: Snapshot['sim'] = [
+  { ts: at(162), kind: 'strike', text: 'Strike 4 mi from the site' },
+  { ts: at(176), kind: 'strike', text: 'Strike 6 mi from the site' },
+  { ts: at(180), kind: 'weather', text: '88°F, 74% humidity, gusts 31 mph, 6 mm rain' },
+  { ts: at(190), kind: 'strike', text: 'Strike 8 mi from the site' },
+]
+const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s), alert_log: s.alert_log ?? fakeLog(s.site.id), sim: s.sim ?? fakeSim })
 
 type Frame = { at: number; patch: Partial<Snapshot> }
 const base = script.base as Snapshot
