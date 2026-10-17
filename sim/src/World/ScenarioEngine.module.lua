@@ -13,13 +13,23 @@ Engine.Changed = Instance.new("BindableEvent")
 local state = {
 	scenario = nil, key = nil, name = "", clockStart = "13:00",
 	simTime = 0, speed = 60, playing = false, fired = {}, note = "",
+	duration = 0, markers = {},
 }
 
+-- duration and markers let the panel draw a timeline with a tick for every strike, flood step, and briefing
 function Engine.snapshot()
 	return {
 		key = state.key, name = state.name, clockStart = state.clockStart,
 		simTime = state.simTime, speed = state.speed, playing = state.playing, note = state.note,
+		duration = state.duration, markers = state.markers,
 	}
+end
+
+-- the sun follows the scenario's clock, held between early morning and sunset so the site stays readable
+local function sun()
+	local h, m = state.clockStart:match("(%d+):(%d+)")
+	local hours = (tonumber(h) * 60 + tonumber(m) + state.simTime / 60) / 60
+	WeatherFx.setClock(math.clamp(hours % 24, 7.2, 18.6))
 end
 
 local function emit()
@@ -33,7 +43,16 @@ function Engine.load(key)
 	state.clockStart = sc.clockStart or "13:00"
 	state.simTime, state.speed, state.playing = 0, sc.speed or 60, false
 	state.fired, state.note = {}, ""
+	state.duration, state.markers = 0, {}
+	for _, e in ipairs(sc.events) do
+		state.duration = math.max(state.duration, e.t)
+		if e.type ~= "weather" then
+			table.insert(state.markers, { t = e.t, type = e.type, miles = e.miles })
+		end
+	end
+	state.duration += 300
 	WeatherFx.reset()
+	sun()
 	emit()
 end
 
@@ -82,6 +101,7 @@ RunService.Heartbeat:Connect(function(dt)
 	acc += dt
 	if acc >= 0.5 then
 		acc = 0
+		sun()
 		emit()
 	end
 end)

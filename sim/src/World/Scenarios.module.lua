@@ -1,7 +1,41 @@
 -- Scenarios (ModuleScript)
 local Scenarios = {}
 
-Scenarios.order = { "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
+Scenarios.order = { "everglades_day", "storm_west", "hurricane", "flash_flood", "heat_day", "gator", "tipped" }
+
+-- The challenge brief, start to finish. 6:45 AM in August on a remote Everglades site where the crew is laying a
+-- temporary mat road for the equipment that will build a new transmission line. A week of rain has the ground at
+-- 82% saturation, so boots sink and trucks bog down. The heat index passes 110 F by noon. Thunderstorms build to
+-- the west after 1 PM and walk in to 6 miles. Someone saw a gator by the jobsite yesterday, today it is on the road.
+-- At 6 PM site time the next-day briefing goes out. t is simulated seconds after 06:45; 300x plays the day in
+-- under three minutes. soil is the starting saturation the Conditions board carries forward.
+Scenarios.everglades_day = {
+	name = "Everglades mat road, August", clockStart = "06:45", speed = 300, soil = 0.82,
+	events = {
+		{ t = 0,     type = "weather", clouds = 0.25, rain = 0, temp_c = 27, humidity = 94, gust = 6 },
+		{ t = 0,     type = "water",   depth_mm = 5 },
+		{ t = 1,     type = "note",    text = "06:45 go/no-go. A week of rain: soil 82% saturated, expect mud and stuck trucks. Heat index past 110 F by noon. Storms building west after 1 PM. Gator seen yesterday by the slough." },
+		{ t = 2700,  type = "wildlife", species = "American alligator" },
+		{ t = 2760,  type = "note",    text = "07:31 crew report: alligator on the mat road. Photo pinned to the site map and shared with every crew on this job." },
+		{ t = 8100,  type = "weather", clouds = 0.2,  rain = 0,  temp_c = 31, humidity = 78, gust = 8 },
+		{ t = 15300, type = "weather", clouds = 0.2,  rain = 0,  temp_c = 34, humidity = 64, gust = 10 },
+		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 35, humidity = 62, gust = 12 },
+		{ t = 18960, type = "note",    text = "12:00 heat index over 110 F. Rest breaks in the cooling tent, water every 15 minutes." },
+		{ t = 22500, type = "weather", clouds = 0.55, rain = 0,  temp_c = 35, humidity = 60, gust = 20 },
+		{ t = 24300, type = "weather", clouds = 0.75, rain = 0,  temp_c = 33, humidity = 66, gust = 30 },
+		{ t = 26100, type = "strike",  bearing = 270, miles = 15 },
+		{ t = 27000, type = "strike",  bearing = 265, miles = 11 },
+		{ t = 27900, type = "strike",  bearing = 260, miles = 8 },
+		{ t = 27960, type = "note",    text = "14:30 strike 8 miles west. STOP WORK, 30 minute all clear, crew to the trucks." },
+		{ t = 28800, type = "strike",  bearing = 255, miles = 6 },
+		{ t = 29400, type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 45 },
+		{ t = 30600, type = "water",   depth_mm = 30 },
+		{ t = 32400, type = "water",   depth_mm = 60 },
+		{ t = 33300, type = "strike",  bearing = 250, miles = 4 },
+		{ t = 37800, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 28, humidity = 90, gust = 12 },
+		{ t = 40500, type = "note",    text = "18:00 site time: next-day safety briefing sent to the crew, English and Spanish. Tomorrow: same heat, mats need re-leveling where the trucks sank." },
+	},
+}
 
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
