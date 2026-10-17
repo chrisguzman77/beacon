@@ -1,9 +1,9 @@
-// Stands in for the Pi gateway until it exists, sending a snapshot every 250 ms.
+// Fake site feed for the site page until the backend is reachable, a snapshot every 250 ms.
 // ?fake=1      hazard showcase (showcase.ts), advances only while the screen is idle; &step=6 starts at step 6
 // ?fake=storm  the stop work storm replay (fake-snapshots.json); &t=12 jumps to second 12
 import script from './fake-snapshots.json'
 import { allClear, steps, STEP_MS } from './showcase'
-import type { Snapshot, UpMessage } from './types'
+import type { Snapshot } from './types'
 
 type Frame = { at: number; patch: Partial<Snapshot> }
 const base = script.base as Snapshot
@@ -28,7 +28,6 @@ function showcase(onSnapshot: (s: Snapshot) => void) {
   }, 250)
   emit()
   return {
-    send: (msg: UpMessage) => console.info('[fake gateway] up', msg),
     stop: () => clearInterval(timer),
     setPaused(p: boolean) {
       // Resuming jumps to the next step so the idle caution flash lines up with it.
@@ -63,7 +62,6 @@ function storm(onSnapshot: (s: Snapshot) => void) {
 
   const timer = setInterval(() => onSnapshot(snapshotAt(((Date.now() - start) / 1000) % script.loop_s)), 250)
   return {
-    send: (msg: UpMessage) => console.info('[fake gateway] up', msg),
     stop: () => clearInterval(timer),
     setPaused: () => {},
   }

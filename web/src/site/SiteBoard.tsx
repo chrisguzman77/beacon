@@ -1,19 +1,16 @@
 import { useRef } from 'react'
-import { BookOpen, Camera, KeyRound, Scan, Users } from 'lucide-react'
+import { Scan } from 'lucide-react'
 import Panel from '@/components/Panel'
+import ControlButton from '@/components/ControlButton'
 import { color } from '@/tokens'
 import FactorWeb from './FactorWeb'
 import type { FactorWebHandle } from './FactorWeb'
-import KioskButton from './KioskButton'
-import type { Screen } from './Kiosk'
 import type { Snapshot } from './types'
 
-type Props = { s: Snapshot; gateway: boolean; idle: boolean; go: (screen: Screen) => void }
-
-export default function StatusScreen({ s, gateway, idle, go }: Props) {
-  const crewIn = s.crew.filter((c) => c.in).length
+// The site page's live board: header plus the factor web. Device card, muster, briefing and
+// the other site panels join it as the site page is built.
+export default function SiteBoard({ s, live, idle }: { s: Snapshot; live: boolean; idle: boolean }) {
   const web = useRef<FactorWebHandle>(null)
-
 
   return (
     <div className="flex h-full flex-col gap-4 p-5">
@@ -24,27 +21,14 @@ export default function StatusScreen({ s, gateway, idle, go }: Props) {
         </div>
         <Legend />
         <div className="flex items-center gap-4">
-          <KioskButton
-            className="h-tap w-52"
-            icon={Scan}
-            label="Recenter"
-            detail="Fit the web"
-            onClick={() => web.current?.fit()}
-          />
-          <Connection online={s.online} gateway={gateway} />
+          <ControlButton className="h-tap w-52" icon={Scan} label="Recenter" detail="Fit the web" onClick={() => web.current?.fit()} />
+          <Connection online={s.online} gateway={live} />
         </div>
       </header>
 
       <Panel className="min-h-0 flex-1" size={22} fill={color.bg} depth={2}>
         <FactorWeb ref={web} s={s} tour={idle} />
       </Panel>
-
-      <nav className="grid grid-cols-4 gap-4">
-        <KioskButton className="h-[84px]" code="01" icon={Users} label="Crew" detail={`${crewIn} of ${s.crew.length} checked in`} onClick={() => go('crew')} />
-        <KioskButton className="h-[84px]" code="02" icon={KeyRound} label="Supervisor" detail="PIN release" onClick={() => go('supervisor')} />
-        <KioskButton className="h-[84px]" code="03" icon={BookOpen} label="Briefing" detail="Tomorrow" onClick={() => go('briefing')} />
-        <KioskButton className="h-[84px]" code="04" icon={Camera} label="Report" detail="Hazard photo" onClick={() => go('report')} />
-      </nav>
     </div>
   )
 }
@@ -81,7 +65,7 @@ function Legend() {
 function Connection({ online, gateway }: { online: boolean; gateway: boolean }) {
   const ok = online && gateway
   const tint = ok ? color.online : color.offline
-  const text = !gateway ? 'NO GATEWAY' : online ? 'ONLINE' : 'OFFLINE · LOCAL RULES ACTIVE'
+  const text = !gateway ? 'NO FEED' : online ? 'BEACON ONLINE' : 'BEACON OFFLINE · LOCAL RULES ACTIVE'
   return (
     <Panel
       size={10}

@@ -1,4 +1,5 @@
-// Shapes from contracts/kiosk-ws.md. The contract wins if these drift.
+// The site page's view of one site: live device state plus conditions, crew and reports.
+// Filled by the fake (?fake=1) today and from GET /sites/{id} plus the site websocket next.
 
 export type CrewMember = { id: number; name: string; in: boolean }
 
@@ -32,13 +33,6 @@ export type Snapshot = {
   demo_scale: number
   pin_error?: boolean
 }
-
-export type UpMessage =
-  | { kind: 'checkin'; crew_id: number; action: 'in' | 'out' }
-  | { kind: 'pin'; value: string }
-  | { kind: 'play_briefing'; lang: 'en' | 'es' }
-  | { kind: 'test_flash' }
-  | { kind: 'demo_scale'; value: 1 | 10 | 60 }
 
 export function isTakeover(s: Snapshot) {
   return s.countdown > 0 || s.interlock === 'locked' || s.awaiting_clear

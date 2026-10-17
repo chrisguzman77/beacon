@@ -3,7 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-/* One dark theme for dashboard and kiosk. Values come from src/tokens.ts via applyTokens(). */
+/* One dark theme for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

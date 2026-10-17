@@ -1,14 +1,12 @@
-import { Check, KeyRound, OctagonX } from 'lucide-react'
+import { Check, OctagonX } from 'lucide-react'
 import { takeover } from '@/tokens'
 import Panel from '@/components/Panel'
-import KioskButton from './KioskButton'
 import { formatCountdown } from './store'
 import type { Snapshot } from './types'
 
-type Props = { s: Snapshot; onSupervisor: () => void }
-
-// Takes over the whole screen. No tap dismisses it: it leaves only when the snapshot does.
-export default function StopWorkScreen({ s, onSupervisor }: Props) {
+// The site page's alarm state on the beacon site. Takes over the page full screen, no click
+// dismisses it: it leaves only when the alert clears (remote PIN on the beacon, or dashboard clear).
+export default function AlarmState({ s }: { s: Snapshot }) {
   const unsafe = s.alert_type === 'beacon_unsafe' || s.alert_type === 'estop'
   const stillIn = s.crew.filter((c) => c.in)
 
@@ -24,7 +22,11 @@ export default function StopWorkScreen({ s, onSupervisor }: Props) {
           </p>
           <p className="mt-2 text-heading leading-none font-semibold text-white/90">{s.reason || 'EQUIPMENT LOCKED'}</p>
         </div>
-        <KioskButton tone="alarm" className="h-tap w-56" icon={KeyRound} label="Supervisor" detail="PIN release" onClick={onSupervisor} />
+        <p className="text-right font-mono text-label leading-relaxed font-bold tracking-wider text-white/80">
+          RELEASE: SUPERVISOR PIN
+          <br />
+          ON THE BEACON REMOTE
+        </p>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center">

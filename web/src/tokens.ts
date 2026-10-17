@@ -3,7 +3,7 @@
 // charts) imports the same values. Never type a raw color anywhere else.
 
 // Technical safety: near-black with green-tinted panels and a bright signal green for
-// edges and controls. High contrast so the kiosk reads in sun, glare, rain and at night.
+// edges and controls. High contrast so the room display and phones read in sun, glare and dim venues.
 export const color = {
   bg: '#040806',
   surface: '#0A140F',
@@ -51,7 +51,7 @@ export function indexColor(index: number): string {
   return indexStops.high
 }
 
-// Type scale in px. Display is for the index number, countdown is the kiosk countdown only.
+// Type scale in px. Display is for the index number, countdown is the alarm state countdown only.
 export const type = {
   countdown: 240,
   display: 120,
@@ -60,10 +60,8 @@ export const type = {
   label: 14,
 }
 
-export const kiosk = {
-  width: 800,
-  height: 480,
-  tap: 76, // 20 mm on the 7 inch screen
+export const size = {
+  tap: 76, // minimum control height, gloved thumbs on the crew phone page
 }
 
 export const motion = { ms: 200, ease: 'cubic-bezier(0.2, 0, 0, 1)' }
@@ -75,7 +73,7 @@ export function applyTokens() {
   for (const [k, v] of Object.entries(takeover)) s.setProperty(`--takeover-${k}`, v)
   for (const [k, v] of Object.entries(indexStops)) s.setProperty(`--idx-${k}`, v)
   for (const [k, v] of Object.entries(type)) s.setProperty(`--fs-${k}`, `${v}px`)
-  s.setProperty('--tap', `${kiosk.tap}px`)
+  s.setProperty('--tap', `${size.tap}px`)
   s.setProperty('--motion-ms', `${motion.ms}ms`)
   s.setProperty('--motion-ease', motion.ease)
 }

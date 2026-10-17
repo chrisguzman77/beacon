@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { cut, lift, sheen } from '@/components/Panel'
 import { color } from '@/tokens'
 
-// The one kiosk control: chamfered raised panel, signal stripe foot, panel code tag.
+// The one control style: chamfered raised panel, signal stripe foot, panel code tag.
 // Pressing sinks it (shadow shrinks, 2 px down). tone "alarm" sits on the red/purple takeover.
 // stack puts the icon above the label for narrow buttons; detail then shows in the corner tag.
 
@@ -18,7 +18,7 @@ type Props = {
   onClick: () => void
 }
 
-export default function KioskButton({ icon: Icon, label, detail, code, tone = 'base', stack, className = '', onClick }: Props) {
+export default function ControlButton({ icon: Icon, label, detail, code, tone = 'base', stack, className = '', onClick }: Props) {
   const base = tone === 'base'
   const dim = base ? 'text-dim' : 'text-white/75'
   return (
