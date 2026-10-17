@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, ChevronRight, KeyRound, MapPin, OctagonAlert, ShieldCheck, TriangleAlert, Users } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronRight, KeyRound, MapPin, OctagonAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
 import type { SiteRow } from '@/api'
 import { formatCountdown, useSite } from '@/site/store'
 import { buildFactors, isHazard } from '@/site/factors'
@@ -14,7 +14,7 @@ import ReleaseDialog from '@/site/ReleaseDialog'
 
 // The dashboard's left column: the selected site at a glance, for quick action and nothing
 // detailed. Rank, hazard index, workers on site, the immediate hazards (each opens its factor in
-// HUB), and tomorrow's briefing in one line. Reads the same site feed HUB uses.
+// HUB), and tomorrow's briefing in one line. HUB is one tap away (the Hub tab, a row's arrow, Act). Reads the same site feed HUB uses.
 
 export function hubHref(id: number, node?: string) {
   const q = new URLSearchParams(location.search)
@@ -123,9 +123,6 @@ export default function QuickView({ site, rank, total, distance }: Props) {
         <p className="line-clamp-3 text-[14px] leading-snug">{brief || 'No briefing yet. It is generated at 6 PM site time, in English and Spanish.'}</p>
       </Card>
 
-      <Link to={hubHref(site.site_id)} className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-md text-[15px] font-semibold" style={{ background: color.accent, color: color.accentInk }}>
-        <Users className="size-5" /> Open the full site in HUB <ArrowRight className="size-4" />
-      </Link>
     </div>
   )
 }
