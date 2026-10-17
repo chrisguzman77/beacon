@@ -88,6 +88,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       if (m.type === 'alert') detail.alerts = [...detail.alerts.filter((a) => a.alert_id !== m.alert.alert_id), m.alert]
       else if (m.type === 'device') device = { ...device, ...m }
       else if (m.type === 'count') device = { ...device, countdown: m.seconds ?? 0 }
+      else if (m.type === 'briefing') detail.briefing = { english: m.english ?? '', spanish: m.spanish ?? '', for_date: m.for_date ?? '', payload: m.payload }
       else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear }
       else if (m.type === 'conditions')
         cond = {
