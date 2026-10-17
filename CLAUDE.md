@@ -66,6 +66,18 @@ Merging to main. Only the human merges `dev` into `main`, when the demo script r
 6. Tomorrow's briefing is shown and spoken. The hazard index is shown with its three reasons.
 7. The Pi's hotspot is turned off. A phone flashlight and a clap still stop the fan. Reconnect, and the event appears on the dashboard.
 
+## Git is your job, not the human's
+
+Run every git command yourself. Never tell the human to pull, branch, merge, or push. Do it, then report the result in one line. The only things you hand to the human are what this terminal cannot do: passwords and 2FA, clicking in a browser (Auth0, Tiger Cloud, Vultr, Figma, Roblox Studio), flashing or wiring hardware, and anything on the Pi that needs their hands. The committed .claude/settings.json pre-approves git, npm, pip, python, curl, docker, and ssh, so none of this should prompt. If a prompt appears anyway, the human accepts it with "yes, and don't ask again".
+
+The routine.
+1. Start of every session or task: `git fetch origin`. On dev, `git pull` and then create the feature branch. On a feature branch, `git merge origin/dev` so you have everyone's latest work before writing anything.
+2. Every 30 to 45 minutes of work, and whenever the human says "sync": `git fetch origin && git merge origin/dev`, then one line on what changed outside your folder (`git diff --stat ORIG_HEAD HEAD`). This is how the team sees each other's work without anyone remembering to pull.
+3. Commit after every step that passes its TEST, small, message prefixed with the area (core:, intel:, ml:, web:, sim:, firmware:, contract:, docs:).
+4. When a feature works: `git fetch origin && git merge origin/dev`, run the TEST again, `git push -u origin HEAD`, then `git push origin HEAD:dev`. That fast forwards dev without checking it out, so it works in worktrees and never collides with another session. If the push to dev is rejected, someone landed first: fetch, merge, push again. Say in one line what landed so the human can post it in the team chat. If dev no longer boots after your merge, fixing it comes before anything else.
+5. Conflicts. In files you own, resolve them. In files another owner owns, take dev's version (`git checkout --theirs <file>` while merging origin/dev) and tell the human. In contracts/, stop and tell the human, never resolve silently.
+6. Never: force push, rebase a pushed branch, reset --hard, check out or push to main (Chris merges dev into main), commit .env or anything .gitignore covers, print the contents of .env.
+
 ## People
 
 Chris owns backend/app/intel, ml, contracts, deploy. Viet owns backend/app/core and sim/src/Bridge. Cam owns web. Slavik owns sim/src/World, sim/place, and firmware. When in doubt about who to ask, ask Chris.
