@@ -309,7 +309,7 @@ local WeatherFx = require(script.Parent.WeatherFx)
 local Builder = {}
 
 local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate" }
-local SITE_NAME = "CRYSTAL RIVER"
+local SITE_NAME = "SEMINOLE · SITE 12" -- the beacon site, Putnam County FL
 local ZONE = 60 -- work zone is ZONE x ZONE studs, centered on the beacon at the origin
 -- open water of the swamp east and south of the site, { center, radius }
 local SWAMP = {
@@ -1717,7 +1717,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-0420, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-0454, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

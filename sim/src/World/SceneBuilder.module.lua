@@ -15,7 +15,7 @@ local WeatherFx = require(script.Parent.WeatherFx)
 local Builder = {}
 
 local OWNED = { "Site", "Beacon", "ZonePart", "SiteBillboard", "Excavator", "RainEmitter", "GatorSpot", "FloodWater", "SpawnLocation", "Baseplate" }
-local SITE_NAME = "CRYSTAL RIVER"
+local SITE_NAME = "SEMINOLE · SITE 12" -- the beacon site, Putnam County FL
 local ZONE = 60 -- work zone is ZONE x ZONE studs, centered on the beacon at the origin
 -- open water of the swamp east and south of the site, { center, radius }
 local SWAMP = {
