@@ -31,6 +31,17 @@ A Roblox experience is the digital twin of the beacon's site. Scenarios run in L
 
 See `scripts/dev.sh` and each folder's CLAUDE.md.
 
+## Backend
+
+FastAPI on Tiger Data (TimescaleDB), live at https://api.omnirisking-it-all-at-swamphacks.us (`/docs` lists every route, `contracts/api.md` is the source of truth).
+
+- Run locally: fill `.env` from `.env.example` (`contracts/env.md` says who sets what), then `scripts/dev.sh backend`. The schema creates itself on first boot and `data/sites.csv` is loaded on every boot. `python -m app.core.seed` (from `backend/`) adds the demo crew and two sample reports.
+- Run in Docker: `docker compose -f deploy/docker-compose.yml up -d --build backend`.
+- What runs: Open-Meteo forecast every 15 min and river flood hourly, NWS alerts every 15 min, iNaturalist every 6 h, the hazard index at 05:00 UTC, and each site's next day briefing at 18:00 local time.
+- Rules: a strike within 10 miles opens stop work for 30 minutes and every new strike restarts it; it then waits for a supervisor PIN (dashboard or beacon remote). Heat index 103 °F warns, 115 °F is danger and sends the beacon a rest break. River sites warn on 50 mm of rain in 24 h or discharge over 2.5 times the 90 day mean; water at the beacon confirms the flood.
+- Live links: the Pi on `/ws/gateway/{site_id}` (`contracts/gateway-ws.md`), the Roblox Bridge on `/sim/*` and `GET /sites/{id}/device` (`contracts/roblox-bridge.md`), the dashboard on `/ws/site/{id}`.
+- End to end test: with the real Pi offline, `python -m app.core.e2e <base_url>` from `backend/` strikes the beacon site twice, checks the fake gateway gets STOPWORK and the countdown moved, then clears it with the PIN.
+
 ## Hazard index (machine learning)
 
 Every site gets a 0 to 10 hazard index for tomorrow, refreshed daily at 05:00 UTC, with the three weather reasons that pushed it up. Training code is in `ml/`, serving code in `backend/app/intel/`, and the full numbers in [`ml/report/metrics.md`](ml/report/metrics.md).
