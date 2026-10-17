@@ -8,19 +8,25 @@ Up (Pi to backend)
 {"kind":"flash","ts_us":1729170131045123}
 {"kind":"local_stopwork","ts":"...","distance_m":1030,"flash_ts_us":...,"bang_ts_us":...}
 {"kind":"count","seconds":1793}
-{"kind":"checkin","crew_number":7,"action":"in","via":"remote"}         (remote fallback; kiosk check ins go through the backend API directly)
+{"kind":"checkin","ts":"...","crew_id":3,"action":"in","via":"kiosk"}        kiosk taps and IR remote fallback (via "remote", crew_id from the remote digit) both arrive here so they work offline
 {"kind":"estop","ts":"..."}
-{"kind":"pin","value":"1234"}
+{"kind":"pin","value":"1234","ok":true}                                        the Pi already checked SUPERVISOR_PIN and cleared locally; ok false is logged only
 {"kind":"state","led":"strobe","countdown":1793,"index":7,"interlock":"locked","presence":true,"online":true,"lcd":["LOCKED OUT","LIGHTNING 8MI 29:53"]}
 
 Down (backend to Pi)
+{"cmd":"CREW","crew":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}        sent on connect and whenever the roster changes; the gateway caches it for the kiosk
 {"cmd":"STOPWORK","seconds":1800,"distance_m":12874,"source":"sim"}
 {"cmd":"CLEAR","by":"J. Smith"}
 {"cmd":"INDEX","value":7,"reason":"Heat index 108"}
 {"cmd":"REST","seconds":900}
 {"cmd":"MUSTER","in":["Alice","Bob"],"out":[]}
-{"cmd":"BRIEFING","english":"...","spanish":"..."}
-{"cmd":"BANG","ts_us":...}            relayed from the laptop mic listener so the Pi can pair it with its FLASH
+{"cmd":"BRIEFING","english":"...","spanish":"...","for_date":"2026-10-18"}
+{"cmd":"BANG","ts_us":...}            relayed from POST /sim/bang (the laptop mic listener) so the Pi can pair it with its FLASH
 {"cmd":"DEMO_SCALE","value":60}
 
-The backend exposes the last "state" message at GET /sites/{id}/device for pollers (Roblox, dashboard).
+The backend keeps the last "state" message per site in memory and serves it at GET /sites/{id}/device for pollers (Roblox, dashboard). It also pushes it on WS /ws/site/{id}.
+
+Change log
+- contract: checkin carries crew_id and via (kiosk | remote) instead of crew_number, and ts for replay
+- contract: added CREW down so the kiosk has the roster offline
+- contract: pin carries ok so the backend records who released without re-checking the PIN
