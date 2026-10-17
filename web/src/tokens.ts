@@ -36,10 +36,20 @@ export type HazardKey = keyof typeof hazard
 export const alertHazard: Record<string, HazardKey> = {
   stopwork: 'stopwork',
   heat_danger: 'heat',
+  heat_warning: 'heat',
   flood_confirmed: 'flood',
+  flood_warning: 'flood',
   wildlife: 'wildlife',
   beacon_unsafe: 'unsafe',
   estop: 'unsafe',
+}
+
+export const hazardLabel: Record<HazardKey, string> = {
+  stopwork: 'Stop work',
+  heat: 'Heat',
+  flood: 'Flood',
+  wildlife: 'Wildlife',
+  unsafe: 'Beacon unsafe',
 }
 
 // Hazard index 0 to 10, green through yellow to red. The only gradient in the app.
