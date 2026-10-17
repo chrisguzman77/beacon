@@ -52,11 +52,13 @@ function look(status: Status, tint = color.border) {
 const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '12 8' : undefined)
 const tag: Record<Status, string> = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
 
-const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(function FactorWeb({ s, tour }, ref) {
+type Props = { s: Snapshot; tour?: boolean; selected?: string | null; onSelect?: (id: string | null) => void }
+
+const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tour, selected, onSelect }, ref) {
   const factors = buildFactors(s)
   const pos = layout(factors)
   const box = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
+  const drag = useRef<{ x: number; y: number; px: number; py: number; node: string | null } | null>(null)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
 
   const fit = useCallback(() => {
@@ -71,6 +73,19 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
     setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
   }, [s])
   useImperativeHandle(ref, () => ({ fit }), [fit])
+
+  // Selecting a node glides it into view just left of the detail panel (about 400 px wide).
+  const [glide, setGlide] = useState(false)
+  useEffect(() => {
+    if (!selected || !box.current) return
+    const p = layout(buildFactors(s))[selected]
+    if (!p) return
+    const k = Math.max(view.k, 0.9)
+    setGlide(true)
+    setView({ k, x: -p.x * k - 200, y: -p.y * k })
+    const t = setTimeout(() => setGlide(false), 1200)
+    return () => clearTimeout(t)
+  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tour (idle): glide to the cluster holding the worst hazard, or show the whole web when clear.
   const target = worst(factors.filter((f) => f.status === 'caution' || f.status === 'danger'))
@@ -94,7 +109,8 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
 
   const down = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y }
+    const node = (e.target as HTMLElement).closest<HTMLElement>('[data-node]')?.dataset.node ?? null
+    drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y, node }
   }
   const move = (e: PointerEvent) => {
     const d = drag.current
@@ -130,7 +146,12 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
       className="relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
       onPointerDown={down}
       onPointerMove={move}
-      onPointerUp={() => (drag.current = null)}
+      onPointerUp={(e) => {
+        // A press that barely moved is a click: select the node under it, or clear on empty space.
+        const d = drag.current
+        drag.current = null
+        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) onSelect?.(d.node)
+      }}
       onWheel={wheel}
     >
       <div className="absolute inset-0" style={grid(160, '40', 0.4)} />
@@ -141,7 +162,7 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
         style={{
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
           transformOrigin: '0 0',
-          transition: tour ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
+          transition: tour || glide ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
         }}
       >
         <svg className="pointer-events-none absolute overflow-visible" width="1" height="1">
@@ -169,8 +190,20 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
           const p = pos[x.id]
           const l = look(x.status, x.tint)
           return (
-            <div key={x.id} className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
-              <Panel size={12} edge={l.edge} fill={l.fill} depth={l.depth} glow={l.glow} inner="flex flex-col gap-1 px-4 py-3">
+            <div
+              key={x.id}
+              data-node={x.id}
+              className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              style={{ left: p.x, top: p.y, zIndex: selected === x.id ? 5 : undefined }}
+            >
+              <Panel
+                size={12}
+                edge={selected === x.id ? color.text : l.edge}
+                fill={l.fill}
+                depth={selected === x.id ? 3 : l.depth}
+                glow={selected === x.id ? color.signal : l.glow}
+                inner="flex flex-col gap-1 px-4 py-3"
+              >
                 <span className="flex items-center justify-between text-label font-semibold uppercase tracking-[0.14em] text-dim">
                   {x.label}
                   {tag[x.status] && (

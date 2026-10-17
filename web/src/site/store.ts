@@ -16,10 +16,10 @@ export const useSite = create<SiteStore>((set) => ({
   snapshot: null,
   live: false,
   setSimPaused: () => {},
-  connect: () => {
+  connect: (siteId) => {
     const mode = new URLSearchParams(location.search).get('fake')
     if (mode === null) return () => {}
-    const fake = startFakeGateway((snapshot) => set({ snapshot, live: true }), mode)
+    const fake = startFakeGateway((snapshot) => set({ snapshot, live: true }), mode, siteId)
     set({ setSimPaused: fake.setPaused })
     return fake.stop
   },

@@ -1,25 +1,41 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Scan } from 'lucide-react'
 import Panel from '@/components/Panel'
 import ControlButton from '@/components/ControlButton'
 import AppNav from '@/components/AppNav'
 import { color } from '@/tokens'
 import FactorWeb from './FactorWeb'
+import FactorDetail from './FactorDetail'
+import type { Point } from './FactorDetail'
+import SitePicker from './SitePicker'
+import { buildFactors } from './factors'
 import type { FactorWebHandle } from './FactorWeb'
 import type { Snapshot } from './types'
 
 // The site page's live board: header plus the factor web. Device card, muster, briefing and
 // the other site panels join it as the site page is built.
-export default function SiteBoard({ s, live, idle }: { s: Snapshot; live: boolean; idle: boolean }) {
+type Props = { s: Snapshot; live: boolean; idle: boolean; history: Record<string, Point[]> }
+
+export default function SiteBoard({ s, live, idle, history }: Props) {
   const web = useRef<FactorWebHandle>(null)
+  // ?node=heat opens a factor's detail directly (shareable link).
+  const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(location.search).get('node'))
+  const factor = selected ? buildFactors(s).find((f) => f.id === selected) : undefined
+
+  useEffect(() => {
+    if (!selected) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setSelected(null)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [selected])
 
   return (
     <div className="flex h-full flex-col gap-4 p-5">
       <header className="flex items-center justify-between gap-6">
         <div className="flex items-center gap-6">
-          <div className="whitespace-nowrap">
+          <div className="flex flex-col gap-1 whitespace-nowrap">
             <Label>PlanIT Beacon · Web</Label>
-            <h1 className="text-heading leading-tight font-semibold tracking-tight">{s.site.name}</h1>
+            <SitePicker current={s.site.id} name={s.site.name} />
           </div>
           <AppNav />
         </div>
@@ -30,7 +46,8 @@ export default function SiteBoard({ s, live, idle }: { s: Snapshot; live: boolea
       </header>
 
       <Panel className="min-h-0 flex-1" size={22} fill={color.bg} depth={2}>
-        <FactorWeb ref={web} s={s} tour={idle} />
+        <FactorWeb ref={web} s={s} tour={idle && !selected} selected={selected} onSelect={setSelected} />
+        {factor && <FactorDetail x={factor} history={history[factor.id] ?? []} onClose={() => setSelected(null)} />}
         <Legend />
       </Panel>
     </div>
