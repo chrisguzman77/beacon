@@ -1,0 +1,24 @@
+{
+ "features": [
+  "tmax",
+  "apparent_tmax",
+  "tmin",
+  "rh_max",
+  "precip_sum",
+  "rain_sum",
+  "precip_3d",
+  "precip_7d",
+  "soil",
+  "gust_max",
+  "wind_max",
+  "heat_index",
+  "month",
+  "doy_sin",
+  "doy_cos",
+  "sfha",
+  "coastal",
+  "river",
+  "lat",
+  "lon"
+ ]
+}

@@ -1,0 +1,40 @@
+{
+ "features": [
+  "tmax",
+  "apparent_tmax",
+  "tmin",
+  "rh_max",
+  "precip_sum",
+  "rain_sum",
+  "precip_3d",
+  "precip_7d",
+  "soil",
+  "gust_max",
+  "wind_max",
+  "heat_index",
+  "month",
+  "doy_sin",
+  "doy_cos",
+  "sfha",
+  "coastal",
+  "river",
+  "lat",
+  "lon"
+ ],
+ "cuts": [
+  0.005438477226376614,
+  0.008403361344537815,
+  0.01275820170109356,
+  0.017926356589147287,
+  0.039735099337748346,
+  0.05225409836065574,
+  0.07473684210526316,
+  0.12178619756427606,
+  0.18015963511972638
+ ],
+ "best_iteration": 182,
+ "trained_on": "2016-2022",
+ "validated": 2023,
+ "tested": 2024,
+ "sites": 50
+}
