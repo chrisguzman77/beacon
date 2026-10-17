@@ -50,6 +50,7 @@ local function line(name, order, font, size, color)
 	t.Parent = card
 	return t
 end
+local callLine = line("Call", 0, Enum.Font.GothamBold, 13, TEXT)
 local beaconLine = line("Beacon", 1, Enum.Font.GothamBold, 15, GREEN)
 local zoneLine = line("Zone", 2, Enum.Font.GothamBold, 17, TEXT)
 local hintLine = line("Hint", 3, Enum.Font.Gotham, 13, Color3.fromRGB(170, 176, 190))
@@ -69,6 +70,9 @@ local function render()
 	local state = level and level.Text or "ALL CLEAR"
 	local color = level and level.TextColor3 or GREEN
 	local stop = state:find("STOP WORK") ~= nil or workspace:GetAttribute("SimStopWork") == true
+	local go = workspace:GetAttribute("GoNoGo") or "GO"
+	callLine.Text = "SITE CALL  ·  " .. (workspace:GetAttribute("Tailboard") and "TAILBOARD, THEN " or "") .. go
+	callLine.TextColor3 = go == "NO-GO" and RED or go == "GO" and GREEN or AMBER
 	beaconLine.Text = "BEACON  ·  " .. state
 	beaconLine.TextColor3 = color
 	local inside = inZone()

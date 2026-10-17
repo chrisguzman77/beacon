@@ -229,6 +229,12 @@ local function run(path, inPlace)
 	return load(src, inPlace and inPlace:GetFullName() or path, inPlace)()
 end
 
+local function shiftLogHas(text)
+	local ok, entries = pcall(serde.decode, "json", workspace:GetAttribute("ShiftLog") or "[]")
+	if not ok then return false end
+	for _, e in ipairs(entries) do if e:find(text, 1, true) then return true end end
+	return false
+end
 local function site_floating() return workspace.Site.Floating:GetChildren() end
 local failures = 0
 local function check(ok, what)
@@ -437,6 +443,8 @@ check(fired.water[#fired.water][1] == 100, "flood reaches 100 mm")
 check(top > 4 and flood.Transparency < 0.5, ("flood water over the pad, top at %.1f studs, transparency %.2f"):format(top, flood.Transparency))
 check(boat.PrimaryPart.CFrame.Position.Y > boatY0 + 3, ("boat floated up %.1f studs"):format(boat.PrimaryPart.CFrame.Position.Y - boatY0))
 check(workspace.GlobalWind.Magnitude > 30, ("hurricane wind %.0f"):format(workspace.GlobalWind.Magnitude))
+check(shiftLogHas("aerial lifts and bucket trucks grounded"), "hurricane gusts ground the aerial lifts, logged")
+check(workspace:GetAttribute("GoNoGo") == "NO-GO", "hurricane call is NO-GO (" .. tostring(workspace:GetAttribute("GoReasons")) .. ")")
 
 print("== flash flood and reset")
 control:FireServer("load", "flash_flood")
@@ -459,30 +467,54 @@ local function workers()
 end
 control:FireServer("load", "everglades_day")
 control:FireServer("play")
-step(66, 0.25) -- past 12:00 at 300x
+step(2, 0.25) -- 06:55: the tailboard
+check(workspace:GetAttribute("Tailboard") == true and shiftLogHas("Tailboard: job hazard analysis reviewed"), "shift opens with the tailboard, logged")
+if crewFolder then
+	step(2, 0.25)
+	local spot = crewFolder.TailboardSpot.CFrame.Position
+	local far = 0
+	for _, w in ipairs(workers()) do far = math.max(far, (w:GetPivot().Position - spot).Magnitude) end
+	check(far < 6, ("crew gathered at the board for the tailboard (farthest %.1f studs)"):format(far))
+else
+	step(2, 0.25)
+end
+step(62, 0.25) -- past 12:00 at 300x
 local hiNoon = workspace:GetAttribute("HeatIndexF")
 check(hiNoon >= 110, ("noon heat index %d F, over 110 (%s)"):format(hiNoon, rowText(1)))
 check(rowText(6):find("alligator") ~= nil, "gator report on the board (" .. rowText(6) .. ")")
 check(rowText(3):find("SOIL 8") ~= nil, "a week of rain shows as soil saturation (" .. rowText(3) .. ")")
 local spent = 0 -- test seconds used by the optional crew check, taken off the next step so the strikes line up
+check(workspace:GetAttribute("GoNoGo") == "GO WITH CONTROLS" and (workspace:GetAttribute("GoReasons") or ""):find("work/rest 15/45", 1, true) ~= nil,
+	"noon call: GO WITH CONTROLS, heat work/rest 15/45 (" .. tostring(workspace:GetAttribute("GoReasons")) .. ")")
+check(workspace:FindFirstChild("HazardPin") ~= nil, "gator report pinned with a 30 ft buffer")
 if crewFolder and hiNoon >= 115 then
 	spent = 6
 	step(6, 0.25)
 	local shade = crewFolder.ShadeSpot.CFrame.Position
-	local far = 0
-	for _, w in ipairs(workers()) do far = math.max(far, (w:GetPivot().Position - shade).Magnitude) end
-	check(far < 6, ("heat index %d F: crew on rest break under the cooling tent (farthest %.1f studs)"):format(hiNoon, far))
+	local most = 0 -- the resting group rotates every 15 sim minutes, so look across a moment, not one frame
+	for _ = 1, 8 do
+		local resting = 0
+		for _, w in ipairs(workers()) do if (w:GetPivot().Position - shade).Magnitude < 6 then resting += 1 end end
+		most = math.max(most, resting)
+		step(0.25, 0.25)
+	end
+	spent += 2
+	check(most == 3, ("heat index %d F: work/rest 15/45, 3 of 4 on break in the tent at a time (%d)"):format(hiNoon, most))
 end
 step(28 - spent, 0.25) -- past the 8 mile strike at 14:30 (93 s at 300x), before the 6 mile one (96 s)
 check(workspace:GetAttribute("SimStopWork") == true and rowText(4):find("STOP WORK") ~= nil, "8 mile strike opens stop work (" .. rowText(4) .. ")")
+check(workspace:GetAttribute("GoNoGo") == "NO-GO", "call goes to NO-GO on the strike")
 local before = workspace:GetAttribute("SimCountdown")
 step(2.5, 0.25) -- the 6 mile strike at 14:45
 check(workspace:GetAttribute("SimCountdown") > before, ("6 mile strike restarts the 30 minute countdown (%s -> %s)"):format(before, workspace:GetAttribute("SimCountdown")))
+check(shiftLogHas("STOP WORK: strike 8 mi") and shiftLogHas("COUNTDOWN RESET: strike 6 mi"), "shift log records the stop work and the reset")
 if crewFolder then
 	step(4, 0.25) -- still inside the 30 minutes the 6 mile strike restarted
 	local hidden = 0
 	for _, w in ipairs(workers()) do if w.Torso.Transparency == 1 then hidden += 1 end end
 	check(hidden == #workers() and hidden == 4, ("crew sheltered in the truck (%d of %d)"):format(hidden, #workers()))
+	step(0.5, 0.25)
+	check(rowText(4):find("CREW 4/4 SHELTERED", 1, true) ~= nil and shiftLogHas("Headcount: crew 4/4 accounted for"), "headcount on the board and in the log (" .. rowText(4) .. ")")
 end
 step(42, 0.25) -- through the downpour past 18:00 (135 s)
 check(workspace:GetAttribute("Soil") >= 0.85, ("downpour saturates the soil (%d%%)"):format(workspace:GetAttribute("Soil") * 100))
@@ -496,6 +528,10 @@ for _, d in ipairs(LOCAL_PLAYER.PlayerGui:GetDescendants()) do
 	if d:IsA("TextLabel") and d.Text:find("18:00") and d.Text:find("briefing") then briefing = true end
 end
 check(briefing, "6 PM next-day briefing note shown")
+local panelLog = LOCAL_PLAYER.PlayerGui.ScenarioUI:FindFirstChild("Frame"):GetDescendants()
+local logShown = false
+for _, d in ipairs(panelLog) do if d:IsA("TextLabel") and d.Font == roblox.Enum.Font.RobotoMono and d.Text:find("  ") and d.Text:find(":") and d.Text ~= "No entries yet" then logShown = true end end
+check(logShown, "shift log shown in the operator panel")
 
 print("== lightning cell, first strike to all clear")
 local radarScope = LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true)

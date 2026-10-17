@@ -1,6 +1,8 @@
 -- Crew (Script in ServerScriptService/World)
--- The jobsite crew acts on the decisions the platform makes. On a stop work they walk to the crew truck and get in.
--- When the heat index reaches 115 F they take their rest break under the cooling tent. Otherwise they work the mat road.
+-- The jobsite crew acts on the decisions the platform makes. Every shift starts with the crew at the board for the
+-- tailboard. On a stop work they walk to the crew truck and get in, and the headcount is published for the board.
+-- In the heat they rotate through the cooling tent on the work/rest cycle (a quarter, half, or three quarters of
+-- the crew resting at a time, taking turns). Otherwise they work the mat road.
 -- When the soil is saturated the trucks bog down in the muck and throw mud.
 -- A stop work is the sim's own 30 minute rule (Conditions) or the real beacon's, mirrored onto workspace.Beacon.
 local RunService = game:GetService("RunService")
@@ -11,9 +13,11 @@ if not crew then return end -- the scene without the jobsite has no crew
 local beacon = workspace:WaitForChild("Beacon")
 local shelter = crew:WaitForChild("ShelterSpot").CFrame.Position
 local shade = crew:WaitForChild("ShadeSpot").CFrame.Position
+local tailboard = crew:FindFirstChild("TailboardSpot")
+tailboard = tailboard and tailboard.CFrame
 
 local WALK = 7 -- studs per second
-local HEAT_DANGER, MUDDY = 115, 0.85
+local MUDDY, ROTATE_S = 0.85, 900 -- the resting group changes every 15 simulated minutes
 
 local workers = {}
 for i, m in ipairs(crew:GetChildren()) do
@@ -44,14 +48,21 @@ RunService.Heartbeat:Connect(function(dt)
 	t += dt
 	local stop = workspace:GetAttribute("SimStopWork") == true
 		or beacon:GetAttribute("Led") == "strobe" or beacon:GetAttribute("Interlock") == "locked"
-	local hot = (workspace:GetAttribute("HeatIndexF") or 0) >= HEAT_DANGER
+	local restShare = workspace:GetAttribute("HeatRest") or 0
+	local resting = math.floor(#workers * restShare + 0.5)
+	local turn = math.floor((workspace:GetAttribute("SimTime") or 0) / ROTATE_S)
+	local briefing = workspace:GetAttribute("Tailboard") == true and tailboard ~= nil
 
-	for _, w in ipairs(workers) do
+	local sheltered = 0
+	for k, w in ipairs(workers) do
 		local target
+		local rests = ((k + turn) % #workers) < resting
 		if stop then
 			target = shelter
-		elseif hot then
-			target = shade + Vector3.new((w.i % 2) * 3 - 1.5, 0, (w.i % 3) - 1)
+		elseif briefing then
+			target = (tailboard * CFrame.new((k - (#workers + 1) / 2) * 2.4, 0, 0)).Position
+		elseif rests then
+			target = shade + Vector3.new((k % 2) * 3 - 1.5, 0, (k % 3) - 1)
 		else
 			target = w.home.Position
 		end
@@ -65,16 +76,22 @@ RunService.Heartbeat:Connect(function(dt)
 			local step = math.min(dist, dt * WALK * hurry)
 			local nextPos = pos + flat.Unit * step
 			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, math.abs(math.sin(t * 9)) * 0.15, 0))
-		elseif not stop and not hot then
+		elseif briefing and not stop then
+			w.m:PivotTo(CFrame.new(w.m:GetPivot().Position) * tailboard.Rotation) -- facing the board
+		elseif not stop and not rests then
 			-- back at the work face: face it and keep busy
 			w.m:PivotTo(w.home * CFrame.Angles(0, math.sin(t * 1.3 + w.i) * 0.25, 0))
 		end
 		local inside = stop and arrived
+		if inside then sheltered += 1 end
 		if inside ~= w.hidden then
 			w.hidden = inside
 			setVisible(w.m, not inside)
 		end
 	end
+
+	if workspace:GetAttribute("CrewSheltered") ~= sheltered then workspace:SetAttribute("CrewSheltered", sheltered) end
+	if workspace:GetAttribute("CrewTotal") ~= #workers then workspace:SetAttribute("CrewTotal", #workers) end
 
 	local muddy = (workspace:GetAttribute("Soil") or 0) >= MUDDY
 	for _, s in ipairs(sinkers) do

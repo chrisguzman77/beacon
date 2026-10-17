@@ -727,15 +727,21 @@ end
 
 -- the site conditions board, the one combined risk picture standing on the jobsite. Conditions.server.lua writes it.
 local function conditionsBoard(cf, name)
-	local b = part(workspace, name or "ConditionsBoard", Vector3.new(18, 9, 0.4), cf * CFrame.new(0, 9.5, 0), C.panel)
+	local b = part(workspace, name or "ConditionsBoard", Vector3.new(18, 10.5, 0.4), cf * CFrame.new(0, 10, 0), C.panel)
 	for _, x in ipairs({ -7, 7 }) do
 		column(workspace.Site, "BoardPost", 14, 0.5, (cf * CFrame.new(x, 0, -0.35)).Position, C.steel, Enum.Material.Metal)
 	end
 	local g = surface(b, 36)
-	local title = label(g, "Title", "SITE CONDITIONS", UDim2.fromScale(0.94, 0.13), UDim2.fromScale(0.03, 0.03), C.safety)
+	local title = label(g, "Title", "SITE CONDITIONS", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.025), C.safety)
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	-- the go/no-go call, a colored banner under the title
+	local decision = label(g, "Decision", "GO", UDim2.fromScale(0.94, 0.12), UDim2.fromScale(0.03, 0.14), C.white, Enum.Font.GothamBold, Color3.fromRGB(26, 110, 60))
+	local dpad = Instance.new("UIPadding")
+	dpad.PaddingLeft = UDim.new(0.015, 0)
+	dpad.Parent = decision
+	decision.TextXAlignment = Enum.TextXAlignment.Left
 	for i = 1, 6 do
-		local row = label(g, "Row" .. i, "", UDim2.fromScale(0.94, 0.12), UDim2.fromScale(0.03, 0.19 + (i - 1) * 0.135), C.white, Enum.Font.GothamMedium)
+		local row = label(g, "Row" .. i, "", UDim2.fromScale(0.94, 0.1), UDim2.fromScale(0.03, 0.3 + (i - 1) * 0.115), C.white, Enum.Font.GothamMedium)
 		row.TextXAlignment = Enum.TextXAlignment.Left
 	end
 	return b
@@ -773,6 +779,7 @@ local function jobsite(site)
 	-- where the crew goes: into the truck on stop work, under the tent in the heat (pivot height, 3 studs over the mats)
 	ghost(part(crew, "ShelterSpot", Vector3.new(1, 1, 1), CFrame.new(-115, 3, -38), C.white))
 	ghost(part(crew, "ShadeSpot", Vector3.new(1, 1, 1), CFrame.new(-86, 3, -38), C.white))
+	ghost(part(crew, "TailboardSpot", Vector3.new(1, 1, 1), CFrame.lookAt(Vector3.new(-75, 3, -19), Vector3.new(-75, 3, -8)), C.white))
 	for _, p in ipairs({ { -58, -20 }, { -61, -28 }, { -67, -22 }, { -54, -29 } }) do
 		workerModel(crew, CFrame.new(p[1], 3, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(60, 120)), 0))
 	end

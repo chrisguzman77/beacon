@@ -62,6 +62,8 @@ local HAZARDS = {
 		alarm = rep(3, { { 1.15, 0.22 }, { 0.95, 0.22 } }) },
 	flood = { rank = 4, label = "FLOOD", sub = "WATER ON THE PAD", color = Color3.fromRGB(60, 140, 255), pattern = "wave",
 		alarm = rep(2, { { 0.9, 0.16 }, { 1.05, 0.16 }, { 1.2, 0.16 }, { 1.35, 0.16 }, { 1.5, 0.5 } }) },
+	wind = { rank = 3.5, label = "HIGH WIND", sub = "AERIAL LIFTS GROUNDED, 28 MPH+", color = Color3.fromRGB(0, 200, 200), pattern = "pulse",
+		alarm = rep(2, { { 1.2, 0.14 }, { 1.0, 0.14 }, { 1.2, 0.45 } }) },
 	heat_danger = { rank = 3, label = "HEAT DANGER", sub = "REST BREAKS, WATER", color = Color3.fromRGB(255, 90, 40), pattern = "slow",
 		alarm = rep(3, { { 1.0, 0.45 }, { 1.25, 0.45 } }) },
 	heat_warning = { rank = 2, label = "HEAT WARNING", sub = "HYDRATE, WATCH THE CREW", color = Color3.fromRGB(255, 150, 30), pattern = "slow",
@@ -123,6 +125,7 @@ local function activeHazards()
 	if set.heat_danger then set.heat_warning = nil end
 	if (workspace:GetAttribute("SimFloodMm") or 0) > 0 then set.flood = true end
 	if workspace:GetAttribute("SimWildlife") == true then set.wildlife = true end
+	if (workspace:GetAttribute("SimGustMph") or 0) >= 28 then set.wind = true end
 	return set
 end
 
@@ -280,6 +283,8 @@ local function simLcd()
 		return "HEAT WARNING", ("HEAT INDEX %dF"):format(hi)
 	elseif top == "wildlife" then
 		return "GATOR ON SITE", "KEEP 30 FT"
+	elseif top == "wind" then
+		return "HIGH WIND", "AERIAL LIFTS DOWN"
 	end
 	return "ALL CLEAR  IDX " .. fmtIndex(attr("Index", 0)), "LOCAL RULES ON"
 end
@@ -389,7 +394,7 @@ for name, fns in pairs(handlers) do
 		for _, f in ipairs(fns) do f() end
 	end)
 end
-for _, name in ipairs({ "SimStopWork", "HeatIndexF", "SimFloodMm", "SimWildlife" }) do
+for _, name in ipairs({ "SimStopWork", "HeatIndexF", "SimFloodMm", "SimWildlife", "SimGustMph" }) do
 	workspace:GetAttributeChangedSignal(name):Connect(refresh)
 end
 workspace:GetAttributeChangedSignal("SimCountdown"):Connect(function() applyCountdown() applyTag() applyLcd() end)

@@ -131,8 +131,43 @@ function WeatherFx.reset()
 	local e = emitter()
 	if e then e.Enabled, e.Rate = false, 0 end
 	WeatherFx.setWater(0, true)
-	local gator = workspace:FindFirstChild("Gator")
-	if gator then gator:Destroy() end
+	for _, n in ipairs({ "Gator", "HazardPin" }) do
+		local x = workspace:FindFirstChild(n)
+		if x then x:Destroy() end
+	end
+end
+
+-- a crew hazard report as it shows on the site map: a pin with the report, and the 30 ft buffer on the ground
+local function hazardPin(at, title, detail)
+	local m = Instance.new("Model")
+	m.Name = "HazardPin"
+	local function piece(size, cf, color, material, shape)
+		local p = Instance.new("Part")
+		p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow = true, false, false, false, false
+		p.Size, p.CFrame, p.Color, p.Material = size, cf, color, material or Enum.Material.SmoothPlastic
+		if shape then p.Shape = shape end
+		p.Parent = m
+		return p
+	end
+	local yellow = Color3.fromRGB(255, 200, 0)
+	piece(Vector3.new(0.25, 7, 0.25), CFrame.new(at + Vector3.new(0, 3.5, 0)), Color3.fromRGB(40, 40, 46), Enum.Material.Metal)
+	local head = piece(Vector3.new(1.4, 1.4, 1.4), CFrame.new(at + Vector3.new(0, 7.6, 0)), yellow, Enum.Material.Neon, Enum.PartType.Ball)
+	-- 30 ft is about 28 studs across at our 1 stud to 1.1 ft
+	local ring = piece(Vector3.new(0.12, 28, 28), CFrame.new(at + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90)), yellow, Enum.Material.Neon, Enum.PartType.Cylinder)
+	ring.Transparency = 0.75
+	local bb = Instance.new("BillboardGui")
+	bb.Size, bb.StudsOffset, bb.MaxDistance, bb.LightInfluence = UDim2.fromOffset(250, 58), Vector3.new(0, 2.4, 0), 250, 0
+	bb.Parent = head
+	local function line(text, y, h, color, font)
+		local t = Instance.new("TextLabel")
+		t.BackgroundColor3, t.BackgroundTransparency, t.BorderSizePixel = Color3.fromRGB(14, 16, 22), 0.15, 0
+		t.Size, t.Position = UDim2.fromScale(1, h), UDim2.fromScale(0, y)
+		t.Font, t.TextScaled, t.TextColor3, t.Text = font, true, color, text
+		t.Parent = bb
+	end
+	line(title, 0, 0.55, yellow, Enum.Font.GothamBold)
+	line(detail, 0.55, 0.45, Color3.fromRGB(236, 238, 243), Enum.Font.GothamMedium)
+	m.Parent = workspace
 end
 
 function WeatherFx.apply(e)
@@ -157,6 +192,9 @@ function WeatherFx.spawnGator()
 		local g = template:Clone()
 		g:PivotTo(spot.CFrame)
 		g.Parent = workspace
+		-- pinned where the crew saw it, centered on where it crawls to
+		local at = (spot.CFrame * CFrame.new(0, -1, -8)).Position
+		hazardPin(at, "HAZARD REPORT  ·  ALLIGATOR", "Crew photo, tagged and shared  ·  30 ft buffer")
 	end
 end
 

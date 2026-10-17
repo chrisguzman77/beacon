@@ -203,6 +203,26 @@ local function drawMarkers(st)
 	end
 end
 
+-- the go/no-go call, a colored pill under the timeline
+local DECISION_BG = {
+	["GO"] = Color3.fromRGB(26, 110, 60), ["GO WITH CONTROLS"] = Color3.fromRGB(150, 100, 10), ["NO-GO"] = Color3.fromRGB(150, 28, 28),
+}
+local decision = text(13, Enum.Font.GothamBold, THEME.text, 0)
+decision.AutomaticSize = Enum.AutomaticSize.Y
+decision.BackgroundTransparency = 0
+round(decision, 6)
+local dpad = Instance.new("UIPadding")
+dpad.PaddingTop, dpad.PaddingBottom, dpad.PaddingLeft, dpad.PaddingRight = UDim.new(0, 5), UDim.new(0, 5), UDim.new(0, 8), UDim.new(0, 8)
+dpad.Parent = decision
+local function paintDecision()
+	local go = workspace:GetAttribute("GoNoGo") or "GO"
+	local reasons = workspace:GetAttribute("GoReasons") or ""
+	decision.Text = (workspace:GetAttribute("Tailboard") and "TAILBOARD  ·  " or "") .. go .. (reasons ~= "" and ("  ·  " .. reasons) or "")
+	decision.BackgroundColor3 = DECISION_BG[go] or THEME.raised
+end
+for _, a in ipairs({ "GoNoGo", "GoReasons", "Tailboard" }) do workspace:GetAttributeChangedSignal(a):Connect(paintDecision) end
+paintDecision()
+
 ---------------------------------------------------------------- demo, scenarios, playback
 
 section("DEMO")
@@ -253,6 +273,22 @@ end)
 local note = text(13, Enum.Font.Gotham, THEME.text, 0)
 note.AutomaticSize = Enum.AutomaticSize.Y
 note.Visible = false
+
+-- the shift log: every call and alert with its time, newest first, the record a safety manager files
+section("SHIFT LOG")
+local shiftLog = text(12, Enum.Font.RobotoMono, THEME.dim, 0)
+shiftLog.AutomaticSize = Enum.AutomaticSize.Y
+shiftLog.Text = "No entries yet"
+local HttpService = game:GetService("HttpService")
+local function paintLog()
+	local ok, entries = pcall(HttpService.JSONDecode, HttpService, workspace:GetAttribute("ShiftLog") or "[]")
+	if not ok or #entries == 0 then shiftLog.Text = "No entries yet" return end
+	local shown = {}
+	for i = 1, math.min(5, #entries) do table.insert(shown, entries[i]) end
+	shiftLog.Text = table.concat(shown, "\n")
+end
+workspace:GetAttributeChangedSignal("ShiftLog"):Connect(paintLog)
+paintLog()
 
 ---------------------------------------------------------------- state
 
