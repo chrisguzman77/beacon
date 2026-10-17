@@ -18,3 +18,10 @@ Polish matters here (the Easy On The Eyes prize). One dark theme shared by dashb
 Run: scripts/dev.sh web.
 
 ## Decisions
+
+- Figma screens: none exist yet for any face (dashboard, site, crew, kiosk).
+- Figma tokens: none; tokens are defined in code (web/src/tokens.ts and the Tailwind theme).
+- Figma plan: Starter, View seat, no Dev Mode, MCP calls heavily rate limited, so no MCP handoff.
+- Handoff: tokens first, built directly in code, reviewed by Cam from browser screenshots at 800x480.
+- Design first: the kiosk; dashboard and crew page reuse its tokens and components.
+- Styling: Tailwind with shadcn/ui, no CSS modules.
