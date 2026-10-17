@@ -35,7 +35,7 @@ export type Factor = {
 
 // Report tags that count as wildlife; the first list is dangerous on contact.
 const DANGEROUS = ['alligator', 'snake', 'bear', 'wasp', 'hornet', 'bees']
-const WILDLIFE = [...DANGEROUS, 'wildlife', 'animal', 'raccoon', 'boar', 'hog', 'deer', 'spider', 'fire ants']
+export const WILDLIFE = [...DANGEROUS, 'wildlife', 'animal', 'raccoon', 'boar', 'hog', 'deer', 'spider', 'fire ants']
 const RECENT_MS = 2 * 60 * 60 * 1000
 
 const f = (n: number) => Math.round(n)

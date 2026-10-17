@@ -1,11 +1,14 @@
 // The site page's view of one site: live device state plus conditions, crew and reports.
 // Filled by the fake (?fake=1) today and from GET /sites/{id} plus the site websocket next.
 
+// A crew hazard photo report (POST /reports), tagged by the AI. lat/lon pin it on the site plot.
+export type Report = { report_id?: number; tag: string; description: string; ts: string; lat?: number | null; lon?: number | null; photo_path?: string | null; confidence?: number; note?: string }
+
 export type CrewMember = { id: number; name: string; in: boolean; roblox?: boolean } // roblox: joined from the Roblox twin
 
 export type Snapshot = {
   kind: 'snapshot'
-  site: { id: number; name: string; beacon?: boolean }
+  site: { id: number; name: string; beacon?: boolean; lat?: number; lon?: number }
   online: boolean
   led: 'green' | 'yellow' | 'red' | 'strobe'
   countdown: number
@@ -29,7 +32,7 @@ export type Snapshot = {
   crew: CrewMember[]
   briefing: { english: string; spanish: string; for_date: string; payload?: Record<string, number | string> }
   next_briefing: string
-  reports: { tag: string; description: string; ts: string }[]
+  reports: Report[]
   report_url: string
   demo_scale: number
   pin_error?: boolean

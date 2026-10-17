@@ -11,6 +11,7 @@ import SitePicker from './SitePicker'
 import DeviceCard from './DeviceCard'
 import MusterPanel from './MusterPanel'
 import BriefingPanel from './BriefingPanel'
+import ReportsPanel from './ReportsPanel'
 import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
@@ -134,6 +135,7 @@ export default function HubBoard({ s, live, history }: Props) {
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           {s.site.beacon !== false && <DeviceCard s={s} />}
           <MusterPanel s={s} />
+          <ReportsPanel s={s} />
           <BriefingPanel s={s} />
         </div>
       </div>

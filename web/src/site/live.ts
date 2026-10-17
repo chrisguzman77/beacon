@@ -3,7 +3,7 @@
 // and their factors are left out rather than shown as zero.
 import { get, WS } from '@/api'
 import type { Alert } from '@/api'
-import type { Snapshot } from './types'
+import type { Report, Snapshot } from './types'
 
 type Device = { led?: Snapshot['led']; countdown?: number; index?: number; interlock?: Snapshot['interlock']; presence?: boolean; online?: boolean; lcd?: string[] }
 type Muster = { in: string[]; out: string[]; zone_clear: boolean }
@@ -12,10 +12,12 @@ type Detail = {
   site_id: number
   name: string
   beacon: boolean
+  lat: number
+  lon: number
   alerts: Alert[]
   index: { index: number; top_features?: { label: string }[] } | null
   briefing: { english: string; spanish: string; for_date: string; payload?: Record<string, number | string> } | null
-  reports: { tag: string; description: string; ts: string }[]
+  reports: Report[]
   device: Device
 }
 
@@ -51,7 +53,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
     const crew = [...muster.in.map((name) => ({ name, in: true })), ...muster.out.map((name) => ({ name, in: false }))].map((c, i) => ({ id: i + 1, ...c }))
     onSnapshot({
       kind: 'snapshot',
-      site: { id: detail.site_id, name: detail.name, beacon: detail.beacon },
+      site: { id: detail.site_id, name: detail.name, beacon: detail.beacon, lat: detail.lat, lon: detail.lon },
       online: device.online ?? false,
       led: device.led ?? 'green',
       countdown: detail.beacon ? (device.countdown ?? 0) : 0,
@@ -88,6 +90,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       if (m.type === 'alert') detail.alerts = [...detail.alerts.filter((a) => a.alert_id !== m.alert.alert_id), m.alert]
       else if (m.type === 'device') device = { ...device, ...m }
       else if (m.type === 'count') device = { ...device, countdown: m.seconds ?? 0 }
+      else if (m.type === 'report') detail.reports = [m as Report, ...detail.reports.filter((r) => r.report_id !== m.report_id)]
       else if (m.type === 'briefing') detail.briefing = { english: m.english ?? '', spanish: m.spanish ?? '', for_date: m.for_date ?? '', payload: m.payload }
       else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear }
       else if (m.type === 'conditions')
