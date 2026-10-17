@@ -6,7 +6,8 @@ import type { Alert } from '@/api'
 import type { Report, SimEvent, Snapshot } from './types'
 
 type Device = { led?: Snapshot['led']; countdown?: number; index?: number; interlock?: Snapshot['interlock']; presence?: boolean; online?: boolean; lcd?: string[] }
-type Muster = { in: string[]; out: string[]; zone_clear: boolean }
+// `roblox` is the backend's name for the twin visitors list; the app only uses it as the twin flag.
+type Muster = { in: string[]; out: string[]; zone_clear: boolean; roblox?: string[] }
 type Explain = { index: number; top_features: { label: string }[]; sentence: string }
 type Detail = {
   site_id: number
@@ -57,7 +58,8 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
     if (!detail) return
     const alerts = detail.alerts.filter((a) => !a.cleared)
     const top = ORDER.map((t) => alerts.find((a) => a.type === t)).find(Boolean)
-    const crew = [...muster.in.map((name) => ({ name, in: true })), ...muster.out.map((name) => ({ name, in: false }))].map((c, i) => ({ id: i + 1, ...c }))
+    const visitors = new Set(muster.roblox ?? [])
+    const crew = [...muster.in.map((name) => ({ name, in: true })), ...muster.out.map((name) => ({ name, in: false }))].map((c, i) => ({ id: i + 1, ...c, twin: visitors.has(c.name) }))
     onSnapshot({
       kind: 'snapshot',
       site: { id: detail.site_id, name: detail.name, beacon: detail.beacon, lat: detail.lat, lon: detail.lon },
@@ -106,7 +108,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       else if (m.type === 'count') device = { ...device, countdown: m.seconds ?? 0 }
       else if (m.type === 'report') detail.reports = [m as Report, ...detail.reports.filter((r) => r.report_id !== m.report_id)]
       else if (m.type === 'briefing') detail.briefing = { english: m.english ?? '', spanish: m.spanish ?? '', for_date: m.for_date ?? '', payload: m.payload }
-      else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear }
+      else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear, roblox: m.roblox ?? [] }
       // the twin weather and water also update the readings below; here they are logged for the scenario panel.
       if (m.type === 'conditions' && m.source === 'sim') {
         const ts = new Date().toISOString()
