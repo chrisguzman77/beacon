@@ -2,19 +2,21 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import type { PointerEvent, WheelEvent } from 'react'
 import Panel from '@/components/Panel'
 import { color, indexColor } from '@/tokens'
+import { Check, TriangleAlert } from 'lucide-react'
 import { buildFactors, groups, worst } from './factors'
 import type { Factor, Status } from './factors'
 import type { Snapshot } from './types'
 
 // A fixed web: hazard index in the middle, one hub per cluster, factors around each hub.
+// Nodes show only their name and condition; the readings open on click (FactorDetail).
 // The web never moves; the view does. Drag to pan, wheel to zoom, fit() recenters,
 // tour glides the view to the worst hazard while the screen is idle.
 
 type Pt = { x: number; y: number }
 export type FactorWebHandle = { fit: () => void }
 
-const HUB_R = { x: 600, y: 330 }
-const CELL = { w: 200, h: 92 } // factor node 184 x ~70 plus gap
+const HUB_R = { x: 250, y: 250 }
+const CELL = { w: 172, h: 52 } // factor node 160 x ~44 plus gap
 const COLS = 2
 
 // Hubs on an ellipse; each cluster's factors sit in a two column block just beyond its hub.
@@ -30,7 +32,7 @@ function layout(factors: Factor[]) {
     const rows = Math.ceil(kids.length / cols)
     const bw = cols * CELL.w
     const bh = rows * CELL.h
-    const off = 0.5 * Math.abs(dir.x) * bw + 0.5 * Math.abs(dir.y) * bh + 110
+    const off = 0.5 * Math.abs(dir.x) * bw + 0.5 * Math.abs(dir.y) * bh + 60
     const c = { x: hub.x + dir.x * off, y: hub.y + dir.y * off }
     kids.forEach((k, i) => {
       const row = Math.floor(i / cols)
@@ -42,35 +44,50 @@ function layout(factors: Factor[]) {
   return pos
 }
 
+// MARSH cards on the dark main panel: cream cards, a tinted face and edge when a hazard needs
+// attention, light links that take the hazard color when it does.
+const quiet = 'rgb(245 247 237 / 0.28)'
 function look(status: Status, tint = color.border) {
-  if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 42%, ${color.bg})`, value: color.text, line: tint, glow: tint, depth: 3 }
-  if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.bg})`, value: tint, line: tint, glow: `color-mix(in srgb, ${tint} 55%, transparent)`, depth: 2 }
-  if (status === 'ok') return { edge: color.signal, fill: color.surface, value: color.text, line: `color-mix(in srgb, ${color.signal} 55%, transparent)`, glow: undefined, depth: 2 }
-  return { edge: color.border, fill: color.surface, value: color.text, line: color.border, glow: undefined, depth: 1 }
+  if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.surface})`, line: tint, depth: 2 }
+  if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 8%, ${color.surface})`, line: tint, depth: 2 }
+  return { edge: color.border, fill: color.surface, line: quiet, depth: 1 }
 }
 
-const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '12 8' : undefined)
-const tag: Record<Status, string> = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
+const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '10 7' : undefined)
+const statusText: Record<Status, string> = { danger: 'Danger', caution: 'Caution', ok: 'Normal', info: '' }
 
-const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(function FactorWeb({ s, tour }, ref) {
+type Props = { s: Snapshot; tour?: boolean; selected?: string | null; onSelect?: (id: string | null) => void; backdrop?: string }
+
+const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tour, selected, onSelect, backdrop = color.bg }, ref) {
   const factors = buildFactors(s)
   const pos = layout(factors)
   const box = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
+  const drag = useRef<{ x: number; y: number; px: number; py: number; node: string | null } | null>(null)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
 
   const fit = useCallback(() => {
     const el = box.current
     if (!el) return
-    const pts = Object.values(layout(buildFactors(s)))
-    const xs = pts.map((p) => p.x)
-    const ys = pts.map((p) => p.y)
-    const w = Math.max(...xs) - Math.min(...xs) + 260
-    const h = Math.max(...ys) - Math.min(...ys) + 160
-    const k = Math.min(el.clientWidth / w, el.clientHeight / h, 1.1)
-    setView({ x: -((Math.max(...xs) + Math.min(...xs)) / 2) * k, y: -((Math.max(...ys) + Math.min(...ys)) / 2) * k, k })
+    // The window is round: fit the farthest node (plus its half width) inside the circle.
+    const far = Math.max(...Object.values(layout(buildFactors(s))).map((p) => Math.hypot(Math.abs(p.x) + 84, Math.abs(p.y) + 22)))
+    // Never smaller than 0.5 so node names stay readable; pan to reach the edges.
+    const k = Math.max(0.5, Math.min((Math.min(el.clientWidth, el.clientHeight) / 2 - 8) / far, 1.1))
+    setView({ x: 0, y: 0, k })
   }, [s])
   useImperativeHandle(ref, () => ({ fit }), [fit])
+
+  // Selecting a node glides it to the middle of the window (the detail panel sits beside the circle).
+  const [glide, setGlide] = useState(false)
+  useEffect(() => {
+    if (!selected || !box.current) return
+    const p = layout(buildFactors(s))[selected]
+    if (!p) return
+    const k = Math.max(view.k, 0.9)
+    setGlide(true)
+    setView({ k, x: -p.x * k, y: -p.y * k })
+    const t = setTimeout(() => setGlide(false), 1200)
+    return () => clearTimeout(t)
+  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tour (idle): glide to the cluster holding the worst hazard, or show the whole web when clear.
   const target = worst(factors.filter((f) => f.status === 'caution' || f.status === 'danger'))
@@ -94,7 +111,8 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
 
   const down = (e: PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y }
+    const node = (e.target as HTMLElement).closest<HTMLElement>('[data-node]')?.dataset.node ?? null
+    drag.current = { x: e.clientX, y: e.clientY, px: view.x, py: view.y, node }
   }
   const move = (e: PointerEvent) => {
     const d = drag.current
@@ -130,18 +148,23 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
       className="relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
       onPointerDown={down}
       onPointerMove={move}
-      onPointerUp={() => (drag.current = null)}
+      onPointerUp={(e) => {
+        // A press that barely moved is a click: select the node under it, or clear on empty space.
+        const d = drag.current
+        drag.current = null
+        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) onSelect?.(d.node)
+      }}
       onWheel={wheel}
     >
-      <div className="absolute inset-0" style={grid(160, '40', 0.4)} />
-      <div className="absolute inset-0" style={grid(40, '2a', 1)} />
+      <div className="absolute inset-0" style={grid(160, '22', 0.4)} />
+      <div className="absolute inset-0" style={grid(40, '12', 1)} />
 
       <div
         className="absolute top-1/2 left-1/2"
         style={{
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`,
           transformOrigin: '0 0',
-          transition: tour ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
+          transition: tour || glide ? 'transform 1.2s cubic-bezier(0.2, 0, 0, 1)' : undefined,
         }}
       >
         <svg className="pointer-events-none absolute overflow-visible" width="1" height="1">
@@ -168,21 +191,24 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
         {factors.map((x) => {
           const p = pos[x.id]
           const l = look(x.status, x.tint)
+          const on = selected === x.id
           return (
-            <div key={x.id} className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
-              <Panel size={12} edge={l.edge} fill={l.fill} depth={l.depth} glow={l.glow} inner="flex flex-col gap-1 px-4 py-3">
-                <span className="flex items-center justify-between text-label font-semibold uppercase tracking-[0.14em] text-dim">
-                  {x.label}
-                  {tag[x.status] && (
-                    <span
-                      className={`font-mono text-[11px] font-bold ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`}
-                      style={{ color: x.status === 'ok' ? color.signal : x.status === 'danger' ? color.text : x.tint }}
-                    >
-                      {tag[x.status]}
-                    </span>
-                  )}
-                </span>
-                <span className="text-[28px] leading-none font-bold" style={{ color: l.value }}>{x.value}</span>
+            <div
+              key={x.id}
+              data-node={x.id}
+              className="absolute w-[160px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              style={{ left: p.x, top: p.y, zIndex: on ? 5 : undefined }}
+              title={statusText[x.status] ? `${x.label}: ${statusText[x.status]}` : x.label}
+            >
+              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} depth={on ? 3 : l.depth} inner="flex items-center gap-2 px-3 py-2">
+                {x.status === 'ok' ? (
+                  <Check className="size-3.5 shrink-0" style={{ color: color.signal }} strokeWidth={3} />
+                ) : x.status === 'info' ? (
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: color.muted, opacity: 0.6 }} />
+                ) : (
+                  <TriangleAlert className={`size-3.5 shrink-0 ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`} style={{ color: x.tint }} strokeWidth={2.5} />
+                )}
+                <span className={`truncate text-[15px] ${x.status === 'caution' || x.status === 'danger' ? 'font-semibold' : ''}`} style={{ color: color.text }}>{x.label}</span>
               </Panel>
             </div>
           )
@@ -190,33 +216,33 @@ const FactorWeb = forwardRef<FactorWebHandle, { s: Snapshot; tour?: boolean }>(f
 
         {hubs.map((h) => {
           const p = pos[`hub:${h.id}`]
-          const l = look(h.status, h.tint)
+          const hot = h.status === 'danger' || h.status === 'caution'
           return (
-            <div key={h.id} className="absolute w-[150px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
-              <Panel size={16} edge={l.edge} fill={color.raised} depth={3} glow={l.glow} inner="flex flex-col items-center gap-1 px-3 py-3">
-                <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim">CLUSTER</span>
-                <span className="text-body font-black tracking-[0.12em] uppercase" style={{ color: h.status === 'info' ? color.text : l.edge }}>
-                  {h.label}
-                </span>
-              </Panel>
+            <div key={h.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
+              <span
+                className="flex items-center gap-2 rounded-md px-4 py-2 text-[14px] font-bold whitespace-nowrap shadow-md"
+                style={{ background: hot ? color.accent : color.raised, color: color.accentInk, boxShadow: hot ? `inset 0 0 0 2px ${h.tint}` : undefined }}
+              >
+                {hot && <TriangleAlert className="size-4" style={{ color: h.tint }} strokeWidth={2.5} />}
+                {h.label}
+              </span>
             </div>
           )
         })}
 
-        <div className="absolute w-[250px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
-          <Panel size={22} edge={indexColor(s.index)} fill={color.raised} depth={3} glow={`color-mix(in srgb, ${indexColor(s.index)} 45%, transparent)`}
-            inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
-            <span className="text-label font-semibold uppercase tracking-[0.18em] text-dim">Hazard index</span>
+        <div className="absolute w-[240px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
+          <Panel size={12} edge={indexColor(s.index)} fill={color.surface} depth={3} inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
+            <span className="text-[13px] font-bold tracking-[0.02em] uppercase" style={{ color: color.muted }}>Hazard index</span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[88px] leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>{s.index}</span>
-              <span className="text-heading font-semibold text-dim">/10</span>
+              <span className="text-[76px] leading-[0.95] font-semibold" style={{ color: indexColor(s.index) }}>{s.index}</span>
+              <span className="text-[24px]" style={{ color: color.muted }}>/10</span>
             </span>
-            <span className="line-clamp-2 text-label leading-snug">{s.index_reason}</span>
+            <span className="line-clamp-2 text-[13px] leading-snug">{s.index_reason}</span>
           </Panel>
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 55%, ${color.bg} 100%)` }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(circle at center, transparent 64%, ${backdrop} 71%)` }} />
     </div>
   )
 })

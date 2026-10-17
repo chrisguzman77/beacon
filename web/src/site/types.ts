@@ -1,11 +1,11 @@
 // The site page's view of one site: live device state plus conditions, crew and reports.
 // Filled by the fake (?fake=1) today and from GET /sites/{id} plus the site websocket next.
 
-export type CrewMember = { id: number; name: string; in: boolean }
+export type CrewMember = { id: number; name: string; in: boolean; roblox?: boolean } // roblox: joined from the Roblox twin
 
 export type Snapshot = {
   kind: 'snapshot'
-  site: { id: number; name: string }
+  site: { id: number; name: string; beacon?: boolean }
   online: boolean
   led: 'green' | 'yellow' | 'red' | 'strobe'
   countdown: number
@@ -26,12 +26,20 @@ export type Snapshot = {
   radar: { d: number; s: number; m: number }
   last_flash_ts: string
   crew: CrewMember[]
-  briefing: { english: string; spanish: string; for_date: string }
+  briefing: { english: string; spanish: string; for_date: string; payload?: Record<string, number | string> }
   next_briefing: string
   reports: { tag: string; description: string; ts: string }[]
   report_url: string
   demo_scale: number
   pin_error?: boolean
+  // Site conditions from the feeds (GET /sites/{id}/conditions). Optional: a factor only shows when present.
+  wind_gust_mph?: number
+  precip_24h_in?: number
+  soil_pct?: number
+  river_stage_ft?: number
+  river_flood_ft?: number
+  flood_zone?: string
+  lcd?: string[] // the beacon LCD1602's two lines, exactly as shown
 }
 
 export function isTakeover(s: Snapshot) {

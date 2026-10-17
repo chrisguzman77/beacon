@@ -26,7 +26,7 @@
       { "id": 4, "name": "Dana Whit", "in": false },
       { "id": 5, "name": "Eli Park", "in": false }
     ],
-    "briefing": { "english": "Tomorrow: heat index peaks at 106 around 3 PM. Storms likely after 2 PM.", "spanish": "Mañana: el índice de calor llega a 106 alrededor de las 3 PM. Tormentas probables después de las 2 PM.", "for_date": "2026-10-18" },
+    "briefing": { "english": "Tomorrow: heat index peaks at 106 around 3 PM. Storms likely after 2 PM.", "spanish": "Mañana: el índice de calor llega a 106 alrededor de las 3 PM. Tormentas probables después de las 2 PM.", "for_date": "2026-10-18", "payload": { "heat_index_max_f": 106, "rain_chance_pct": 60, "gust_mph": 24 } },
     "next_briefing": "18:00",
     "reports": [],
     "report_url": "https://example.invalid/crew?site=1",

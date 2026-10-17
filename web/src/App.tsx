@@ -2,7 +2,8 @@ import { Auth0Provider } from '@auth0/auth0-react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
-import Site from './pages/Site'
+import Hub from './pages/Hub'
+import FieldView from './sweet-treats/field-view/FieldView'
 import Crew from './pages/Crew'
 
 const env = import.meta.env
@@ -27,7 +28,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/site/:id" element={<Site />} />
+          <Route path="/hub" element={<Hub />} />
+          <Route path="/hub/:id" element={<Hub />} />
+          {/* HUB is the site page; the dashboard links here. */}
+          <Route path="/site/:id" element={<Hub />} />
+          {/* Field View: the stored WEB version (sweet treats), reachable but not in the tabs. */}
+          <Route path="/field-view" element={<FieldView />} />
+          <Route path="/field-view/:id" element={<FieldView />} />
+          <Route path="/web/*" element={<Navigate to="/hub" replace />} />
           <Route path="/crew" element={<Crew />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
