@@ -1,0 +1,51 @@
+site_id,name,state,county,lat,lon,tz,tech,mw,coastal,river
+1,West County Energy Center,FL,Palm Beach,26.6986,-80.3747,America/New_York,Natural Gas Fired Combined Cycle,4263.0,False,False
+2,Crystal River,FL,Citrus,28.9656,-82.6977,America/New_York,Natural Gas Fired Combined Cycle,3449.0,False,False
+3,Turkey Point,FL,Miami Dade,25.4356,-80.3308,America/New_York,Nuclear,2978.4,False,False
+4,Manatee,FL,Manatee,27.6058,-82.3456,America/New_York,Natural Gas Steam Turbine,2951.2,False,False
+5,Fort Myers,FL,Lee,26.6967,-81.7831,America/New_York,Natural Gas Fired Combined Cycle,2680.9,True,False
+6,Martin,FL,Martin,27.0536,-80.5628,America/New_York,Natural Gas Fired Combined Cycle,2448.5,False,False
+7,Sanford,FL,Volusia,28.8419,-81.3256,America/New_York,Natural Gas Fired Combined Cycle,2377.8,False,True
+8,H L Culbreath Bayside Power Station,FL,Hillsborough,27.9072,-82.4231,America/New_York,Natural Gas Fired Combined Cycle,2293.7,True,True
+9,Hines Energy Complex,FL,Polk,27.788215,-81.86998,America/New_York,Natural Gas Fired Combined Cycle,2266.3,False,False
+10,St Lucie,FL,St Lucie,27.348611,-80.24639,America/New_York,Nuclear,2160.0,False,False
+11,Gulf Clean Energy Center,FL,Escambia,30.5661,-87.2244,America/Chicago,Natural Gas Steam Turbine,2107.5,False,False
+12,Seminole (FL),FL,Putnam,29.733056,-81.63278,America/New_York,Natural Gas Fired Combined Cycle,1897.8,False,True
+13,Big Bend,FL,Hillsborough,27.7944,-82.4036,America/New_York,Natural Gas Fired Combined Cycle,1797.0,True,False
+14,Okeechobee Clean Energy Center,FL,Okeechobee,27.634167,-80.79111,America/New_York,Natural Gas Fired Combined Cycle,1723.1,False,False
+15,P L Bartow,FL,Pinellas,27.859535,-82.60176,America/New_York,Natural Gas Fired Combined Cycle,1475.6,True,False
+16,Polk,FL,Polk,27.7286,-81.9897,America/New_York,Natural Gas Fired Combined Cycle,1458.2,False,False
+17,Dania Beach 7,FL,Broward,26.0686,-80.1984,America/New_York,Natural Gas Fired Combined Cycle,1447.7,True,False
+18,Northside Generating Station,FL,Duval,30.4172,-81.5525,America/New_York,Conventional Steam Coal,1407.1,True,False
+19,Port Everglades,FL,Broward,26.0856,-80.1253,America/New_York,Natural Gas Fired Combined Cycle,1352.0,True,False
+20,Cape Canaveral,FL,Brevard,28.4698,-80.7644,America/New_York,Natural Gas Fired Combined Cycle,1295.0,False,False
+21,Riviera,FL,Palm Beach,26.7653,-80.0525,America/New_York,Natural Gas Fired Combined Cycle,1295.0,False,False
+22,Stanton Energy Center,FL,Orange,28.4822,-81.1678,America/New_York,Conventional Steam Coal,1262.0,False,False
+23,Oleander Power Project LP,FL,Brevard,28.3661,-80.7947,America/New_York,Natural Gas Fired Combustion Turbine,994.4,False,False
+24,Intercession City,FL,Osceola,28.262778,-81.54861,America/New_York,Natural Gas Fired Combustion Turbine,1197.3,False,False
+25,Anclote,FL,Pasco,28.184444,-82.78861,America/New_York,Natural Gas Steam Turbine,1112.4,False,False
+26,Vogtle,GA,Burke,33.1427,-81.7625,America/New_York,Nuclear,4658.0,False,True
+27,W A Parish,TX,Fort Bend,29.4828,-95.6311,America/Chicago,Conventional Steam Coal,4008.4,False,False
+28,Browns Ferry,AL,Limestone,34.7042,-87.1189,America/Chicago,Nuclear,3854.0,False,False
+29,Bowen,GA,Bartow,34.1256,-84.9222,America/New_York,Conventional Steam Coal,3498.6,False,False
+30,Barry,AL,Mobile,31.0069,-88.0103,America/Chicago,Natural Gas Fired Combined Cycle,3343.5,False,True
+31,Jack McDonough,GA,Cobb,33.8239,-84.4758,America/New_York,Natural Gas Fired Combined Cycle,2848.4,False,False
+32,James H Miller Jr,AL,Jefferson,33.6319,-87.0597,America/Chicago,Conventional Steam Coal,2822.0,False,False
+33,South Texas Project,TX,Matagorda,28.795,-96.0481,America/Chicago,Nuclear,2708.6,False,False
+34,Scherer,GA,Monroe,33.0606,-83.8075,America/New_York,Conventional Steam Coal,2673.0,False,False
+35,Nine Mile Point,LA,Jefferson,29.9472,-90.1458,America/Chicago,Natural Gas Steam Turbine,2439.7,True,True
+36,Comanche Peak,TX,Somervell,32.298365,-97.78552,America/Chicago,Nuclear,2430.0,False,False
+37,Martin Lake,TX,Rusk,32.2606,-94.5706,America/Chicago,Conventional Steam Coal,2379.6,False,False
+38,Victor J Daniel Jr,MS,Jackson,30.5322,-88.5553,America/Chicago,Natural Gas Fired Combined Cycle,2229.0,False,False
+39,E C Gaston,AL,Shelby,33.244211,-86.45806,America/Chicago,Natural Gas Steam Turbine,2034.0,False,True
+40,H Allen Franklin Combined Cycle,AL,Lee,32.6078,-85.0975,America/New_York,Natural Gas Fired Combined Cycle,1995.7,False,False
+41,Big Cajun 2,LA,Pointe Coupee,30.7261,-91.3692,America/Chicago,Conventional Steam Coal,1902.9,False,False
+42,Forney Energy Center,TX,Kaufman,32.7563,-96.4916,America/Chicago,Natural Gas Fired Combined Cycle,1894.2,False,False
+43,Limestone,TX,Limestone,31.4219,-96.2525,America/Chicago,Conventional Steam Coal,1849.8,False,False
+44,Edwin I Hatch,GA,Appling,31.9342,-82.3447,America/New_York,Nuclear,1848.0,False,True
+45,Sabine,TX,Orange,30.0242,-93.878,America/Chicago,Natural Gas Steam Turbine,1811.8,True,False
+46,Oak Grove (TX),TX,Robertson,31.1803,-96.4866,America/Chicago,Conventional Steam Coal,1795.4,False,False
+47,Joseph M Farley,AL,Houston,31.2231,-85.1116,America/Chicago,Nuclear,1776.4,False,True
+48,Midlothian Energy Facility,TX,Ellis,32.4302,-97.0537,America/Chicago,Natural Gas Fired Combined Cycle,1734.0,False,False
+49,Brame Energy Center,LA,Rapides,31.395,-92.71667,America/Chicago,Petroleum Coke,1707.3,False,True
+50,Fayette Power Project,TX,Fayette,29.9172,-96.7506,America/Chicago,Conventional Steam Coal,1690.0,False,False

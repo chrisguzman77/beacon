@@ -1206,13 +1206,13 @@ TEST. Start the page, say a few words at normal volume, the bar stays green and 
 
 1. Set the demo laptop's screen brightness to maximum and turn off auto brightness and any night mode. Put the Roblox client in full screen (F11) so the white flash fills the panel.
 2. Clamp the sensor pod so the photoresistor faces the screen from 10 to 20 cm, centered on the lower third of the display where the ScenarioUI panel is not. Shade it from the ceiling lights with a cardboard hood.
-3. Open the kiosk's Health screen on the touchscreen and press TEST FLASH to confirm the pod sees a flash from its own screen, then fire a free play strike in Roblox and confirm the pod prints `FLASH:` for that too. If it misses, move the pod closer or raise the flash threshold in the pod firmware's calibration constant, see the hardware guide.
+3. Flick a phone flashlight at the photoresistor, or fire a free play strike in Roblox, and confirm the pod prints `FLASH:` for each. If it misses, move the pod closer or raise the flash threshold in the pod firmware's calibration constant, see the hardware guide.
 4. Start the mic listener page. Set the laptop volume so a Roblox thunder at 8 miles makes the bar go red every time, and a person talking at the table does not. Start at 70 percent volume and adjust. If the room is loud, raise `RATIO` to 5.
 5. Set `DEMO_COUNTDOWN_SCALE` to 60 in the gateway's `.env` and the backend's `.env` so the 30 minute countdown runs in 30 seconds during the pitch. Set it back to 1 if a judge asks to see real time.
 6. Put the Roblox usernames of Slavik and Viet in `OPERATORS` and publish (File, Publish to Roblox). Join from a phone to confirm the experience is public and the panel is hidden for a non operator.
 7. Dry run the full demo script from the root CLAUDE.md twice, end to end, with the fan spinning, before the judges arrive.
 
-TEST. From a cold start, `storm_west` at 60x produces four bolts, the fan stops on the 8 mile strike within two seconds of the flash, the touchscreen and the in world beacon show the same countdown, a phone player entering the zone appears on the muster list, and the supervisor PIN releases the equipment with the release line on both LCDs.
+TEST. From a cold start, `storm_west` at 60x produces four bolts, the fan stops on the 8 mile strike within two seconds of the flash, the beacon's 4 digit display and the in world beacon show the same countdown, a phone player entering the zone appears on the muster list, and the supervisor PIN on the remote releases the equipment with the release line on the beacon LCD and the in world LCD.
 
 ## 7. Build order, cut list, credits
 

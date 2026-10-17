@@ -4,11 +4,11 @@
 
 *Site safety beacon for the PlanIT Control challenge, SwampHacks XII*
 
-Version 4, October 2026. Markdown edition for the repo. The kiosk screens moved to docs/web-guide.md, the simulator is now the Roblox experience in docs/simulator-guide.md, and Appendix D maps the gateway program.
+Version 5, October 2026. Markdown edition for the repo. The 7 inch touchscreen and the kiosk are gone: the beacon head is the 4 digit countdown, the RGB light, the servo gauge, the LCD1602 as the beacon's text display, and the 1 digit crew count, the Pi runs headless, and the IR remote is the beacon's input. The simulator is the Roblox experience in docs/simulator-guide.md, and Appendix C maps the gateway program.
 
-**Where the code lives.** This guide is for Slavik, who owns firmware/. firmware/pod is the MicroPython on the RP2040-Zero. firmware/controlbox is the Arduino sketch on the UNO. firmware/gateway is the Python on the Pi. The serial protocols in Appendix B are also in contracts/serial.md, the Pi to backend messages are in contracts/gateway-ws.md, and the Pi to kiosk messages are in contracts/kiosk-ws.md. Where this guide and a contract disagree, the contract wins. Claude Code cannot run any of these tests, so for every step it tells you what to flash, wire, and run, and what you should see.
+**Where the code lives.** This guide is for Slavik, who owns firmware/. firmware/pod is the MicroPython on the RP2040-Zero. firmware/controlbox is the Arduino sketch on the UNO. firmware/gateway is the Python on the Pi. The serial protocols in Appendix B are also in contracts/serial.md, and the Pi to backend messages are in contracts/gateway-ws.md. Where this guide and a contract disagree, the contract wins. Claude Code cannot run any of these tests, so for every step it tells you what to flash, wire, and run, and what you should see.
 
-This guide covers every physical part of the beacon, how to wire it, how to test each piece as you go, how to calibrate it, how to enclose it in cardboard, and, in Appendix A, how to build it onto a wooden plank instead. Follow it in order. Every step ends with a test so a mistake is caught before the next step hides it. The build is four physical objects. The sensor pod on a mast, the beacon head (the touchscreen with the Pi on its back, the countdown, the status light, and the gauge), the control electronics behind it, and the equipment unit (the fan motor, the emergency stop, and the lockout display).
+This guide covers every physical part of the beacon, how to wire it, how to test each piece as you go, how to calibrate it, how to enclose it in cardboard, and, in Appendix A, how to build it onto a wooden plank instead. Follow it in order. Every step ends with a test so a mistake is caught before the next step hides it. The build is four physical objects. The sensor pod on a mast, the beacon head (the countdown, the status light, the gauge, the LCD, and the crew count, with the Pi inside), the control electronics behind it, and the equipment unit (the fan motor and the emergency stop).
 
 # 1. Read this first
 
@@ -16,13 +16,13 @@ The beacon is four physical pieces, and three of them have a computer in them th
 
 - **The sensor pod.** A Waveshare RP2040-Zero microcontroller with the radar, the lightning flash sensor, the water sensor, the temperature and humidity sensor, the tilt switch, and the infrared receiver for the remote. It senses, it does not decide.
 
-- **The beacon head.** The official Raspberry Pi 7 inch touchscreen with the Pi mounted on its back. It is the face of the beacon. Crew tap their name to check in, supervisors enter the PIN on it, and during a stop work it turns red with the countdown. Beside it sit the four digit countdown display, the color status light, and the servo gauge needle, all driven by an Arduino UNO R3 behind the panel. Those three keep working even if the Pi desktop hangs, which is why they stay.
+- **The beacon head.** The face of the beacon, driven by an Arduino UNO R3 behind the panel. The four digit countdown display, the color status light, the servo gauge needle for the hazard index, the kit's LCD1602 as the beacon's text display (status, STOP WORK with the reason and time, ENTER PIN, who released it), and the kit's 1 digit display showing how many crew are checked in. Crew check in on the phone crew page, or press their number on the IR remote as the backup. The supervisor releases a stop work with the remote: OK, the four digit PIN, OK.
 
-- **The equipment unit.** A DC motor with a fan blade standing in for a drill rig or winch, an emergency stop button, and the kit's LCD1602 mounted on the unit as its lockout tag. The LCD says RUNNING, or LOCKED OUT with the reason and the countdown, or who released it and when.
+- **The equipment unit.** A DC motor with a fan blade standing in for a drill rig or winch, and an emergency stop button. It has no display. Lockout shows as the fan stopping and STOP WORK on the beacon LCD.
 
-- **The brain.** The Raspberry Pi on the back of the touchscreen. It reads the pod and the UNO, runs the safety rules, holds the equipment interlock on its own GPIO pin, plays voice alerts through the speaker, serves the touchscreen kiosk page, and talks to the cloud platform. If the internet dies, the Pi keeps the beacon working alone.
+- **The brain.** The Raspberry Pi, headless (no desktop, no screen), inside the beacon head. It reads the pod and the UNO, runs the safety rules, holds the equipment interlock on its own GPIO pin, handles the IR remote, plays voice alerts through the speaker, and talks to the cloud platform. If the internet dies, the Pi keeps the beacon working alone.
 
-The equipment interlock works like this. The motor is driven by the L293D motor driver chip from the kit, and the chip's enable pin is held high by the Pi. When the Pi pulls that pin low, the motor stops, and it stays stopped until the Pi raises it again. If the Pi crashes or reboots, the pin falls low on its own, which is the safe direction. The LCD on the equipment unit shows why it is locked out, the way a lockout tag on a real machine does.
+The equipment interlock works like this. The motor is driven by the L293D motor driver chip from the kit, and the chip's enable pin is held high by the Pi. When the Pi pulls that pin low, the motor stops, and it stays stopped until the Pi raises it again. If the Pi crashes or reboots, the pin falls low on its own, which is the safe direction. The beacon LCD shows why it is locked out, the way a lockout tag on a real machine does.
 
 ## 1.1 Conventions used in this guide
 
@@ -59,8 +59,9 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 | Prototype expansion shield with mini breadboard | 1 | Optional, can carry the pod wiring |  |
 | Breadboard power supply module | 1 | 5V for the servo and motor |  |
 | 9V battery and barrel jack snap | 1 | Feeds the power supply module |  |
-| LCD1602 text display, 16 pin header | 1 | Equipment unit lockout tag |  |
+| LCD1602 text display, 16 pin header | 1 | Beacon text display (status, stop work, PIN entry) |  |
 | 4 digit 7 segment display | 1 | Countdown |  |
+| 1 digit 7 segment display | 1 | Crew count, shares the 74HC595 segment lines |  |
 | 74HC595 shift register | 1 | Drives the display segments with 3 pins |  |
 | RGB LED | 1 | Status light |  |
 | SG90 servo | 1 | Gauge needle |  |
@@ -70,7 +71,7 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 | Water level sensor | 1 | Pod, standing water |  |
 | Photoresistor | 1 of 2 | Pod, lightning flash |  |
 | Tilt switch | 1 | Pod, knocked over |  |
-| IR receiver and remote | 1 each | Optional backup for check in and PIN, the touchscreen is primary |  |
+| IR receiver and remote | 1 each | Crew check in backup, supervisor PIN, briefing playback |  |
 | Push button | 1 of 5 | Emergency stop on the equipment unit |  |
 | 10K potentiometer | 1 | LCD contrast |  |
 | Resistors 220 ohm | 4 | RGB LED legs and the LCD backlight |  |
@@ -78,14 +79,13 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 | Resistor 10K ohm | 1 | Photoresistor voltage divider |  |
 | Male to male jumper wires | about 40 | Breadboard wiring |  |
 | Female to male jumper wires | about 20 | Modules and the Pi header |  |
-| Stepper motor, joystick, 1 digit display, thermistor, diodes, transistors |  | Not used, leave in the box |  |
+| Stepper motor, joystick, thermistor, diodes, transistors |  | Not used, leave in the box |  |
 
 ## 2.2 Other hardware you already own
 
 | **Part** | **Used for** | **Have it** |
 |---|---|---|
-| Raspberry Pi with a 3 amp power supply and microSD card | The brain, mounted on the back of the touchscreen |  |
-| Official Raspberry Pi 7 inch touchscreen with its driver board, ribbon cable, standoffs, and two jumper wires | The beacon face, kiosk display |  |
+| Raspberry Pi with a 3 amp power supply and microSD card | The brain, headless, inside the beacon head |  |
 | Waveshare RP2040-Zero | Sensor pod |  |
 | USB-C cable, data capable, for the RP2040-Zero | Pod to Pi |  |
 | HLK-LD2410B-P radar module, 5 pin header | Pod, work zone presence |  |
@@ -95,7 +95,7 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 
 > **Note.** If the speaker is a bare 8 ohm speaker with no amplifier, it cannot be the Pi's voice. See section 4.6 for the alternative where it plays tones from the UNO.
 
-> **Note.** If the Pi is a Pi 5, it has no 3.5 mm jack, so use a USB speaker, and its DSI connector is the small 22 pin type, so the touchscreen needs a 22 pin to 15 pin adapter cable that is not in the screen's box. A Pi 4 or earlier uses the cable supplied with the screen and has the audio jack.
+> **Note.** If the Pi is a Pi 5, it has no 3.5 mm jack, so use a USB speaker.
 
 ## 2.3 Tools and consumables
 
@@ -117,14 +117,13 @@ Before touching a wire, understand what plugs into what.
 | **Device** | **Powered by** | **Connected to** | **Carries** |
 |---|---|---|---|
 | RP2040-Zero pod | USB-C from the Pi | Pi USB port | Sensor lines up, nothing down |
-| UNO control electronics | USB A-B from the Pi | Pi USB port | Countdown, status light, gauge, and lockout LCD commands down, countdown echo up |
-| 7 inch touchscreen | 5V and GND jumpers from the Pi header | Pi DSI port by ribbon cable | Kiosk page, touch input |
-| Raspberry Pi | Its own 3 amp 5V supply | Phone hotspot, speaker, touchscreen, L293D enable, e-stop button | Everything |
+| UNO control electronics | USB A-B from the Pi | Pi USB port | Countdown, status light, gauge, LCD, and crew count commands down, countdown echo up |
+| Raspberry Pi | Its own 3 amp 5V supply | Phone hotspot, speaker, L293D enable, e-stop button | Everything |
 | Power supply module | 9V battery | Breadboard rails | 5V for servo and motor only |
 | L293D chip | 5V logic from the rail, 5V motor from the rail | Pi GPIO 18, motor | Interlock |
 | Speaker | Its own battery or USB | Pi audio out | Voice alerts |
 
-The signal path for a lightning strike, which is the demo that matters most, is this. The photoresistor sees the flash and the RP2040 timestamps it. The laptop microphone hears the thunder and timestamps it. The Pi pairs the two, computes distance as the time gap multiplied by 343 meters per second, and if that is under 16,093 meters (10 miles) it pulls GPIO 18 low so the motor stops, tells the UNO to run the countdown, strobe red, and write LOCKED OUT on the equipment LCD, turns the touchscreen red, and speaks the alert.
+The signal path for a lightning strike, which is the demo that matters most, is this. The photoresistor sees the flash and the RP2040 timestamps it. The laptop microphone hears the thunder and timestamps it. The Pi pairs the two, computes distance as the time gap multiplied by 343 meters per second, and if that is under 16,093 meters (10 miles) it pulls GPIO 18 low so the motor stops, tells the UNO to run the countdown, strobe red, and write STOP WORK with the reason and time on the beacon LCD, and speaks the alert.
 
 ## 3.1 Pin map, sensor pod on the RP2040-Zero
 
@@ -146,7 +145,7 @@ The signal path for a lightning strike, which is the demo that matters most, is 
 
 | **Part and its pin** | **UNO pin** | **Notes** |
 |---|---|---|
-| Equipment LCD RS | D12 | The LCD lives on the equipment unit, wired back to the UNO |
+| Beacon LCD RS | D12 | The LCD sits on the beacon head panel |
 | LCD E | D11 |  |
 | LCD D4, D5, D6, D7 | D5, D4, D3, D2 | 4 bit mode, LCD D0 to D3 left unconnected |
 | LCD RW | GND | Write only |
@@ -161,18 +160,16 @@ The signal path for a lightning strike, which is the demo that matters most, is 
 | 74HC595 MR (pin 10) | 5V | Never reset |
 | 74HC595 VCC (16), GND (8) | 5V, GND |  |
 | Display digit pins D1 to D4 | A1, A2, A3, A4 | Analog pins used as digital outputs |
+| 1 digit display common | A0 | Crew count, its segments share the 4 digit display lines, see Step 3.7 |
 | Display segments a to g and dp | 74HC595 Q0 to Q7 through 1K each | See Step 3.3 for the chip's output pin numbers |
 | RGB LED R, G, B | D6, D7, D13 through 220 ohm each | Common leg to GND (common cathode) or 5V (common anode) |
 | Servo signal (orange) | A5 | Servo red and brown to the power module rail, not the UNO |
-| Spare | A0 | Bare speaker tones if needed |
+| Spare | none | Every UNO pin is used, a bare speaker goes on the Pi (Step 4.7) |
 
 ## 3.3 Pin map, Raspberry Pi
 
 | **Function** | **Pi pin** | **Notes** |
 |---|---|---|
-| Touchscreen driver board 5V | 5V (physical pin 2) | Red jumper supplied with the screen |
-| Touchscreen driver board GND | GND (physical pin 6) | Black jumper supplied with the screen |
-| Touchscreen data | DSI port, DISPLAY connector | Ribbon cable, blue side away from the board at both ends |
 | L293D enable EN1 | GPIO 18 (physical pin 12) | High runs the motor, low is the interlock |
 | Emergency stop button | GPIO 23 (physical pin 16) | Other leg to GND (physical pin 14), internal pull up in code |
 | Ground to the breadboard rail | GND (physical pin 9) | Mandatory |
@@ -195,13 +192,13 @@ Do this on the laptop and the Pi while the parts are being laid out. It takes ab
 
 ## 4.2 Raspberry Pi
 
-1. Flash Raspberry Pi OS (64 bit, with desktop, the desktop is required for the touchscreen kiosk) with Raspberry Pi Imager. In the imager's settings, set the hostname to beacon, enable SSH, set a username and password, and enter the phone hotspot's Wi-Fi name and password so the Pi joins it on first boot.
+1. Flash Raspberry Pi OS Lite (64 bit, no desktop, the beacon runs headless) with Raspberry Pi Imager. In the imager's settings, set the hostname to beacon, enable SSH, set a username and password, and enter the phone hotspot's Wi-Fi name and password so the Pi joins it on first boot.
 
 2. Boot the Pi on the hotspot. From the laptop on the same hotspot, connect with ssh username@beacon.local.
 
 3. Add your user to the dialout group so it can open serial ports, then reboot. Command: `sudo usermod -aG dialout $USER`
 
-4. Install the Python packages and the kiosk helpers. Command: `sudo apt install -y python3-pip python3-pygame alsa-utils chromium-browser unclutter && pip3 install --break-system-packages pyserial websockets gpiozero fastapi uvicorn`
+4. Install the Python packages. Command: `sudo apt install -y python3-pip python3-pygame alsa-utils && pip3 install --break-system-packages pyserial websockets gpiozero`
 
 5. Plug in the speaker and test it. Command: `speaker-test -t wav -c 2 -l 1`. If nothing plays, run `sudo raspi-config` and choose the audio output under System Options.
 
@@ -393,7 +390,7 @@ while True:
 
 ## Step 3. Wire the UNO control electronics
 
-Use the big breadboard. The UNO's 5V and GND feed the breadboard's rails for the shift register, the display, the RGB LED, and the equipment LCD. The servo and motor get their power from the power module in Step 4, not from these rails. The LCD is wired here for testing, then in Step 4.7 it moves out to the equipment unit on a bundle of female to male jumpers, keeping the same UNO pins.
+Use the big breadboard. The UNO's 5V and GND feed the breadboard's rails for the shift register, both 7 segment displays, the RGB LED, and the LCD. The servo and motor get their power from the power module in Step 4, not from these rails. Everything in this step ends up on the beacon head panel.
 
 ### 3.1 Rails
 
@@ -401,9 +398,9 @@ Use the big breadboard. The UNO's 5V and GND feed the breadboard's rails for the
 
 2. If the breadboard's rails are split in the middle (a gap in the painted line), bridge each half with a short jumper so the rail runs the full length.
 
-### 3.2 LCD1602, the equipment lockout tag
+### 3.2 LCD1602, the beacon's text display
 
-The LCD has 16 pins in a row, numbered 1 to 16 from the end nearest the pin marked VSS. Push its header into the breadboard so each pin gets its own column. It will show the equipment's state, RUNNING, LOCKED OUT with the reason and countdown, or who released it. Wire and test it on the breadboard first.
+The LCD has 16 pins in a row, numbered 1 to 16 from the end nearest the pin marked VSS. Push its header into the breadboard so each pin gets its own column. It is the beacon's words: ALL CLEAR with the index and crew count, STOP WORK with the reason and time, ENTER PIN, WRONG PIN, who released it, and the other lines in contracts/serial.md. Wire and test it on the breadboard first.
 
 1. Pin 1 VSS to GND rail. Pin 2 VDD to 5V rail.
 
@@ -422,7 +419,7 @@ The LCD has 16 pins in a row, numbered 1 to 16 from the end nearest the pin mark
 ```
 #include <LiquidCrystal.h>
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
-void setup() { lcd.begin(16, 2); lcd.print("RIG 1  RUNNING"); lcd.setCursor(0,1); lcd.print("BEACON LINK OK"); }
+void setup() { lcd.begin(16, 2); lcd.print("ALL CLEAR  IDX 0"); lcd.setCursor(0,1); lcd.print("CREW 0"); }
 void loop() {}
 ```
 
@@ -491,45 +488,79 @@ The RGB LED has four legs. The longest leg is the common. In the Elegoo kit it i
 
 ### 3.6 Upload the command test sketch
 
-Before the final firmware exists, this sketch lets the Pi drive the screen, the countdown, the LED, and the needle with text commands over USB. It is also the shape of the final control box firmware.
+Before the final firmware exists, this sketch lets the Pi drive the LCD, the countdown, the crew digit, the LED, and the needle with text commands over USB. It is also the shape of the final control box firmware. Wire Step 3.7 first if you want the crew digit to light.
 
 ```
 #include <LiquidCrystal.h>
 #include <Servo.h>
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 Servo needle;
-const int DS=8, STCP=9, SHCP=10; const int digitPins[4]={A1,A2,A3,A4};
+const int DS=8, STCP=9, SHCP=10; const int digitPins[5]={A1,A2,A3,A4,A0};   // A0 is the 1 digit crew count
 const bool COMMON_ANODE=false;
 const byte seg[10]={0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
-long countdown=-1; unsigned long lastTick=0; bool strobe=false; unsigned long lastStrobe=0; bool strobeOn=false;
+long countdown=-1; int muster=0; unsigned long lastTick=0, lastStrobe=0; bool strobe=false, strobeOn=false;
 void showDigit(int d,int v){ byte p=seg[v]; if(COMMON_ANODE)p=~p;
-  for(int i=0;i<4;i++)digitalWrite(digitPins[i],COMMON_ANODE?LOW:HIGH);
+  for(int i=0;i<5;i++)digitalWrite(digitPins[i],COMMON_ANODE?LOW:HIGH);
   digitalWrite(STCP,LOW); shiftOut(DS,SHCP,MSBFIRST,p); digitalWrite(STCP,HIGH);
   digitalWrite(digitPins[d],COMMON_ANODE?HIGH:LOW); delay(2); }
 void color(int r,int g,int b){ digitalWrite(6,r); digitalWrite(7,g); digitalWrite(13,b); }
+void lines(String a,String b){ lcd.clear(); lcd.print(a.substring(0,16)); lcd.setCursor(0,1); lcd.print(b.substring(0,16)); }
 void setup(){ Serial.begin(115200); lcd.begin(16,2); needle.attach(A5);
   pinMode(DS,OUTPUT);pinMode(STCP,OUTPUT);pinMode(SHCP,OUTPUT);
-  for(int i=0;i<4;i++)pinMode(digitPins[i],OUTPUT);
-  pinMode(6,OUTPUT);pinMode(7,OUTPUT);pinMode(13,OUTPUT); color(0,1,0); lcd.print("RIG 1  RUNNING"); lcd.setCursor(0,1); lcd.print("BEACON LINK OK"); }
+  for(int i=0;i<5;i++)pinMode(digitPins[i],OUTPUT);
+  pinMode(6,OUTPUT);pinMode(7,OUTPUT);pinMode(13,OUTPUT); color(0,1,0); lines("ALL CLEAR  IDX 0","CREW 0"); }
 void loop(){
   if(Serial.available()){ String s=Serial.readStringUntil('\n'); s.trim();
-    if(s.startsWith("STOPWORK:")){ countdown=s.substring(9).toInt(); strobe=true; lcd.clear(); lcd.print("LOCKED OUT"); }
-    else if(s=="CLEAR"){ countdown=-1; strobe=false; color(0,1,0); lcd.clear(); lcd.print("RIG 1  RUNNING"); lcd.setCursor(0,1); lcd.print("BEACON LINK OK"); }
+    if(s.startsWith("STOPWORK:")){ countdown=s.substring(9).toInt(); strobe=true; lastTick=millis(); }
+    else if(s=="CLEAR"){ countdown=-1; strobe=false; color(0,1,0); }
     else if(s.startsWith("INDEX:")){ int ix=s.substring(6).toInt(); needle.write(map(ix,0,10,10,170));
-      if(ix<4)color(0,1,0); else if(ix<7)color(1,1,0); else color(1,0,0); }
-    else if(s.startsWith("LCD:")){ int bar=s.indexOf('|'); lcd.clear(); lcd.print(s.substring(4,bar));
-      lcd.setCursor(0,1); lcd.print(s.substring(bar+1)); }
-  }
-  if(countdown>=0 && millis()-lastTick>=1000){ lastTick=millis(); countdown--; Serial.print("COUNT:"); Serial.println(countdown); if(countdown<0){strobe=false; color(0,1,0);} }
+      if(!strobe){ if(ix<4)color(0,1,0); else if(ix<7)color(1,1,0); else color(1,0,0); } }
+    else if(s.startsWith("LCD:")){ int bar=s.indexOf('|'); lines(s.substring(4,bar), s.substring(bar+1)); }
+    else if(s.startsWith("MUSTER:")){ muster=constrain(s.substring(7).toInt(),0,9); }
+    Serial.println("OK"); }
+  if(countdown>=0 && millis()-lastTick>=1000){ lastTick+=1000; countdown--;
+    if(countdown>=0){ Serial.print("COUNT:"); Serial.println(countdown); } else { strobe=false; color(1,0,0); } }
   if(strobe && millis()-lastStrobe>250){ lastStrobe=millis(); strobeOn=!strobeOn; color(strobeOn,0,0); }
   if(countdown>=0){ int m=countdown/60, sc=countdown%60; int n[4]={m/10,m%10,sc/10,sc%10}; for(int i=0;i<4;i++)showDigit(i,n[i]);
-    if(countdown%5==0){ lcd.setCursor(0,1); lcd.print("LIGHTNING "); if(m<10)lcd.print('0'); lcd.print(m); lcd.print(':'); if(sc<10)lcd.print('0'); lcd.print(sc); } }
+    lcd.setCursor(11,0); if(m<10)lcd.print('0'); lcd.print(m); lcd.print(':'); if(sc<10)lcd.print('0'); lcd.print(sc); }
+  showDigit(4,muster);
 }
 ```
 
 1. Upload it, open the Serial Monitor at 115200 baud with newline line endings.
 
-2. TEST. Type STOPWORK:90 and press enter. The display counts down from 01:30, the LED strobes red, the LCD says LOCKED OUT with the countdown on its second line, and the monitor prints COUNT lines. Type INDEX:7, the needle swings and the LED goes red. Type LCD:RELEASED BY SMITH|14:32 OCT 17 and the LCD shows both lines. Type CLEAR and everything returns to RUNNING and green.
+2. TEST. Type `LCD:STOP WORK  01:30|LIGHTNING 8 MI`, then `STOPWORK:90`. The display counts down from 01:30, the LED strobes red, the last five characters of the LCD's first line count down with the display, and the monitor prints OK and then COUNT lines. Type `MUSTER:3` and the crew digit shows 3. Type `INDEX:7` and the needle swings. Type `LCD:RELEASED BY|SMITH 14:32` and the LCD shows both lines. Type `CLEAR` and the LED goes green and the countdown blanks.
+
+### 3.7 The 1 digit crew count display
+
+The kit's single digit display (5161AS is common cathode, 5161BS common anode; it must be the same type as the 4 digit display, since one COMMON_ANODE flag drives both) shows how many crew are checked in. It reuses the eight segment lines from the 74HC595, so it needs only one more UNO pin, A0, for its common. The UNO lights it as a fifth digit in the same multiplex loop.
+
+1. Push it into the breadboard straddling the channel next to the 4 digit display, decimal point at the bottom right. Pins 1 to 5 run along the bottom left to right, pins 10 to 6 along the top left to right.
+
+2. Wire each segment pin to the same row as the matching 4 digit display segment, on the display side of the 1K resistors, so both displays share each resistor. Pin 7 a, pin 6 b, pin 4 c, pin 2 d, pin 1 e, pin 9 f, pin 10 g, pin 5 dp.
+
+3. Pin 3 (or pin 8, they are the same common) to UNO A0.
+
+4. TEST. With the Step 3.6 sketch, type `MUSTER:0` through `MUSTER:9`. The digit shows each number. If one segment is wrong, that segment wire is on the wrong row. A slight dimming of the 4 digit display is the fifth multiplex slot and is normal.
+
+### 3.8 The IR remote, how the beacon uses it
+
+The IR receiver is wired on the pod (Step 2.7), and the pod only reports `IR:<key>`. The gateway on the Pi decides what each key means, and the beacon answers on the LCD and through the speaker. The key map is fixed in contracts/serial.md.
+
+| **Key** | **What happens** | **LCD** |
+|---|---|---|
+| 1 to 9 | Toggle crew number N in or out, sent to the backend as a checkin via remote (queued if offline), the speaker says "Crew N checked in" | CREW N IN or CREW N OUT with the on site count, 3 s |
+| OK | Start supervisor PIN entry | ENTER PIN |
+| 0 to 9 during PIN entry | PIN digits | ENTER PIN, one * per digit |
+| OK again | Submit. The right PIN raises GPIO 18, sends CLEAR to the UNO, and sends the release line | RELEASED BY with name and time, 10 s. A wrong PIN shows WRONG PIN for 3 s |
+| LEFT | Cancel PIN entry. Entry also cancels after 10 s with no key | Previous screen |
+| UP | Play tomorrow's briefing in English | BRIEFING READY |
+| DOWN | Play tomorrow's briefing in Spanish | BRIEFING READY |
+| RIGHT | Speak the current status line | Unchanged |
+
+1. TEST, before the gateway exists. Take the key codes you wrote down in Step 2.7 and confirm you have a distinct code for each of 0 to 9, OK, UP, DOWN, LEFT, and RIGHT. The final pod firmware maps them to these names.
+
+2. TEST, at the UNO. Type LCD lines from contracts/serial.md into the Serial Monitor, for example `LCD:ENTER PIN|**` and `LCD:CREW 3 IN|ON SITE 4`. Each fits on the screen without being cut.
 
 ## Step 4. Power module, motor driver, interlock, e-stop
 
@@ -600,63 +631,37 @@ motor.off(); print('fan OFF')
 
 ### 4.6 Assemble the equipment unit
 
-The equipment unit is the motor, the e-stop, and the LCD in one small box so a judge sees the beacon and the machine as two separate objects. The beacon decides, the machine obeys and explains.
+The equipment unit is the motor and the e-stop in one small box so a judge sees the beacon and the machine as two separate objects. The beacon decides and explains on its LCD, the machine obeys.
 
 1. Take the tissue box sized carton. Cut a hole on one side for the motor shaft and tape the motor inside so the fan blade spins in open air outside the box.
 
-2. Cut a window on the front for the LCD. Move the LCD from the breadboard to the box, keeping the same UNO pins, by running a bundle of female to male jumpers from the breadboard rows to the LCD header. Keep the potentiometer on the breadboard, only its wiper wire travels. Tape the LCD behind the window.
+2. Cut a hole on top for the push button. Push the button through from inside and hot glue it, with its two wires running to Pi GPIO 23 and Pi GND.
 
-3. Cut a hole on top for the push button. Push the button through from inside and hot glue it, with its two wires running to Pi GPIO 23 and Pi GND.
+3. Bundle all wires leaving the box with tape and leave 40 cm of slack so the unit can sit apart from the beacon head on the table.
 
-4. Bundle all wires leaving the box with tape and leave 40 cm of slack so the unit can sit apart from the beacon head on the table.
+4. Label the box RIG 1 on the front and draw a red circle around the e-stop.
 
-5. Label the box RIG 1 on the front and draw a red circle around the e-stop. Write LOCKOUT TAG above the LCD window.
-
-6. TEST. Send STOPWORK:30 from the UNO serial monitor. The fan stops (once GPIO 18 is wired and the Pi drops it), the LCD reads LOCKED OUT with the countdown, and the beacon head strobes red. Press the e-stop and the Pi drops the fan and the LCD should read E-STOP PRESSED once the gateway sends that line.
+5. TEST. Send STOPWORK:30 from the UNO serial monitor. The beacon head strobes red and counts down. Once GPIO 18 is wired and the Pi drops it, the fan stops. Press the e-stop and the Pi drops the fan, and the beacon LCD reads E-STOP PRESSED once the gateway sends that line.
 
 ### 4.7 If the speaker is a bare 8 ohm speaker
 
 1. Put one of the kit's NPN transistors (PN2222) in the breadboard, flat face toward you, legs E, B, C from left to right.
 
-2. Emitter to ground. Collector to one speaker wire. Other speaker wire to the UNO 5V rail. Base to UNO A0 through a 1K resistor.
+2. Emitter to ground. Collector to one speaker wire. Other speaker wire to the 5V rail. Base to Raspberry Pi GPIO 13 (physical pin 33) through a 1K resistor. Every UNO pin is in use, so the Pi drives it.
 
-3. In the UNO sketch, tone(A0, 880, 200) chirps. The beacon then alarms with tones instead of speech, and the Pi plays nothing.
+3. In the gateway, gpiozero TonalBuzzer(13) plays chirps. The beacon then alarms with tones instead of speech.
 
-## Step 5. Mount the touchscreen, connect everything to the Pi, run the gateway test
+## Step 5. Connect everything to the Pi, run the gateway test
 
-### 5.1 Touchscreen
+### 5.1 Headless Pi
 
-The official 7 inch screen comes as the display with a driver board already attached to its back, a ribbon cable, four standoffs with screws, and two jumper wires. The Pi mounts onto the driver board.
+The Pi has no screen. Everything happens over ssh from the laptop on the same hotspot, and the gateway starts on boot as a systemd service (Appendix C).
 
-1. Power the Pi off and unplug it.
+1. Put the Pi inside the beacon head box with its USB ports reachable through a notch.
 
-2. Screw the four standoffs into the driver board's threaded holes if they are not already fitted.
+2. TEST. Power it with nothing but the 3 amp supply, wait a minute, and from the laptop run `ssh username@beacon.local`. You get a prompt.
 
-3. Connect the ribbon cable. One end goes into the driver board's connector, the other into the Pi's connector labeled DISPLAY (not CAMERA, they look alike). On both connectors, pull the plastic clip out a millimeter, slide the cable in with the blue stiffener facing away from the board, push the clip back in.
-
-4. Set the Pi onto the standoffs and screw it down. Its USB and power ports should face outward on one edge.
-
-5. Run the red jumper from the driver board pin marked 5V to Pi header physical pin 2. Run the black jumper from the driver board pin marked GND to Pi header physical pin 6. This powers the screen from the Pi.
-
-6. Power the Pi with its 3 amp supply. The screen lights and shows the desktop. Touch moves the cursor.
-
-7. If the image is upside down for the way you will mount it, add the line `lcd_rotate=2` to /boot/firmware/config.txt and reboot.
-
-8. In raspi-config under Display Options, turn screen blanking off so the kiosk never goes dark during judging.
-
-9. TEST. Open a terminal on the screen by touch and type a command. If touch is offset, the rotation setting and the mounting orientation disagree.
-
-### 5.2 Kiosk page
-
-1. The gateway serves the beacon kiosk page at `http://localhost:8080/beacon/`. It is Cam's web app built in beacon mode (web guide section 9.3 produces a dist-beacon folder), copied to the Pi at firmware/gateway/kiosk/, and it talks to the gateway's own websocket at ws://localhost:8080/ws (contracts/kiosk-ws.md), so it works with no internet. Until Cam's build arrives, a placeholder HTML file that shows the words BEACON READY in large text is enough for this step.
-
-2. Create the file ~/.config/autostart/kiosk.desktop with these lines. `[Desktop Entry]  Type=Application  Name=Kiosk  Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito http://localhost:8080/beacon`, one per line.
-
-3. Create ~/.config/autostart/unclutter.desktop the same way with `Exec=unclutter -idle 0` so the cursor hides.
-
-4. TEST. Reboot. The kiosk page fills the screen with no browser frame and no cursor. Pressing and holding on the screen for two seconds should not reveal the desktop. If the page shows an error, the gateway is not serving yet, start it first.
-
-### 5.3 Connect the pod and the UNO
+### 5.2 Connect the pod and the UNO
 
 1. Plug the UNO's USB cable and the pod's USB-C cable into the Pi. Plug in the speaker. Switch the power module on.
 
@@ -664,7 +669,7 @@ The official 7 inch screen comes as the display with a driver board already atta
 
 3. Run the gateway test program below. It opens both ports, prints what the pod says, and lets you type UNO commands.
 
-4. TEST. Wave at the radar and see presence change. Flash the phone light at the photoresistor and see FLASH. Type STOPWORK:60 and watch the display count. Speak a voice clip with aplay to confirm the speaker.
+4. TEST. Wave at the radar and see presence change. Flash the phone light at the photoresistor and see FLASH. Type STOPWORK:60 and watch the display count. Press remote keys and see IR lines. Speak a voice clip with aplay to confirm the speaker.
 
 ```
 import serial, glob, threading, sys
@@ -686,25 +691,27 @@ for cmd in sys.stdin:
 
 ## Step 6. Integration tests
 
-1. **Flash to bang.** Stand two meters from the pod. Flash the phone light at the photoresistor and clap three seconds later. The Pi should report a flash, a bang, a gap near 3.0 seconds, and a distance near 1,030 meters (3.0 multiplied by 343). Because that is under 16,093 meters, the fan stops, the countdown starts on the four digit display, the touchscreen turns red with the same countdown, the equipment LCD says LOCKED OUT, and the speaker says the alert.
+1. **Flash to bang.** Stand two meters from the pod. Flash the phone light at the photoresistor and clap three seconds later. The Pi should report a flash, a bang, a gap near 3.0 seconds, and a distance near 1,030 meters (3.0 multiplied by 343). Because that is under 16,093 meters, the fan stops, the countdown starts on the four digit display, the beacon LCD says STOP WORK with the reason and the same time, and the speaker says the alert.
 
 2. **Reset on new strike.** While the countdown runs, flash and clap again. The countdown returns to its starting value.
 
 3. **Zone clear.** With a stop-work active, stand in front of the radar, then step away. The Pi should report the zone occupied, then clear after ten seconds of no presence.
 
-4. **Check in on the screen.** Tap a crew name tile on the touchscreen. The dashboard's muster list and the beacon's count change.
+4. **Check in.** Check in on the phone crew page, then press 3 on the remote. The speaker confirms, the LCD shows CREW 3 IN, the crew digit goes up, and the dashboard's muster list changes. Press 3 again to check out.
 
-5. **PIN release.** After the countdown ends, tap SUPERVISOR on the touchscreen and enter the PIN on the keypad. The fan restarts, the LED goes green, and the equipment LCD shows who released it and the time. The remote does the same as a backup.
+5. **PIN release.** After the countdown ends the LCD says NEEDS SUPERVISOR. Press OK, a wrong PIN, OK on the remote, and the LCD shows WRONG PIN. Press OK, the right PIN, OK. The fan restarts, the LED goes green, and the LCD shows who released it and the time.
 
 6. **Heat.** Cup your hands around the DHT11 and breathe on it. Heat index climbs on the LCD.
 
 7. **Water.** Dip the water sensor in a cup. The LCD shows standing water.
 
-8. **Tilt.** Tip the pod. The LCD shows TILTED and the Pi reports the beacon unreliable.
+8. **Tilt.** Tip the pod. The LCD shows BEACON TIPPED and the Pi reports the beacon unreliable.
 
 9. **E-stop.** Press the button during normal operation. The fan stops immediately.
 
-10. **Offline.** Turn off the phone hotspot. Flash and clap. The beacon still stops the fan and speaks. Turn the hotspot back on and confirm the queued event reaches the dashboard.
+10. **Briefing.** Press UP on the remote and the speaker reads tomorrow's briefing in English, DOWN reads it in Spanish.
+
+11. **Offline.** Turn off the phone hotspot. Flash and clap. The beacon still stops the fan and speaks. Turn the hotspot back on and confirm the queued event reaches the dashboard.
 
 ## Step 7. Calibration
 
@@ -714,7 +721,7 @@ for cmd in sys.stdin:
 
 2. With the screen showing the Roblox experience at full brightness (auto brightness off), let the firmware measure the resting level for five seconds.
 
-3. Fire the Roblox free play strike ten times (simulator guide section 3.7), or use the kiosk Health screen's TEST FLASH button. Count ten FLASH lines. If you get fewer, lower the threshold multiplier from six standard deviations to four. If you get FLASH lines when nothing happened, raise it.
+3. Fire the Roblox free play strike ten times (simulator guide section 3.7), or flick a phone flashlight at it ten times. Count ten FLASH lines. If you get fewer, lower the threshold multiplier from six standard deviations to four. If you get FLASH lines when nothing happened, raise it.
 
 4. Record the final threshold in firmware/pod/README.md.
 
@@ -764,29 +771,29 @@ for cmd in sys.stdin:
 
 1. Take the shoebox. Stand it on its long side so the lid faces forward. The lid is the beacon face.
 
-2. Cut a window in the lid the size of the touchscreen's visible area, about 155 by 87 mm. Tape the screen behind the window with the Pi hanging inside the box on its standoffs. Angle the whole box back by propping the bottom rear edge on a folded piece of cardboard so a standing person can tap it.
+2. Cut a window in the lid for the LCD (about 72 by 25 mm) near the top, a window for the four digit display under it, a window for the 1 digit crew display beside that, a hole for the RGB LED, and a hole the size of the servo shaft. Angle the whole box back by propping the bottom rear edge on a folded piece of cardboard so a standing person can read it.
 
-3. Beside the screen on the lid, cut a window for the four digit display, a hole for the RGB LED, and a hole the size of the servo shaft.
+3. Move the LCD from the breadboard to the lid on a bundle of female to male jumpers, keeping the same UNO pins. Keep the potentiometer on the breadboard, only its wiper wire travels. Tape the LCD behind its window.
 
 4. Print or draw the gauge face, a half circle with 0 on the left, 5 at the top, and 10 on the right, colored green, yellow, and red. Glue it so the servo shaft comes through its center. Fit the horn as the needle.
 
-5. Hot glue or tape the breadboard, the UNO, and the power module inside the box behind the panel. The breadboard has an adhesive back, peel it.
+5. Hot glue or tape the breadboard, the UNO, the power module, and the Pi inside the box behind the panel. The breadboard has an adhesive back, peel it.
 
-6. Cut notches in the back for the Pi power cable, the speaker cable, the two USB cables, the pod mast's wires, and the equipment unit's wire bundle.
+6. Cut notches in the back for the Pi power cable, the speaker cable, the pod mast's wires, and the equipment unit's wire bundle.
 
 7. Put the speaker on top of the box.
 
-8. Label the lid, SITE SAFETY BEACON above the screen, STOP WORK COUNTDOWN under the display, HAZARD INDEX under the gauge, SITE STATUS under the LED, TAP TO CHECK IN beside the screen.
+8. Label the lid, SITE SAFETY BEACON above the LCD, STOP WORK COUNTDOWN under the display, CREW ON SITE under the crew digit, HAZARD INDEX under the gauge, SITE STATUS under the LED. Put a card beside the remote: CHECK IN, PRESS YOUR NUMBER. SUPERVISOR, OK PIN OK. BRIEFING, UP ENGLISH, DOWN SPANISH.
 
 ### 8.3 The equipment unit
 
 1. The unit built in Step 4.6 sits 30 to 50 cm from the beacon head, connected by its wire bundle. Run the bundle under a strip of tape on the table so nobody catches it.
 
-2. Place it so the fan blade faces the judges and the LCD is readable from standing height.
+2. Place it so the fan blade faces the judges.
 
 ### 8.4 Table layout
 
-From the judge's view, left to right. The laptop showing the twin, with the pod on its mast beside it and the photoresistor aimed at the laptop screen. The beacon head in the center, angled back. The equipment unit on the right with the fan facing out. The cup of water for the water sensor at the pod's base. The remote next to the beacon head as the backup.
+From the judge's view, left to right. The laptop showing the twin, with the pod on its mast beside it and the photoresistor aimed at the laptop screen. The beacon head in the center, angled back. The equipment unit on the right with the fan facing out. The cup of water for the water sensor at the pod's base. The remote next to the beacon head, for the PIN, the briefing, and check in backup.
 
 ## Step 9. Pre-demo checklist
 
@@ -794,11 +801,11 @@ From the judge's view, left to right. The laptop showing the twin, with the pod 
 
 - Phone hotspot on, Pi joined, laptop joined.
 
-- Both USB cables seated, power module switch on, Pi booted, kiosk page up on the touchscreen, gateway running, speaker volume up.
+- Both USB cables seated, power module switch on, Pi booted, gateway running (ssh in and check the service), speaker volume up.
 
-- Equipment LCD says RIG 1 RUNNING and the fan is spinning.
+- Beacon LCD says ALL CLEAR and the fan is spinning.
 
-- Crew name tiles on the touchscreen match the names the judges will see on the dashboard.
+- Crew numbers on the dashboard match the numbers the judges will press on the remote, and the crew page URL is on a card for phones.
 
 - Pod aimed at the laptop screen, hood on, threshold measured in the venue light.
 
@@ -829,6 +836,7 @@ From the judge's view, left to right. The laptop showing the twin, with the pod 
 | LCD blank | No power or backlight | Pins 1, 2, 15, 16 |
 | Display digits wrong | Segment wire on the wrong Q output | Follow the Q0 to a, Q1 to b order |
 | Display inverted | Common anode | Flip COMMON_ANODE |
+| Crew digit shows a stray segment | Shared segment wire on the wrong row | Match the pin list in Step 3.7 |
 | Only one digit lights | Digit pins not toggling | Check A1 to A4 wires |
 | Servo twitches, UNO resets | Servo on the UNO 5V | Move red to the module rail |
 | Fan never spins | GPIO 18 not high, EN1 wire loose, module off | Run the interlock test, check pin 1, switch on |
@@ -836,11 +844,7 @@ From the judge's view, left to right. The laptop showing the twin, with the pod 
 | Pi reads random values | Missing common ground | Ground rail to a Pi GND pin |
 | Two serial devices swap names | ttyACM numbering | Use /dev/serial/by-id names |
 | No speaker sound | Wrong audio output selected | raspi-config audio, or use USB speaker |
-| Touchscreen dark | Ribbon in the CAMERA port, or cable reversed, or 5V jumper missing | Move to DISPLAY, blue side away from the board, check pin 2 and pin 6 |
-| Touch offset or inverted | Rotation and mounting disagree | Set or remove lcd_rotate=2 and reboot |
-| Kiosk shows the desktop | Autostart file wrong | Check the Exec line, the file must end in .desktop |
-| Kiosk page says cannot connect | Gateway not serving | Start the gateway, it serves port 8080 |
-| Equipment LCD blank after moving it | A jumper in the bundle came loose | Re-seat all 10 wires, check pins 1, 2, 15, 16 first |
+| Beacon LCD blank after moving it to the lid | A jumper in the bundle came loose | Re-seat all 10 wires, check pins 1, 2, 15, 16 first |
 | IR codes inconsistent | Bare decoder timing | Install micropython-ir and use the NEC decoder |
 
 # Appendix A. Building the beacon on a wooden plank
@@ -859,7 +863,7 @@ A plank build looks like a product instead of a prototype, survives being carrie
 | Small pan head screws for the UNO | #4 by 1/2 inch, 3 | UNO mounting holes | included above or $3 |
 | Adhesive cable clips or zip tie mounts | Pack of 20, with zip ties | Cable routing | $5 |
 | Double sided foam tape | One roll | Breadboard, power module, speaker | $4 |
-| Thin front panel | A sheet of 1/8 inch hardboard or stiff cardboard, 10 by 8 inches | The touchscreen, the countdown display, the LED, and the gauge mount in it | $3 or free |
+| Thin front panel | A sheet of 1/8 inch hardboard or stiff cardboard, 10 by 8 inches | The LCD, the countdown display, the crew digit, the LED, and the gauge mount in it | $3 or free |
 | Second small block or two more L brackets | 2 by 4 offcut or 1 inch brackets | Holds the front panel at a 30 degree lean | free or $3 |
 | Scrap block | 2 by 4 offcut, 4 inches long | Motor mount at the side | free |
 | Rubber feet | 4 adhesive | Stops the plank sliding | $3 |
@@ -875,8 +879,8 @@ Looking down at the board, long side toward you.
 | **Zone** | **Position** | **Contents** |
 |---|---|---|
 | Back left | Rear edge, left 5 inches | Mast with the pod box on top |
-| Back center | Rear edge, center | Front panel leaning back 30 degrees with the touchscreen, countdown, LED, and gauge facing forward, the Pi on the screen's back |
-| Back right | Rear edge, right 4 inches | Equipment unit block with the fan facing outward, the LCD and e-stop on its front |
+| Back center | Rear edge, center | Front panel leaning back 30 degrees with the LCD, countdown, crew digit, LED, and gauge facing forward |
+| Back right | Rear edge, right 4 inches | Equipment unit block with the fan facing outward and the e-stop on its front |
 | Front left | Front half, left | Breadboard and the UNO |
 | Front center | Front half, center | Power module and the 9V battery |
 | Front right | Front half, right | Speaker |
@@ -890,7 +894,7 @@ Looking down at the board, long side toward you.
 
 3. Drill 1/16 inch pilot holes at every mark for a screw. Drill 1/8 inch through holes for the Pi's M2.5 screws if using nuts underneath.
 
-4. The Pi does not mount to the board. It rides on the back of the touchscreen's driver board on the screen's own standoffs, so the front panel carries both.
+4. The Pi mounts to the board behind the front panel on M2.5 standoffs, or sits in its own case taped down.
 
 5. Mount the UNO with three #4 screws through its holes, finger tight only. Put a square of electrical tape on the wood under the UNO so the solder points cannot touch any stray screw head.
 
@@ -898,9 +902,9 @@ Looking down at the board, long side toward you.
 
 7. Build the mast. Screw the two L brackets to the bottom end of the dowel, then screw the brackets to the board at the back left. Check it stands straight. The pod box goes on top, held with a wrap of tape or two small screws through the box into the dowel. Run the pod's USB-C cable and the water sensor lead down the mast, held with two zip ties.
 
-8. Build the front panel. Cut the hardboard to about 10 by 8 inches. Cut a window for the touchscreen's visible area (about 155 by 87 mm) on the left two thirds, and on the right third cut the countdown display window, the RGB LED hole, and the servo shaft hole. Glue the printed gauge face on. The screen has four M3 holes on its back corners, pass M3 screws through the panel into them, or hot glue the screen's bezel to the back of the panel. The Pi is already on the screen's back. Hot glue the four digit display from behind, push the RGB LED through its hole, and screw or glue the servo to the back of the panel so its shaft comes through the gauge center. Fit the horn as the needle. Screw a block to the board at the back center and screw the panel to it so it leans back about 30 degrees.
+8. Build the front panel. Cut the hardboard to about 10 by 8 inches. Cut the LCD window (about 72 by 25 mm) at the top, the countdown display window and the crew digit window below it, the RGB LED hole, and the servo shaft hole. Glue the printed gauge face on. Hot glue the LCD and both displays from behind, push the RGB LED through its hole, and screw or glue the servo to the back of the panel so its shaft comes through the gauge center. Fit the horn as the needle. Screw a block to the board at the back center and screw the panel to it so it leans back about 30 degrees.
 
-9. Build the equipment unit. Screw the 2 by 4 block to the back right corner. Zip tie or hot glue the motor to the outer face of the block so the fan blade spins outward over the edge of the board with nothing in its path. Hot glue the LCD to the front face of the block, in a cutout if the block is a small box, with its jumper bundle running back to the breadboard along the right edge. Glue the e-stop button to the front of the block below the LCD. Write RIG 1 on the block and LOCKOUT TAG above the LCD.
+9. Build the equipment unit. Screw the 2 by 4 block to the back right corner. Zip tie or hot glue the motor to the outer face of the block so the fan blade spins outward over the edge of the board with nothing in its path. Glue the e-stop button to the front of the block. Write RIG 1 on the block.
 
 10. Paint or draw a red circle around the e-stop and run its two wires to the Pi header along the right edge with the rest.
 
@@ -908,7 +912,7 @@ Looking down at the board, long side toward you.
 
 12. Re-run the Step 6 integration tests on the finished board before anything is painted or labeled, because mounting can loosen breadboard wires.
 
-13. Label with a marker or printed labels, SITE SAFETY BEACON, TAP TO CHECK IN, STOP WORK COUNTDOWN, HAZARD INDEX, SITE STATUS, RIG 1, LOCKOUT TAG, EMERGENCY STOP. Stick the rubber feet on the bottom.
+13. Label with a marker or printed labels, SITE SAFETY BEACON, STOP WORK COUNTDOWN, CREW ON SITE, HAZARD INDEX, SITE STATUS, RIG 1, EMERGENCY STOP, and the remote key card. Stick the rubber feet on the bottom.
 
 ## A.4 Things to keep in mind on wood
 
@@ -942,20 +946,21 @@ STOPWORK:1800     start or restart the countdown in seconds, strobe red
 CLEAR             end stop work, green
 INDEX:7           needle to 7 of 10, color by band
 LCD:line one|line two
-MUSTER:3          crew count, mirrored to the touchscreen
+MUSTER:3          crew count on the 1 digit display
 REST:900          rest break countdown
 ```
 
-## B.3 Equipment LCD messages the gateway sends
+## B.3 Beacon LCD lines and remote keys
+
+The full list of beacon LCD lines and the IR key meanings is in contracts/serial.md. The common ones:
 
 ```
-LCD:RIG 1  RUNNING|BEACON LINK OK          normal
-LCD:LOCKED OUT|LIGHTNING 8MI 27:41       stop work, the UNO keeps the time updated
-LCD:LOCKED OUT|NEEDS SUPERVISOR          countdown finished
-LCD:RELEASED BY SMITH|14:32 OCT 17       after the PIN, held 10 s
-LCD:E-STOP PRESSED|RESET AT BEACON
-LCD:LOCKED OUT|HEAT REST BREAK 12:00
-LCD:BEACON OFFLINE|LOCAL RULES ACTIVE
+LCD:ALL CLEAR  IDX 3|CREW 2  HI 92F            normal
+LCD:STOP WORK  29:53|LIGHTNING 8 MI            stop work, the UNO keeps the time updated
+LCD:LOCKED OUT|NEEDS SUPERVISOR                countdown finished
+LCD:ENTER PIN|**                               supervisor typing the PIN
+LCD:RELEASED BY|SMITH 14:32                    after the PIN, held 10 s
+LCD:BEACON OFFLINE|LOCAL RULES ON
 ```
 
 ## B.4 UNO to Pi
@@ -983,49 +988,17 @@ OK                after any command
 
 - Supervisor cleared. Equipment power restored.
 
+- Wrong PIN.
+
+- Crew [N] checked in. Crew [N] checked out.
+
 - Emergency stop pressed.
 
 - Tomorrow's briefing. (followed by the generated text)
 
-# Appendix C. The touchscreen kiosk, the gateway's side
+# Appendix C. Gateway program map
 
-The kiosk is Cam's web page, served by the gateway on the Pi and shown full screen in Chromium. Its seven screens and design rules are in docs/web-guide.md section 9. The messages between the gateway and the page are in contracts/kiosk-ws.md. This appendix is what the gateway has to do for it.
-
-## C.1 Serving
-
-1. The gateway's FastAPI (the same process as everything else) mounts firmware/gateway/kiosk/ as static files at /beacon/ on port 8080 and exposes the websocket at /ws.
-
-2. Until Cam's build exists, serve a one line placeholder page so the Chromium autostart can be tested.
-
-## C.2 The snapshot
-
-1. Keep one dict in memory with every field in the snapshot message. Update fields as pod lines, UNO COUNT lines, backend commands, and local rule results arrive.
-
-2. Send the whole snapshot to every connected kiosk client on connect, on every change, and at least every 250 ms while a countdown runs. Do not send deltas, the page is simpler if every message is complete.
-
-3. The countdown field is the UNO's latest COUNT value. The gateway never runs its own countdown clock, and neither does the page, so the touchscreen, the four digit display, and the equipment LCD always show the same number.
-
-4. The crew list comes from the backend's CREW command, cached to a JSON file on the Pi so it survives a reboot with no internet.
-
-## C.3 Handling the page's messages
-
-1. checkin. Update the crew entry's in flag, send up `{"kind":"checkin","crew_id":...,"action":...,"via":"kiosk"}` (queued if offline), speak nothing, send a snapshot.
-
-2. pin. Compare to SUPERVISOR_PIN. On a match, run the local clear (raise GPIO 18, send CLEAR to the UNO, send the RELEASED BY line to the equipment LCD, play the voice clip, send `{"kind":"pin","value":...,"ok":true}` up). On a mismatch, send one snapshot with pin_error true.
-
-3. play_briefing. Speak the cached briefing in the requested language with the local TTS or the pre rendered WAV.
-
-4. test_flash. Log the next FLASH line from the pod with a TEST tag so calibration can count it. The page draws the white overlay itself.
-
-5. demo_scale. Store it, apply it to the next STOPWORK and REST, forward it up so the dashboard knows.
-
-## C.4 How the kiosk and the hardware stay in sync
-
-The gateway is the single source of truth. When a stop work begins, the gateway drops GPIO 18, sends STOPWORK to the UNO, sends the LOCKED OUT line to the equipment LCD, updates the snapshot so the kiosk takes over the screen, plays the voice clip, and reports the event upstream, in that order. Nothing waits on the network.
-
-# Appendix D. Gateway program map
-
-firmware/gateway is one Python process, started by a systemd service so it comes up before Chromium. Suggested files, one job each.
+firmware/gateway is one Python process, started by a systemd service so it comes up on boot with no one logged in. Suggested files, one job each.
 
 ```
 firmware/gateway/
@@ -1034,20 +1007,20 @@ firmware/gateway/
   serial_io.py   opens the pod and UNO ports by /dev/serial/by-id, parses pod lines into a dict, parses FLASH, IR, COUNT, OK
   rules.py       the local rules below
   interlock.py   gpiozero OutputDevice on GPIO 18 (initial_value False, so the motor is off until the gateway says otherwise) and Button on GPIO 23 for the e-stop
-  uno.py         sends STOPWORK, CLEAR, INDEX, LCD, MUSTER, REST and formats the equipment LCD lines from Appendix B.3
+  uno.py         sends STOPWORK, CLEAR, INDEX, LCD, MUSTER, REST and formats the beacon LCD lines from contracts/serial.md
   voice.py       plays the WAV clips from Appendix B.5 with aplay or pygame, and speaks briefings with the local TTS
   cloud.py       websocket client to the backend with reconnect, the offline queue (a JSON lines file), and the command handlers
-  kiosk.py       FastAPI on 8080, static files at /beacon/, the /ws snapshot endpoint, the page's up messages
-  state.py       the one snapshot dict everything writes into
+  remote.py      IR keys: crew toggle by digit, PIN entry (OK digits OK, LEFT cancels, 10 s timeout), UP and DOWN briefing, RIGHT status
+  state.py       the one state dict everything writes into
 ```
 
-## D.1 Local rules, the ones the Pi runs with no internet
+## C.1 Local rules, the ones the Pi runs with no internet
 
-1. Flash to bang. On a FLASH line, record the Pi's own monotonic clock at arrival (not the pod's timestamp, and not the laptop's). On a BANG command from the backend, record the arrival clock too. If a bang arrives between 0.3 and 60 seconds after a flash, distance_m = gap × 343. Under 16093, start a stop work: drop GPIO 18, send STOPWORK:1800 (scaled by demo_scale) to the UNO, send the LOCKED OUT line to the LCD, play the lightning clip with the miles, send local_stopwork up. A second pairing while the countdown runs restarts it and plays the reset clip. Clocks on the pod, the Pi, and the laptop all differ, which is why arrival times are used; network delay costs about 100 meters of accuracy, which does not matter at a 16 kilometer threshold.
+1. Flash to bang. On a FLASH line, record the Pi's own monotonic clock at arrival (not the pod's timestamp, and not the laptop's). On a BANG command from the backend, record the arrival clock too. If a bang arrives between 0.3 and 60 seconds after a flash, distance_m = gap × 343. Under 16093, start a stop work: drop GPIO 18, send STOPWORK:1800 (scaled by demo_scale) to the UNO, send the STOP WORK line with the reason to the LCD, play the lightning clip with the miles, send local_stopwork up. A second pairing while the countdown runs restarts it and plays the reset clip. Clocks on the pod, the Pi, and the laptop all differ, which is why arrival times are used; network delay costs about 100 meters of accuracy, which does not matter at a 16 kilometer threshold.
 
 2. Backend STOPWORK does the same as a local pairing, so the sim path and the physical path end in one code path.
 
-3. Expiry. When the UNO's COUNT reaches 0, set awaiting_clear, send the NEEDS SUPERVISOR line, keep GPIO 18 low. Only a PIN (kiosk, remote, or backend CLEAR) raises it.
+3. Expiry. When the UNO's COUNT reaches 0, set awaiting_clear, send the NEEDS SUPERVISOR line, keep GPIO 18 low. Only a PIN on the remote or a backend CLEAR raises it.
 
 4. Heat. Compute heat index from the pod's T and H with the Rothfusz regression (ML guide section 4). At 103 set led yellow and the heat warning reason. At 115 send REST:900 to the UNO, play the heat clip, and send the HEAT REST BREAK line. Hysteresis of 2 degrees so it does not flap.
 
@@ -1061,6 +1034,6 @@ firmware/gateway/
 
 9. Offline. When the backend socket is down, set online false, send the BEACON OFFLINE line, and append every up message to the queue file. On reconnect, replay the file in order with original timestamps, then truncate it.
 
-10. State. After any change, and at least once a second, send `{"kind":"state",...}` up and a snapshot to the kiosk.
+10. State. After any change, and at least once a second, send `{"kind":"state",...}` up, and refresh the status LCD line when nothing else is showing.
 
-TEST. Run main.py with the backend URL pointed at nothing. Flash and clap. The fan stops, the display counts, the LCD says LOCKED OUT, the voice plays, and the queue file grows by one line. Point it at the real backend and restart. The queued line appears on the dashboard with its original time.
+TEST. Run main.py with the backend URL pointed at nothing. Flash and clap. The fan stops, the display counts, the LCD says STOP WORK, the voice plays, and the queue file grows by one line. Point it at the real backend and restart. The queued line appears on the dashboard with its original time.
