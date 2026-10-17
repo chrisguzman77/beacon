@@ -60,7 +60,9 @@ RunService.Heartbeat:Connect(function(dt)
 		local dist = flat.Magnitude
 		local arrived = dist < 0.6
 		if not arrived then
-			local step = math.min(dist, dt * WALK)
+			-- at 300x a stop work lasts seconds, so the crew hurries in step with the playback, up to 4x
+			local hurry = math.clamp((workspace:GetAttribute("SimSpeed") or 1) / 60, 1, 4)
+			local step = math.min(dist, dt * WALK * hurry)
 			local nextPos = pos + flat.Unit * step
 			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, math.abs(math.sin(t * 9)) * 0.15, 0))
 		elseif not stop and not hot then

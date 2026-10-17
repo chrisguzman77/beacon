@@ -146,6 +146,7 @@ Engine.Changed.Event:Connect(function(snap)
 	if snap.key ~= S.key then reset(snap.key) end
 	local dt = math.max(0, snap.simTime - S.lastT)
 	S.t, S.lastT = snap.simTime, snap.simTime
+	workspace:SetAttribute("SimSpeed", snap.speed) -- the crew walks faster when the day plays fast
 	S.rainMm += S.rate * dt / 3600 -- rain rate is mm per hour
 	if not S.gatorAt and workspace:FindFirstChild("Gator") then S.gatorAt = S.t end
 	render()

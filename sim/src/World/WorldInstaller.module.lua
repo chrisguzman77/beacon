@@ -1929,6 +1929,7 @@ Engine.Changed.Event:Connect(function(snap)
 	if snap.key ~= S.key then reset(snap.key) end
 	local dt = math.max(0, snap.simTime - S.lastT)
 	S.t, S.lastT = snap.simTime, snap.simTime
+	workspace:SetAttribute("SimSpeed", snap.speed) -- the crew walks faster when the day plays fast
 	S.rainMm += S.rate * dt / 3600 -- rain rate is mm per hour
 	if not S.gatorAt and workspace:FindFirstChild("Gator") then S.gatorAt = S.t end
 	render()
@@ -1998,7 +1999,9 @@ RunService.Heartbeat:Connect(function(dt)
 		local dist = flat.Magnitude
 		local arrived = dist < 0.6
 		if not arrived then
-			local step = math.min(dist, dt * WALK)
+			-- at 300x a stop work lasts seconds, so the crew hurries in step with the playback, up to 4x
+			local hurry = math.clamp((workspace:GetAttribute("SimSpeed") or 1) / 60, 1, 4)
+			local step = math.min(dist, dt * WALK * hurry)
 			local nextPos = pos + flat.Unit * step
 			w.m:PivotTo(CFrame.lookAt(nextPos, nextPos + flat.Unit) * CFrame.new(0, math.abs(math.sin(t * 9)) * 0.15, 0))
 		elseif not stop and not hot then
@@ -2772,7 +2775,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-0651, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-0656, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
