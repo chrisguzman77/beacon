@@ -1,11 +1,12 @@
 """The Pi gateway connection. contracts/gateway-ws.md is the source of truth for messages."""
 import logging
 import secrets
+import time
 from datetime import datetime
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 
-from . import db, hub, rules
+from . import db, hub, muster, rules
 from .config import settings
 
 log = logging.getLogger("core.gateway")
@@ -15,6 +16,9 @@ _conns: dict[int, WebSocket] = {}
 # Last "state" message per site, served at GET /sites/{id}/device. Memory only, Roblox polls it every second.
 last_state: dict[int, dict] = {}
 _last_presence: dict[int, int] = {}
+_last_tilt: dict[int, int] = {}
+_last_rules: dict[int, float] = {}
+POD_RULES_EVERY_S = 5  # pod lines arrive every 100 ms; conditions rows and heat and flood rules do not need that rate
 # Last FLASH ts_us per site, paired with POST /sim/bang. Pi and laptop clocks must be NTP synced for this to be accurate.
 last_flash: dict[int, int] = {}
 
@@ -35,6 +39,11 @@ async def send(site_id, msg):
         return False
 
 
+async def send_crew(site_id):
+    crew = await db.fetch("SELECT crew_id AS id, name FROM crew WHERE site_id=$1 ORDER BY crew_id", site_id)
+    await send(site_id, {"cmd": "CREW", "crew": [dict(r) for r in crew]})
+
+
 def _ts(msg):
     """Replayed messages keep their original time."""
     try:
@@ -45,16 +54,30 @@ def _ts(msg):
 
 async def _pod(site_id, m):
     ts = _ts(m)
-    # W is the pod's 0..100 water level; anything above 0 means water at the beacon.
-    await db.execute(
-        "INSERT INTO conditions (ts,site_id,source,temp_c,humidity,water_depth_mm) VALUES ($1,$2,'beacon',$3,$4,$5)"
-        " ON CONFLICT DO NOTHING", ts, site_id, m.get("T"), m.get("H"), m.get("W"))
+    hi = rules.heat_index_f(m.get("T"), m.get("H"))
     p = int(m.get("P", 0))
+    muster.set_presence(site_id, "beacon", p)
     if _last_presence.get(site_id) != p:
         _last_presence[site_id] = p
         payload = {"count": p, "still_energy": m.get("S"), "moving_energy": m.get("M"), "distance_cm": m.get("D")}
         await db.execute("INSERT INTO events VALUES ($1,$2,'beacon','presence',$3)", ts, site_id, payload)
         await hub.publish(site_id, {"type": "presence", **payload})
+    tilt = int(m.get("TILT", 0))
+    if _last_tilt.get(site_id) != tilt:
+        _last_tilt[site_id] = tilt
+        await db.execute("INSERT INTO events VALUES ($1,$2,'beacon','tilt',$3)", ts, site_id, {"value": tilt})
+        if tilt:
+            await rules.open_or_extend_alert(site_id, "beacon_unsafe", None, {"tilt": 1}, at=ts)
+        else:
+            await rules.clear_alerts(site_id, "tilt 0", types=("beacon_unsafe",))
+    if time.monotonic() - _last_rules.get(site_id, 0) >= POD_RULES_EVERY_S:
+        _last_rules[site_id] = time.monotonic()
+        # W is the pod's 0..100 water level; anything above 0 means water at the beacon.
+        await db.execute(
+            "INSERT INTO conditions (ts,site_id,source,temp_c,humidity,heat_index_f,water_depth_mm)"
+            " VALUES ($1,$2,'beacon',$3,$4,$5,$6) ON CONFLICT DO NOTHING", ts, site_id, m.get("T"), m.get("H"), hi, m.get("W"))
+        await rules.evaluate_heat(site_id, hi)
+        await rules.evaluate_flood(site_id)
 
 
 async def _local_stopwork(site_id, m):
@@ -76,6 +99,9 @@ async def _handle(site_id, m):
         await _pod(site_id, m)
     elif kind == "local_stopwork":
         await _local_stopwork(site_id, m)
+    elif kind == "checkin":
+        await muster.checkin(site_id, int(m["crew_id"]), m.get("action", "in"), m.get("via", "kiosk"), ts=_ts(m))
+        await muster.push(site_id)
     elif kind == "flash":
         last_flash[site_id] = int(m["ts_us"])
     elif kind == "count":
@@ -101,8 +127,7 @@ async def gateway_ws(ws: WebSocket, site_id: int, token: str = ""):
     await ws.accept()
     _conns[site_id] = ws
     log.info("gateway %s connected", site_id)
-    crew = await db.fetch("SELECT crew_id AS id, name FROM crew WHERE site_id=$1 ORDER BY crew_id", site_id)
-    await ws.send_json({"cmd": "CREW", "crew": [dict(r) for r in crew]})
+    await send_crew(site_id)
     try:
         while True:
             m = await ws.receive_json()
@@ -110,7 +135,7 @@ async def gateway_ws(ws: WebSocket, site_id: int, token: str = ""):
                 await _handle(site_id, m)
             except Exception:
                 log.exception("gateway %s message %s", site_id, m)
-    except WebSocketDisconnect:
+    except Exception:  # WebSocketDisconnect, or Starlette's not-connected error after a failed send
         pass
     finally:
         if _conns.get(site_id) is ws:
