@@ -120,7 +120,7 @@ function SignIn({ onSignIn }: { onSignIn: () => void }) {
   return (
     <section className="mt-6 flex flex-col gap-4">
       <h1 className="text-[34px] leading-tight font-bold">Crew sign in</h1>
-      <p className="text-[16px]" style={{ color: color.muted }}>Sign in once with your phone number or email. The phone remembers you.</p>
+      <p className="text-[16px]" style={{ color: color.muted }}>Sign in once and this phone remembers you.</p>
       <BigButton onClick={onSignIn} fill={color.accent} ink={color.accentInk} icon={<LogIn className="size-7" />}>Sign in</BigButton>
     </section>
   )
