@@ -820,6 +820,118 @@ local function shots(list, name)
 	end
 end
 
+---------------------------------------------------------------- jobsite signs and equipment
+
+-- ANSI Z535 style safety sign: a colored signal word header over a white message panel, on two posts
+local SIGNAL = {
+	DANGER = { bg = Color3.fromRGB(200, 30, 36), fg = Color3.new(1, 1, 1) },
+	WARNING = { bg = Color3.fromRGB(240, 120, 20), fg = Color3.new(0, 0, 0) },
+	CAUTION = { bg = Color3.fromRGB(250, 210, 0), fg = Color3.new(0, 0, 0) },
+	NOTICE = { bg = Color3.fromRGB(20, 80, 170), fg = Color3.new(1, 1, 1) },
+	SAFETY = { bg = Color3.fromRGB(0, 130, 70), fg = Color3.new(1, 1, 1) },
+}
+local function safetySign(parent, cf, signal, message, width, height, postBase)
+	width, height = width or 5, height or 3.4
+	local base, top = postBase or 0, 7.5
+	for _, x in ipairs({ -width / 2 + 0.4, width / 2 - 0.4 }) do
+		part(parent, "SignPost", Vector3.new(0.25, top - base, 0.25), cf * CFrame.new(x, (top + base) / 2, -0.12), C.steel, Enum.Material.Metal)
+	end
+	local panel = part(parent, "Sign", Vector3.new(width, height, 0.1), cf * CFrame.new(0, top - height / 2, 0), C.white)
+	local g = surface(panel, 70)
+	local sig = SIGNAL[signal]
+	local head = label(g, "Signal", signal, UDim2.fromScale(1, 0.3), UDim2.new(), sig.fg, Enum.Font.GothamBlack, sig.bg)
+	head.Name = "Signal"
+	local body = label(g, "Message", message, UDim2.fromScale(0.92, 0.62), UDim2.fromScale(0.04, 0.34), Color3.fromRGB(20, 20, 24), Enum.Font.GothamBold)
+	body.TextWrapped = true
+	return panel
+end
+
+-- an orange traffic drum with reflective white bands, the way mat roads are delineated
+local function drum(parent, pos)
+	local up = CFrame.Angles(0, 0, math.rad(90))
+	part(parent, "Drum", Vector3.new(3, 1.9, 1.9), CFrame.new(pos + Vector3.new(0, 1.6, 0)) * up, C.orange, Enum.Material.Plastic, Enum.PartType.Cylinder).CanCollide = false
+	for _, y in ipairs({ 1.2, 2.3 }) do
+		part(parent, "DrumBand", Vector3.new(0.35, 1.95, 1.95), CFrame.new(pos + Vector3.new(0, y, 0)) * up, C.white, Enum.Material.Foil, Enum.PartType.Cylinder).CanCollide = false
+	end
+	part(parent, "DrumBase", Vector3.new(2.6, 0.2, 2.6), CFrame.new(pos + Vector3.new(0, 0.1, 0)), C.black).CanCollide = false
+end
+
+-- a reel of new conductor on its trailer, the heart of a transmission line job
+local function reelTrailer(parent, cf)
+	part(parent, "TrailerBed", Vector3.new(4, 0.5, 9), cf * CFrame.new(0, 1.5, 0), C.dark, Enum.Material.Metal)
+	for _, z in ipairs({ -2, 2 }) do
+		for _, x in ipairs({ -2.2, 2.2 }) do
+			part(parent, "Wheel", Vector3.new(0.8, 2, 2), cf * CFrame.new(x, 1, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	part(parent, "Tongue", Vector3.new(0.4, 0.4, 4), cf * CFrame.new(0, 1.3, -6.4), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, 1.6 }) do
+		part(parent, "ReelStand", Vector3.new(0.3, 4.5, 0.4), cf * CFrame.new(x, 3.9, 0), C.steel, Enum.Material.Metal)
+	end
+	part(parent, "ReelFlange", Vector3.new(3, 6.2, 6.2), cf * CFrame.new(0, 5.2, 0), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	part(parent, "Conductor", Vector3.new(3.1, 5, 5), cf * CFrame.new(0, 5.2, 0), Color3.fromRGB(150, 152, 156), Enum.Material.Metal, Enum.PartType.Cylinder)
+end
+
+local function generator(parent, cf)
+	part(parent, "Generator", Vector3.new(3, 2.4, 5.5), cf * CFrame.new(0, 1.6, 0), Color3.fromRGB(230, 200, 40), Enum.Material.Metal)
+	part(parent, "GenSkid", Vector3.new(3.2, 0.4, 5.8), cf * CFrame.new(0, 0.2, 0), C.dark, Enum.Material.Metal)
+	part(parent, "Exhaust", Vector3.new(0.3, 1.2, 0.3), cf * CFrame.new(0.9, 3.3, 2), C.dark, Enum.Material.Metal)
+end
+
+local function lightTower(parent, cf)
+	part(parent, "TowerBase", Vector3.new(3.6, 2.2, 6), cf * CFrame.new(0, 1.5, 0), C.white, Enum.Material.Metal)
+	part(parent, "TowerMast", Vector3.new(0.35, 18, 0.35), cf * CFrame.new(0, 11.5, -1.5), C.steel, Enum.Material.Metal)
+	part(parent, "LampBar", Vector3.new(4.5, 0.4, 0.4), cf * CFrame.new(0, 20.4, -1.5), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, -0.55, 0.55, 1.6 }) do
+		part(parent, "Lamp", Vector3.new(0.9, 0.9, 0.5), cf * CFrame.new(x, 21, -1.4), Color3.fromRGB(230, 232, 236), Enum.Material.Glass)
+	end
+end
+
+local function portableToilet(parent, cf)
+	part(parent, "PortableToilet", Vector3.new(3.6, 7, 3.6), cf * CFrame.new(0, 3.5, 0), Color3.fromRGB(30, 110, 60))
+	part(parent, "ToiletRoof", Vector3.new(3.8, 0.4, 3.8), cf * CFrame.new(0, 7.2, 0), C.white)
+end
+
+local function poleLaydown(parent, cf)
+	for i = 0, 2 do
+		part(parent, "SparePole", Vector3.new(36, 1.5, 1.5), cf * CFrame.new(0, 0.9 + (i == 2 and 1.3 or 0), (i == 2 and 0.8 or i * 1.6)), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	end
+	for _, x in ipairs({ -12, 0, 12 }) do
+		part(parent, "Dunnage", Vector3.new(0.8, 0.6, 5), cf * CFrame.new(x, 0.1, 0.8), C.matWood, Enum.Material.Wood)
+	end
+end
+
+-- the signs and the working kit on the boardwalk jobsite
+local function jobsiteDressing(site)
+	local f = Instance.new("Folder")
+	f.Name = "Jobsite"
+	f.Parent = site
+	local facingWest = CFrame.Angles(0, math.rad(-90), 0) -- read by people walking east from the spawn
+	safetySign(f, CFrame.new(-82, 0, 6) * facingWest, "CAUTION", "ACTIVE UTILITY CONSTRUCTION. AUTHORIZED PERSONNEL ONLY. HARD HAT, HI-VIS VEST, AND SAFETY BOOTS REQUIRED.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN PLANIT.", 5, 3.4, -1)
+	safetySign(f, CFrame.new(-48, 0, 6) * facingWest, "WARNING", "LIGHTNING. WHEN THE BEACON SOUNDS, GO TO THE TRUCKS. WORK RESUMES 30 MIN AFTER THE LAST STRIKE INSIDE 10 MI.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-33, 0, 6) * facingWest, "NOTICE", "BEACON WORK ZONE. CHECK IN ON THE CREW PAGE OR AT THE BEACON BEFORE ENTERING.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-92, 0, -46.5), "SAFETY", "HEAT ILLNESS PREVENTION. WATER, REST, SHADE. DRINK A CUP EVERY 15 MINUTES.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-120, 0, -46.5), "SAFETY", "EMERGENCY MUSTER POINT. HEADCOUNT HERE ON EVERY STOP WORK.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-100, 0, -46.5), "NOTICE", "EMERGENCY: CALL 911. SITE 12, SEMINOLE, PUTNAM COUNTY FL. AED AND FIRST AID IN THE CREW TRUCK.", 5.4, 3.4, -1)
+
+	reelTrailer(f, CFrame.new(-140, 0, -37) * CFrame.Angles(0, math.rad(-90), 0))
+	generator(f, CFrame.new(-100, 0, -32) * CFrame.Angles(0, math.rad(90), 0))
+	lightTower(f, CFrame.new(-140, 0, -20))
+	portableToilet(f, CFrame.new(-75, 0, -41))
+	mats(f, -232, -188, -36, 6)
+	poleLaydown(f, CFrame.new(-210, 0, -36))
+	for i = 0, 3 do -- a stack of spare mats at the head of the road
+		part(f, "MatStack", Vector3.new(4, 0.6, 12), CFrame.new(-156, 0.3 + i * 0.62, -36) * CFrame.Angles(0, math.rad(90 + i * 3), 0), C.matWood, Enum.Material.WoodPlanks)
+	end
+	part(f, "Extinguisher", Vector3.new(1.4, 0.5, 0.5), CFrame.new(-108, 0.7, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 20, 20), Enum.Material.Metal, Enum.PartType.Cylinder)
+	part(f, "SpillKit", Vector3.new(2.2, 1.8, 1.8), CFrame.new(-110.5, 1.1, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(240, 200, 20), Enum.Material.Plastic, Enum.PartType.Cylinder)
+	for x = -250, -75, 25 do -- drums marking the mat road edges
+		drum(f, Vector3.new(x, 0, -17.2))
+		drum(f, Vector3.new(x + 12, 0, -30.8))
+	end
+end
+
 -- the brief's jobsite fitted beside the boardwalk: a mat road from the truck end toward the new line,
 -- a laydown pad with the crew truck and the cooling tent, the excavator and mat truck at the work face,
 -- the crew at work, and the transmission line they are building south of the road
@@ -828,7 +940,7 @@ local function jobsite(site)
 	crew.Name = "Crew"
 	crew.Parent = site
 	mats(site, -262, -40, -24, 12) -- the road
-	mats(site, -134, -72, -36, 14) -- the laydown pad
+	mats(site, -160, -72, -36, 14) -- the laydown pad
 	transmissionLine(site, -70, { -280, -160, -40, 80, 200 }, 3)
 	excavator(CFrame.new(-46, 0, -24) * CFrame.Angles(0, math.rad(-90), 0)) -- boom out over the marsh, facing east
 	local matTruck = model(site, "MatTruck")
@@ -846,6 +958,7 @@ local function jobsite(site)
 	for _, p in ipairs({ { -58, -20 }, { -61, -28 }, { -67, -22 }, { -54, -29 } }) do
 		workerModel(crew, CFrame.new(p[1], 3, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(60, 120)), 0))
 	end
+	jobsiteDressing(site)
 end
 
 -- The second setting: a Mississippi River crossing 2600 studs east of the main site. A levee 4 studs high between

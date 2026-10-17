@@ -1225,6 +1225,118 @@ local function shots(list, name)
 	end
 end
 
+---------------------------------------------------------------- jobsite signs and equipment
+
+-- ANSI Z535 style safety sign: a colored signal word header over a white message panel, on two posts
+local SIGNAL = {
+	DANGER = { bg = Color3.fromRGB(200, 30, 36), fg = Color3.new(1, 1, 1) },
+	WARNING = { bg = Color3.fromRGB(240, 120, 20), fg = Color3.new(0, 0, 0) },
+	CAUTION = { bg = Color3.fromRGB(250, 210, 0), fg = Color3.new(0, 0, 0) },
+	NOTICE = { bg = Color3.fromRGB(20, 80, 170), fg = Color3.new(1, 1, 1) },
+	SAFETY = { bg = Color3.fromRGB(0, 130, 70), fg = Color3.new(1, 1, 1) },
+}
+local function safetySign(parent, cf, signal, message, width, height, postBase)
+	width, height = width or 5, height or 3.4
+	local base, top = postBase or 0, 7.5
+	for _, x in ipairs({ -width / 2 + 0.4, width / 2 - 0.4 }) do
+		part(parent, "SignPost", Vector3.new(0.25, top - base, 0.25), cf * CFrame.new(x, (top + base) / 2, -0.12), C.steel, Enum.Material.Metal)
+	end
+	local panel = part(parent, "Sign", Vector3.new(width, height, 0.1), cf * CFrame.new(0, top - height / 2, 0), C.white)
+	local g = surface(panel, 70)
+	local sig = SIGNAL[signal]
+	local head = label(g, "Signal", signal, UDim2.fromScale(1, 0.3), UDim2.new(), sig.fg, Enum.Font.GothamBlack, sig.bg)
+	head.Name = "Signal"
+	local body = label(g, "Message", message, UDim2.fromScale(0.92, 0.62), UDim2.fromScale(0.04, 0.34), Color3.fromRGB(20, 20, 24), Enum.Font.GothamBold)
+	body.TextWrapped = true
+	return panel
+end
+
+-- an orange traffic drum with reflective white bands, the way mat roads are delineated
+local function drum(parent, pos)
+	local up = CFrame.Angles(0, 0, math.rad(90))
+	part(parent, "Drum", Vector3.new(3, 1.9, 1.9), CFrame.new(pos + Vector3.new(0, 1.6, 0)) * up, C.orange, Enum.Material.Plastic, Enum.PartType.Cylinder).CanCollide = false
+	for _, y in ipairs({ 1.2, 2.3 }) do
+		part(parent, "DrumBand", Vector3.new(0.35, 1.95, 1.95), CFrame.new(pos + Vector3.new(0, y, 0)) * up, C.white, Enum.Material.Foil, Enum.PartType.Cylinder).CanCollide = false
+	end
+	part(parent, "DrumBase", Vector3.new(2.6, 0.2, 2.6), CFrame.new(pos + Vector3.new(0, 0.1, 0)), C.black).CanCollide = false
+end
+
+-- a reel of new conductor on its trailer, the heart of a transmission line job
+local function reelTrailer(parent, cf)
+	part(parent, "TrailerBed", Vector3.new(4, 0.5, 9), cf * CFrame.new(0, 1.5, 0), C.dark, Enum.Material.Metal)
+	for _, z in ipairs({ -2, 2 }) do
+		for _, x in ipairs({ -2.2, 2.2 }) do
+			part(parent, "Wheel", Vector3.new(0.8, 2, 2), cf * CFrame.new(x, 1, z), C.tire, nil, Enum.PartType.Cylinder)
+		end
+	end
+	part(parent, "Tongue", Vector3.new(0.4, 0.4, 4), cf * CFrame.new(0, 1.3, -6.4), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, 1.6 }) do
+		part(parent, "ReelStand", Vector3.new(0.3, 4.5, 0.4), cf * CFrame.new(x, 3.9, 0), C.steel, Enum.Material.Metal)
+	end
+	part(parent, "ReelFlange", Vector3.new(3, 6.2, 6.2), cf * CFrame.new(0, 5.2, 0), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	part(parent, "Conductor", Vector3.new(3.1, 5, 5), cf * CFrame.new(0, 5.2, 0), Color3.fromRGB(150, 152, 156), Enum.Material.Metal, Enum.PartType.Cylinder)
+end
+
+local function generator(parent, cf)
+	part(parent, "Generator", Vector3.new(3, 2.4, 5.5), cf * CFrame.new(0, 1.6, 0), Color3.fromRGB(230, 200, 40), Enum.Material.Metal)
+	part(parent, "GenSkid", Vector3.new(3.2, 0.4, 5.8), cf * CFrame.new(0, 0.2, 0), C.dark, Enum.Material.Metal)
+	part(parent, "Exhaust", Vector3.new(0.3, 1.2, 0.3), cf * CFrame.new(0.9, 3.3, 2), C.dark, Enum.Material.Metal)
+end
+
+local function lightTower(parent, cf)
+	part(parent, "TowerBase", Vector3.new(3.6, 2.2, 6), cf * CFrame.new(0, 1.5, 0), C.white, Enum.Material.Metal)
+	part(parent, "TowerMast", Vector3.new(0.35, 18, 0.35), cf * CFrame.new(0, 11.5, -1.5), C.steel, Enum.Material.Metal)
+	part(parent, "LampBar", Vector3.new(4.5, 0.4, 0.4), cf * CFrame.new(0, 20.4, -1.5), C.dark, Enum.Material.Metal)
+	for _, x in ipairs({ -1.6, -0.55, 0.55, 1.6 }) do
+		part(parent, "Lamp", Vector3.new(0.9, 0.9, 0.5), cf * CFrame.new(x, 21, -1.4), Color3.fromRGB(230, 232, 236), Enum.Material.Glass)
+	end
+end
+
+local function portableToilet(parent, cf)
+	part(parent, "PortableToilet", Vector3.new(3.6, 7, 3.6), cf * CFrame.new(0, 3.5, 0), Color3.fromRGB(30, 110, 60))
+	part(parent, "ToiletRoof", Vector3.new(3.8, 0.4, 3.8), cf * CFrame.new(0, 7.2, 0), C.white)
+end
+
+local function poleLaydown(parent, cf)
+	for i = 0, 2 do
+		part(parent, "SparePole", Vector3.new(36, 1.5, 1.5), cf * CFrame.new(0, 0.9 + (i == 2 and 1.3 or 0), (i == 2 and 0.8 or i * 1.6)), C.wood, Enum.Material.Wood, Enum.PartType.Cylinder)
+	end
+	for _, x in ipairs({ -12, 0, 12 }) do
+		part(parent, "Dunnage", Vector3.new(0.8, 0.6, 5), cf * CFrame.new(x, 0.1, 0.8), C.matWood, Enum.Material.Wood)
+	end
+end
+
+-- the signs and the working kit on the boardwalk jobsite
+local function jobsiteDressing(site)
+	local f = Instance.new("Folder")
+	f.Name = "Jobsite"
+	f.Parent = site
+	local facingWest = CFrame.Angles(0, math.rad(-90), 0) -- read by people walking east from the spawn
+	safetySign(f, CFrame.new(-82, 0, 6) * facingWest, "CAUTION", "ACTIVE UTILITY CONSTRUCTION. AUTHORIZED PERSONNEL ONLY. HARD HAT, HI-VIS VEST, AND SAFETY BOOTS REQUIRED.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN PLANIT.", 5, 3.4, -1)
+	safetySign(f, CFrame.new(-48, 0, 6) * facingWest, "WARNING", "LIGHTNING. WHEN THE BEACON SOUNDS, GO TO THE TRUCKS. WORK RESUMES 30 MIN AFTER THE LAST STRIKE INSIDE 10 MI.", 5.4, 3.6, -1)
+	safetySign(f, CFrame.new(-33, 0, 6) * facingWest, "NOTICE", "BEACON WORK ZONE. CHECK IN ON THE CREW PAGE OR AT THE BEACON BEFORE ENTERING.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-92, 0, -46.5), "SAFETY", "HEAT ILLNESS PREVENTION. WATER, REST, SHADE. DRINK A CUP EVERY 15 MINUTES.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-120, 0, -46.5), "SAFETY", "EMERGENCY MUSTER POINT. HEADCOUNT HERE ON EVERY STOP WORK.", 5, 3.2, -1)
+	safetySign(f, CFrame.new(-100, 0, -46.5), "NOTICE", "EMERGENCY: CALL 911. SITE 12, SEMINOLE, PUTNAM COUNTY FL. AED AND FIRST AID IN THE CREW TRUCK.", 5.4, 3.4, -1)
+
+	reelTrailer(f, CFrame.new(-140, 0, -37) * CFrame.Angles(0, math.rad(-90), 0))
+	generator(f, CFrame.new(-100, 0, -32) * CFrame.Angles(0, math.rad(90), 0))
+	lightTower(f, CFrame.new(-140, 0, -20))
+	portableToilet(f, CFrame.new(-75, 0, -41))
+	mats(f, -232, -188, -36, 6)
+	poleLaydown(f, CFrame.new(-210, 0, -36))
+	for i = 0, 3 do -- a stack of spare mats at the head of the road
+		part(f, "MatStack", Vector3.new(4, 0.6, 12), CFrame.new(-156, 0.3 + i * 0.62, -36) * CFrame.Angles(0, math.rad(90 + i * 3), 0), C.matWood, Enum.Material.WoodPlanks)
+	end
+	part(f, "Extinguisher", Vector3.new(1.4, 0.5, 0.5), CFrame.new(-108, 0.7, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 20, 20), Enum.Material.Metal, Enum.PartType.Cylinder)
+	part(f, "SpillKit", Vector3.new(2.2, 1.8, 1.8), CFrame.new(-110.5, 1.1, -43) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(240, 200, 20), Enum.Material.Plastic, Enum.PartType.Cylinder)
+	for x = -250, -75, 25 do -- drums marking the mat road edges
+		drum(f, Vector3.new(x, 0, -17.2))
+		drum(f, Vector3.new(x + 12, 0, -30.8))
+	end
+end
+
 -- the brief's jobsite fitted beside the boardwalk: a mat road from the truck end toward the new line,
 -- a laydown pad with the crew truck and the cooling tent, the excavator and mat truck at the work face,
 -- the crew at work, and the transmission line they are building south of the road
@@ -1233,7 +1345,7 @@ local function jobsite(site)
 	crew.Name = "Crew"
 	crew.Parent = site
 	mats(site, -262, -40, -24, 12) -- the road
-	mats(site, -134, -72, -36, 14) -- the laydown pad
+	mats(site, -160, -72, -36, 14) -- the laydown pad
 	transmissionLine(site, -70, { -280, -160, -40, 80, 200 }, 3)
 	excavator(CFrame.new(-46, 0, -24) * CFrame.Angles(0, math.rad(-90), 0)) -- boom out over the marsh, facing east
 	local matTruck = model(site, "MatTruck")
@@ -1251,6 +1363,7 @@ local function jobsite(site)
 	for _, p in ipairs({ { -58, -20 }, { -61, -28 }, { -67, -22 }, { -54, -29 } }) do
 		workerModel(crew, CFrame.new(p[1], 3, p[2]) * CFrame.Angles(0, math.rad(rng:NextNumber(60, 120)), 0))
 	end
+	jobsiteDressing(site)
 end
 
 -- The second setting: a Mississippi River crossing 2600 studs east of the main site. A levee 4 studs high between
@@ -2683,22 +2796,24 @@ flashEvent.OnClientEvent:Connect(function(miles)
 end)
 ]==] },
 	{ "LightningRadar", "LocalScript", [==[-- LightningRadar (LocalScript in StarterPlayerScripts)
--- A live lightning radar for everyone: range rings at 5, 10, and 15 miles around the active site, the 10 mile
--- stop work ring in red, each strike plotted by bearing and distance and fading over a minute, and a status line
--- with the stop work countdown. Fed by ReplicatedStorage.StrikeRadar, which Lightning fires with (bearing, miles).
+-- A lightning display in the style crews use from real detection networks: range rings at 5, 10, and 15 miles
+-- around the active site (the 10 mile stop work ring in red), compass points, a sweep, and every strike plotted by
+-- bearing and distance, colored by age in simulated minutes and gone after the 30 minute window. Below it: the
+-- nearest strike and how long ago, strikes in the last 10 minutes, the storm's trend (approaching or receding), and
+-- the stop work countdown. Fed by ReplicatedStorage.StrikeRadar (bearing, miles) and the sim's SimTime.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local strikeRadar = ReplicatedStorage:WaitForChild("StrikeRadar")
 local beacon = workspace:WaitForChild("Beacon")
 
-local RANGE_MI, STOP_MI, KEEP, FADE_S = 15, 10, 14, 60
+local RANGE_MI, STOP_MI, WINDOW_S, RECENT_S = 15, 10, 30 * 60, 10 * 60
 local THEME = {
-	panel = Color3.fromRGB(14, 16, 22), raised = Color3.fromRGB(30, 34, 44), text = Color3.fromRGB(236, 238, 243),
-	dim = Color3.fromRGB(138, 145, 160), red = Color3.fromRGB(255, 80, 80), amber = Color3.fromRGB(255, 184, 28),
-	green = Color3.fromRGB(80, 220, 130),
+	panel = Color3.fromRGB(14, 16, 22), scope = Color3.fromRGB(10, 22, 18), grid = Color3.fromRGB(70, 110, 95),
+	text = Color3.fromRGB(236, 238, 243), dim = Color3.fromRGB(138, 145, 160), red = Color3.fromRGB(255, 80, 80),
+	amber = Color3.fromRGB(255, 184, 28), green = Color3.fromRGB(80, 220, 130), fresh = Color3.fromRGB(255, 255, 255),
 }
 
 local gui = Instance.new("ScreenGui")
@@ -2718,32 +2833,48 @@ local function round(inst, r)
 	c.CornerRadius = r
 	c.Parent = inst
 end
+local function label(parent, text, size, font, color, order)
+	local t = Instance.new("TextLabel")
+	t.LayoutOrder, t.BackgroundTransparency, t.Size = order or 0, 1, UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font, t.TextSize, t.TextColor3 = font, size, color
+	t.TextXAlignment, t.TextWrapped, t.Text = Enum.TextXAlignment.Left, true, text
+	t.Parent = parent
+	return t
+end
 
 local card = Instance.new("Frame")
-card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(212, 0)
+card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(244, 0)
 card.AutomaticSize = Enum.AutomaticSize.Y
-card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.12, 0
+card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.1, 0
 card.Parent = gui
 round(card, UDim.new(0, 12))
 local pad = Instance.new("UIPadding")
-pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 11), UDim.new(0, 11)
+pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 12), UDim.new(0, 12)
 pad.Parent = card
 local list = Instance.new("UIListLayout")
 list.Padding, list.SortOrder = UDim.new(0, 6), Enum.SortOrder.LayoutOrder
 list.Parent = card
 
-local title = Instance.new("TextLabel")
-title.LayoutOrder, title.BackgroundTransparency, title.Size = 1, 1, UDim2.new(1, 0, 0, 14)
-title.Font, title.TextSize, title.TextColor3 = Enum.Font.GothamBold, 12, THEME.amber
-title.TextXAlignment, title.Text = Enum.TextXAlignment.Left, "LIGHTNING RADAR  ·  15 MI"
-title.Parent = card
+label(card, "LIGHTNING DETECTION  ·  15 MI", 12, Enum.Font.GothamBold, THEME.amber, 1)
 
 local scope = Instance.new("Frame")
-scope.Name, scope.LayoutOrder, scope.Size = "Scope", 2, UDim2.fromOffset(190, 190)
-scope.BackgroundColor3, scope.BorderSizePixel = THEME.raised, 0
+scope.Name, scope.LayoutOrder, scope.Size = "Scope", 2, UDim2.fromOffset(220, 220)
+scope.BackgroundColor3, scope.BorderSizePixel = THEME.scope, 0
 scope.ClipsDescendants = true
 scope.Parent = card
 round(scope, UDim.new(1, 0))
+
+local function ringLabel(text, mi)
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint = Vector2.new(0, 1)
+	t.Position = UDim2.fromScale(0.5 + 0.02, 0.5 - mi / RANGE_MI / 2 + 0.005)
+	t.Size, t.BackgroundTransparency = UDim2.fromOffset(28, 12), 1
+	t.Font, t.TextSize, t.TextColor3, t.Text = Enum.Font.GothamMedium, 10, mi == STOP_MI and THEME.red or THEME.grid, text
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.ZIndex = 3
+	t.Parent = scope
+end
 for _, mi in ipairs({ 5, 10, 15 }) do
 	local ring = Instance.new("Frame")
 	ring.AnchorPoint, ring.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
@@ -2752,62 +2883,146 @@ for _, mi in ipairs({ 5, 10, 15 }) do
 	ring.Parent = scope
 	round(ring, UDim.new(1, 0))
 	local s = Instance.new("UIStroke")
-	s.Color = mi == STOP_MI and THEME.red or THEME.dim
-	s.Transparency, s.Thickness = mi == STOP_MI and 0.1 or 0.6, mi == STOP_MI and 2 or 1
+	s.Color = mi == STOP_MI and THEME.red or THEME.grid
+	s.Transparency, s.Thickness = mi == STOP_MI and 0.05 or 0.35, mi == STOP_MI and 2 or 1
 	s.Parent = ring
+	if mi < RANGE_MI then ringLabel(mi .. " mi", mi) end
 end
-local north = Instance.new("TextLabel")
-north.AnchorPoint, north.Position, north.Size = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 2), UDim2.fromOffset(16, 14)
-north.BackgroundTransparency, north.Font, north.TextSize, north.TextColor3, north.Text = 1, Enum.Font.GothamBold, 11, THEME.dim, "N"
-north.Parent = scope
+-- crosshair and compass points
+for _, axis in ipairs({ { UDim2.new(1, 0, 0, 1) }, { UDim2.new(0, 1, 1, 0) } }) do
+	local line = Instance.new("Frame")
+	line.AnchorPoint, line.Position, line.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), axis[1]
+	line.BackgroundColor3, line.BackgroundTransparency, line.BorderSizePixel = THEME.grid, 0.6, 0
+	line.Parent = scope
+end
+for _, c in ipairs({ { "N", 0.5, 0.035 }, { "E", 0.965, 0.5 }, { "S", 0.5, 0.965 }, { "W", 0.035, 0.5 } }) do
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint, t.Position, t.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(c[2], c[3]), UDim2.fromOffset(14, 14)
+	t.BackgroundTransparency, t.Font, t.TextSize, t.TextColor3, t.Text = 1, Enum.Font.GothamBold, 11, THEME.dim, c[1]
+	t.ZIndex = 3
+	t.Parent = scope
+end
+-- the sweep: a faint arm turning once every four seconds
+local sweep = Instance.new("Frame")
+sweep.AnchorPoint, sweep.Position, sweep.Size = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.5), UDim2.new(0, 2, 0.5, 0)
+sweep.BackgroundColor3, sweep.BackgroundTransparency, sweep.BorderSizePixel = THEME.green, 0.55, 0
+sweep.Parent = scope
+local sweepPivot = Instance.new("Frame") -- rotate a full size holder so the arm turns about the center
+sweepPivot.AnchorPoint, sweepPivot.Position, sweepPivot.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1, 1)
+sweepPivot.BackgroundTransparency = 1
+sweepPivot.Parent = scope
+sweep.Parent = sweepPivot
 local site = Instance.new("Frame")
-site.AnchorPoint, site.Position, site.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(8, 8)
-site.BackgroundColor3, site.BorderSizePixel, site.ZIndex = THEME.green, 0, 3
+site.AnchorPoint, site.Position, site.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(9, 9)
+site.BackgroundColor3, site.BorderSizePixel, site.ZIndex = THEME.green, 0, 4
 site.Parent = scope
 round(site, UDim.new(1, 0))
 
-local status = Instance.new("TextLabel")
-status.LayoutOrder, status.BackgroundTransparency, status.Size = 3, 1, UDim2.new(1, 0, 0, 0)
-status.AutomaticSize = Enum.AutomaticSize.Y
-status.Font, status.TextSize, status.TextColor3 = Enum.Font.GothamMedium, 13, THEME.green
-status.TextXAlignment, status.TextWrapped, status.Text = Enum.TextXAlignment.Left, true, "No strikes detected"
-status.Parent = card
+local nearestLine = label(card, "No strikes detected", 13, Enum.Font.GothamBold, THEME.green, 3)
+local trendLine = label(card, "", 12, Enum.Font.GothamMedium, THEME.dim, 4)
+local stopLine = label(card, "", 13, Enum.Font.GothamBold, THEME.red, 5)
+stopLine.Name = "StopLine"
+trendLine.Name = "TrendLine"
+nearestLine.Name = "NearestLine"
 
-local dots, nearest = {}, nil
+-- simulated seconds when the sim is running, real seconds otherwise (free play strikes with no scenario)
+local function now()
+	return workspace:GetAttribute("SimTime") or os.clock()
+end
+
+local strikes = {}
 strikeRadar.OnClientEvent:Connect(function(bearing, miles)
 	local r = math.min(miles, RANGE_MI) / RANGE_MI / 2
 	local dot = Instance.new("Frame")
 	dot.Name = "Strike"
 	dot.AnchorPoint = Vector2.new(0.5, 0.5)
 	dot.Position = UDim2.fromScale(0.5 + math.sin(math.rad(bearing)) * r, 0.5 - math.cos(math.rad(bearing)) * r)
-	dot.Size = UDim2.fromOffset(10, 10)
-	dot.BackgroundColor3 = miles < STOP_MI and THEME.red or THEME.amber
-	dot.BorderSizePixel, dot.ZIndex = 0, 2
+	dot.Size = UDim2.fromOffset(11, 11)
+	dot.BackgroundColor3, dot.BorderSizePixel, dot.ZIndex = THEME.fresh, 0, 2
 	dot.Parent = scope
 	round(dot, UDim.new(1, 0))
-	TweenService:Create(dot, TweenInfo.new(FADE_S, Enum.EasingStyle.Linear), { BackgroundTransparency = 1, Size = UDim2.fromOffset(5, 5) }):Play()
-	table.insert(dots, dot)
-	if #dots > KEEP then table.remove(dots, 1):Destroy() end
-	nearest = { miles = miles, bearing = bearing, at = os.clock() }
+	-- a cross inside the dot, the way detection maps mark a cloud to ground strike
+	local cross = Instance.new("TextLabel")
+	cross.BackgroundTransparency, cross.Size, cross.Text = 1, UDim2.fromScale(1, 1), "+"
+	cross.Font, cross.TextScaled, cross.TextColor3, cross.ZIndex = Enum.Font.GothamBold, true, THEME.panel, 2
+	cross.Parent = dot
+	table.insert(strikes, { t = now(), miles = miles, bearing = bearing, dot = dot })
+end)
+
+-- when a new scenario starts its clock restarts: clear the old strikes
+workspace:GetAttributeChangedSignal("SimTime"):Connect(function()
+	local t = workspace:GetAttribute("SimTime") or 0
+	if #strikes > 0 and t < strikes[#strikes].t - 1 then
+		for _, s in ipairs(strikes) do s.dot:Destroy() end
+		strikes = {}
+	end
 end)
 
 local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
+local function dir(b) return COMPASS[math.floor(((b % 360) + 22.5) / 45) % 8 + 1] end
 local function mmss(s)
 	s = math.max(0, math.floor(s))
 	return ("%02d:%02d"):format(s // 60, s % 60)
 end
+local function ago(s)
+	if s < 60 then return "just now" end
+	return ("%d min ago"):format(math.floor(s / 60))
+end
+
+local spin = 0
+RunService.RenderStepped:Connect(function(dt)
+	spin = (spin + dt * 90) % 360
+	sweepPivot.Rotation = spin
+end)
+
 while true do
+	local t = now()
+	-- age the dots: white when fresh, through amber to dim red, gone after 30 minutes
+	local keep = {}
+	for _, s in ipairs(strikes) do
+		local age = t - s.t
+		if age > WINDOW_S then
+			s.dot:Destroy()
+		else
+			local k = math.clamp(age / WINDOW_S, 0, 1)
+			s.dot.BackgroundColor3 = k < 0.15 and THEME.fresh or (k < 0.5 and THEME.amber or THEME.red)
+			s.dot.BackgroundTransparency = k * 0.7
+			table.insert(keep, s)
+		end
+	end
+	strikes = keep
+
+	local nearest, recent, older = nil, {}, {}
+	for _, s in ipairs(strikes) do
+		if not nearest or s.miles < nearest.miles then nearest = s end
+		if t - s.t <= RECENT_S then table.insert(recent, s) elseif t - s.t <= 2 * RECENT_S then table.insert(older, s) end
+	end
+	if nearest then
+		nearestLine.Text = ("Nearest %.1f mi %s  ·  %s"):format(nearest.miles, dir(nearest.bearing), ago(t - nearest.t))
+		nearestLine.TextColor3 = nearest.miles < STOP_MI and THEME.red or THEME.amber
+	else
+		nearestLine.Text, nearestLine.TextColor3 = "No strikes in the last 30 min", THEME.green
+	end
+	local function avg(set)
+		local sum = 0
+		for _, s in ipairs(set) do sum += s.miles end
+		return #set > 0 and sum / #set or nil
+	end
+	local a, b = avg(recent), avg(older)
+	local trend = ""
+	if a and b then
+		local change = a - b
+		trend = change < -0.5 and ("  ·  TREND APPROACHING %.1f mi/10 min"):format(-change)
+			or change > 0.5 and ("  ·  TREND RECEDING %.1f mi/10 min"):format(change) or "  ·  TREND STEADY"
+	end
+	trendLine.Text = ("Last 10 min: %d strike%s%s"):format(#recent, #recent == 1 and "" or "s", trend)
+
 	local real = beacon:GetAttribute("Countdown") or 0
 	local left = real > 0 and real or (workspace:GetAttribute("SimCountdown") or 0)
-	local last = nearest and ("Last strike %.0f mi %s"):format(nearest.miles, COMPASS[math.floor(((nearest.bearing % 360) + 22.5) / 45) % 8 + 1]) or nil
 	if left > 0 then
-		status.Text = ("STOP WORK  %s%s"):format(mmss(left), last and ("\n" .. last) or "")
-		status.TextColor3 = THEME.red
-	elseif last then
-		status.Text = "Clear inside 10 mi\n" .. last
-		status.TextColor3 = (nearest.miles < STOP_MI and THEME.green) or THEME.amber
+		stopLine.Text, stopLine.TextColor3 = "STOP WORK  ·  ALL CLEAR IN " .. mmss(left), THEME.red
 	else
-		status.Text, status.TextColor3 = "No strikes detected", THEME.green
+		stopLine.Text, stopLine.TextColor3 = "CLEAR  ·  no strike inside 10 mi for 30 min", THEME.green
 	end
 	task.wait(0.25)
 end
@@ -3503,7 +3718,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-0847, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-0909, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

@@ -325,6 +325,16 @@ local beacon = workspace:FindFirstChild("Beacon")
 check(beacon and beacon:GetAttribute("Led") == "green" and beacon:FindFirstChild("Light"), "beacon with its nine attributes")
 check(workspace:FindFirstChild("ZonePart") and workspace:FindFirstChild("FloodWater") and (MERGED or workspace:FindFirstChild("SpawnLocation")), "zone, flood plane, spawn")
 check(game:GetService("ServerStorage"):FindFirstChild("Gator") ~= nil, "gator scenario template")
+if MERGED then
+	local dress = workspace.Site:FindFirstChild("Jobsite")
+	local words = {}
+	for _, d in ipairs(dress and dress:GetDescendants() or {}) do
+		if d.Name == "Signal" then words[d.Text] = (words[d.Text] or 0) + 1 end
+	end
+	check(words.DANGER and words.WARNING and words.CAUTION and words.NOTICE and words.SAFETY,
+		"ANSI style signs: DANGER, WARNING, CAUTION, NOTICE, SAFETY")
+	check(dress:FindFirstChild("ReelFlange") and dress:FindFirstChild("Generator") and dress:FindFirstChild("Drum"), "conductor reel, generator, road drums on site")
+end
 local rs = game:GetService("ReplicatedStorage")
 check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs:FindFirstChild("FlashEvent"), "SimEvents (4) and FlashEvent for the Bridge contract")
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
@@ -540,15 +550,27 @@ control:FireServer("load", "lightning_cell")
 control:FireServer("play")
 step(16, 0.25) -- 14:32 at 120x: the 9 mile strike landed
 check(workspace:GetAttribute("SimStopWork") == true, "9 mile strike opens stop work")
-step(15.5, 0.25) -- 15:03: the 8 mile strike east restarted it
+local radarCard = LOCAL_PLAYER.PlayerGui.LightningRadar
+local function radarDots()
+	local n = 0
+	for _, d in ipairs(radarScope:GetChildren()) do if d.Name == "Strike" then n += 1 end end
+	return n
+end
+step(0.5, 0.25)
+task.wait(0.4) -- the radar redraws every quarter of a real second
+check(radarDots() == 5 and radarCard:FindFirstChild("TrendLine", true).Text:find("APPROACHING") ~= nil,
+	("radar: 5 strikes plotted, storm approaching (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
+check(radarCard:FindFirstChild("StopLine", true).Text:find("STOP WORK") ~= nil, "radar shows the stop work countdown")
+step(15, 0.25) -- 15:03: the 8 mile strike east restarted it
 local left = workspace:GetAttribute("SimCountdown")
 check(left > 1450, ("8 mile strike east restarts the all clear (%d s left)"):format(left))
 step(16, 0.25) -- 15:35: 30 minutes after the last close strike
 check(workspace:GetAttribute("SimStopWork") == false, "all clear 30 minutes after the last strike inside 10 mi")
 check(#fired.strike - strikesBefore == 14, ("14 strikes in the cell (%d)"):format(#fired.strike - strikesBefore))
-local dots = 0
-for _, d in ipairs(radarScope:GetChildren()) do if d.Name == "Strike" then dots += 1 end end
-check(dots == 14, ("radar plots every strike (%d dots)"):format(dots))
+step(0.5, 0.25)
+task.wait(0.4)
+check(radarDots() == 3 and radarCard:FindFirstChild("TrendLine", true).Text:find("RECEDING") ~= nil,
+	("radar: strikes older than 30 min age off, storm receding (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
 
 print("== the Mississippi crossing, river flood")
 control:FireServer("load", "mississippi_flood")

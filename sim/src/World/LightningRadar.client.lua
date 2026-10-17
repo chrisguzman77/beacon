@@ -1,20 +1,22 @@
 -- LightningRadar (LocalScript in StarterPlayerScripts)
--- A live lightning radar for everyone: range rings at 5, 10, and 15 miles around the active site, the 10 mile
--- stop work ring in red, each strike plotted by bearing and distance and fading over a minute, and a status line
--- with the stop work countdown. Fed by ReplicatedStorage.StrikeRadar, which Lightning fires with (bearing, miles).
+-- A lightning display in the style crews use from real detection networks: range rings at 5, 10, and 15 miles
+-- around the active site (the 10 mile stop work ring in red), compass points, a sweep, and every strike plotted by
+-- bearing and distance, colored by age in simulated minutes and gone after the 30 minute window. Below it: the
+-- nearest strike and how long ago, strikes in the last 10 minutes, the storm's trend (approaching or receding), and
+-- the stop work countdown. Fed by ReplicatedStorage.StrikeRadar (bearing, miles) and the sim's SimTime.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local strikeRadar = ReplicatedStorage:WaitForChild("StrikeRadar")
 local beacon = workspace:WaitForChild("Beacon")
 
-local RANGE_MI, STOP_MI, KEEP, FADE_S = 15, 10, 14, 60
+local RANGE_MI, STOP_MI, WINDOW_S, RECENT_S = 15, 10, 30 * 60, 10 * 60
 local THEME = {
-	panel = Color3.fromRGB(14, 16, 22), raised = Color3.fromRGB(30, 34, 44), text = Color3.fromRGB(236, 238, 243),
-	dim = Color3.fromRGB(138, 145, 160), red = Color3.fromRGB(255, 80, 80), amber = Color3.fromRGB(255, 184, 28),
-	green = Color3.fromRGB(80, 220, 130),
+	panel = Color3.fromRGB(14, 16, 22), scope = Color3.fromRGB(10, 22, 18), grid = Color3.fromRGB(70, 110, 95),
+	text = Color3.fromRGB(236, 238, 243), dim = Color3.fromRGB(138, 145, 160), red = Color3.fromRGB(255, 80, 80),
+	amber = Color3.fromRGB(255, 184, 28), green = Color3.fromRGB(80, 220, 130), fresh = Color3.fromRGB(255, 255, 255),
 }
 
 local gui = Instance.new("ScreenGui")
@@ -34,32 +36,48 @@ local function round(inst, r)
 	c.CornerRadius = r
 	c.Parent = inst
 end
+local function label(parent, text, size, font, color, order)
+	local t = Instance.new("TextLabel")
+	t.LayoutOrder, t.BackgroundTransparency, t.Size = order or 0, 1, UDim2.new(1, 0, 0, 0)
+	t.AutomaticSize = Enum.AutomaticSize.Y
+	t.Font, t.TextSize, t.TextColor3 = font, size, color
+	t.TextXAlignment, t.TextWrapped, t.Text = Enum.TextXAlignment.Left, true, text
+	t.Parent = parent
+	return t
+end
 
 local card = Instance.new("Frame")
-card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(212, 0)
+card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(244, 0)
 card.AutomaticSize = Enum.AutomaticSize.Y
-card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.12, 0
+card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.1, 0
 card.Parent = gui
 round(card, UDim.new(0, 12))
 local pad = Instance.new("UIPadding")
-pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 11), UDim.new(0, 11)
+pad.PaddingTop, pad.PaddingBottom, pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 10), UDim.new(0, 10), UDim.new(0, 12), UDim.new(0, 12)
 pad.Parent = card
 local list = Instance.new("UIListLayout")
 list.Padding, list.SortOrder = UDim.new(0, 6), Enum.SortOrder.LayoutOrder
 list.Parent = card
 
-local title = Instance.new("TextLabel")
-title.LayoutOrder, title.BackgroundTransparency, title.Size = 1, 1, UDim2.new(1, 0, 0, 14)
-title.Font, title.TextSize, title.TextColor3 = Enum.Font.GothamBold, 12, THEME.amber
-title.TextXAlignment, title.Text = Enum.TextXAlignment.Left, "LIGHTNING RADAR  ·  15 MI"
-title.Parent = card
+label(card, "LIGHTNING DETECTION  ·  15 MI", 12, Enum.Font.GothamBold, THEME.amber, 1)
 
 local scope = Instance.new("Frame")
-scope.Name, scope.LayoutOrder, scope.Size = "Scope", 2, UDim2.fromOffset(190, 190)
-scope.BackgroundColor3, scope.BorderSizePixel = THEME.raised, 0
+scope.Name, scope.LayoutOrder, scope.Size = "Scope", 2, UDim2.fromOffset(220, 220)
+scope.BackgroundColor3, scope.BorderSizePixel = THEME.scope, 0
 scope.ClipsDescendants = true
 scope.Parent = card
 round(scope, UDim.new(1, 0))
+
+local function ringLabel(text, mi)
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint = Vector2.new(0, 1)
+	t.Position = UDim2.fromScale(0.5 + 0.02, 0.5 - mi / RANGE_MI / 2 + 0.005)
+	t.Size, t.BackgroundTransparency = UDim2.fromOffset(28, 12), 1
+	t.Font, t.TextSize, t.TextColor3, t.Text = Enum.Font.GothamMedium, 10, mi == STOP_MI and THEME.red or THEME.grid, text
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.ZIndex = 3
+	t.Parent = scope
+end
 for _, mi in ipairs({ 5, 10, 15 }) do
 	local ring = Instance.new("Frame")
 	ring.AnchorPoint, ring.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
@@ -68,62 +86,146 @@ for _, mi in ipairs({ 5, 10, 15 }) do
 	ring.Parent = scope
 	round(ring, UDim.new(1, 0))
 	local s = Instance.new("UIStroke")
-	s.Color = mi == STOP_MI and THEME.red or THEME.dim
-	s.Transparency, s.Thickness = mi == STOP_MI and 0.1 or 0.6, mi == STOP_MI and 2 or 1
+	s.Color = mi == STOP_MI and THEME.red or THEME.grid
+	s.Transparency, s.Thickness = mi == STOP_MI and 0.05 or 0.35, mi == STOP_MI and 2 or 1
 	s.Parent = ring
+	if mi < RANGE_MI then ringLabel(mi .. " mi", mi) end
 end
-local north = Instance.new("TextLabel")
-north.AnchorPoint, north.Position, north.Size = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 2), UDim2.fromOffset(16, 14)
-north.BackgroundTransparency, north.Font, north.TextSize, north.TextColor3, north.Text = 1, Enum.Font.GothamBold, 11, THEME.dim, "N"
-north.Parent = scope
+-- crosshair and compass points
+for _, axis in ipairs({ { UDim2.new(1, 0, 0, 1) }, { UDim2.new(0, 1, 1, 0) } }) do
+	local line = Instance.new("Frame")
+	line.AnchorPoint, line.Position, line.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), axis[1]
+	line.BackgroundColor3, line.BackgroundTransparency, line.BorderSizePixel = THEME.grid, 0.6, 0
+	line.Parent = scope
+end
+for _, c in ipairs({ { "N", 0.5, 0.035 }, { "E", 0.965, 0.5 }, { "S", 0.5, 0.965 }, { "W", 0.035, 0.5 } }) do
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint, t.Position, t.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(c[2], c[3]), UDim2.fromOffset(14, 14)
+	t.BackgroundTransparency, t.Font, t.TextSize, t.TextColor3, t.Text = 1, Enum.Font.GothamBold, 11, THEME.dim, c[1]
+	t.ZIndex = 3
+	t.Parent = scope
+end
+-- the sweep: a faint arm turning once every four seconds
+local sweep = Instance.new("Frame")
+sweep.AnchorPoint, sweep.Position, sweep.Size = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.5), UDim2.new(0, 2, 0.5, 0)
+sweep.BackgroundColor3, sweep.BackgroundTransparency, sweep.BorderSizePixel = THEME.green, 0.55, 0
+sweep.Parent = scope
+local sweepPivot = Instance.new("Frame") -- rotate a full size holder so the arm turns about the center
+sweepPivot.AnchorPoint, sweepPivot.Position, sweepPivot.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1, 1)
+sweepPivot.BackgroundTransparency = 1
+sweepPivot.Parent = scope
+sweep.Parent = sweepPivot
 local site = Instance.new("Frame")
-site.AnchorPoint, site.Position, site.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(8, 8)
-site.BackgroundColor3, site.BorderSizePixel, site.ZIndex = THEME.green, 0, 3
+site.AnchorPoint, site.Position, site.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(9, 9)
+site.BackgroundColor3, site.BorderSizePixel, site.ZIndex = THEME.green, 0, 4
 site.Parent = scope
 round(site, UDim.new(1, 0))
 
-local status = Instance.new("TextLabel")
-status.LayoutOrder, status.BackgroundTransparency, status.Size = 3, 1, UDim2.new(1, 0, 0, 0)
-status.AutomaticSize = Enum.AutomaticSize.Y
-status.Font, status.TextSize, status.TextColor3 = Enum.Font.GothamMedium, 13, THEME.green
-status.TextXAlignment, status.TextWrapped, status.Text = Enum.TextXAlignment.Left, true, "No strikes detected"
-status.Parent = card
+local nearestLine = label(card, "No strikes detected", 13, Enum.Font.GothamBold, THEME.green, 3)
+local trendLine = label(card, "", 12, Enum.Font.GothamMedium, THEME.dim, 4)
+local stopLine = label(card, "", 13, Enum.Font.GothamBold, THEME.red, 5)
+stopLine.Name = "StopLine"
+trendLine.Name = "TrendLine"
+nearestLine.Name = "NearestLine"
 
-local dots, nearest = {}, nil
+-- simulated seconds when the sim is running, real seconds otherwise (free play strikes with no scenario)
+local function now()
+	return workspace:GetAttribute("SimTime") or os.clock()
+end
+
+local strikes = {}
 strikeRadar.OnClientEvent:Connect(function(bearing, miles)
 	local r = math.min(miles, RANGE_MI) / RANGE_MI / 2
 	local dot = Instance.new("Frame")
 	dot.Name = "Strike"
 	dot.AnchorPoint = Vector2.new(0.5, 0.5)
 	dot.Position = UDim2.fromScale(0.5 + math.sin(math.rad(bearing)) * r, 0.5 - math.cos(math.rad(bearing)) * r)
-	dot.Size = UDim2.fromOffset(10, 10)
-	dot.BackgroundColor3 = miles < STOP_MI and THEME.red or THEME.amber
-	dot.BorderSizePixel, dot.ZIndex = 0, 2
+	dot.Size = UDim2.fromOffset(11, 11)
+	dot.BackgroundColor3, dot.BorderSizePixel, dot.ZIndex = THEME.fresh, 0, 2
 	dot.Parent = scope
 	round(dot, UDim.new(1, 0))
-	TweenService:Create(dot, TweenInfo.new(FADE_S, Enum.EasingStyle.Linear), { BackgroundTransparency = 1, Size = UDim2.fromOffset(5, 5) }):Play()
-	table.insert(dots, dot)
-	if #dots > KEEP then table.remove(dots, 1):Destroy() end
-	nearest = { miles = miles, bearing = bearing, at = os.clock() }
+	-- a cross inside the dot, the way detection maps mark a cloud to ground strike
+	local cross = Instance.new("TextLabel")
+	cross.BackgroundTransparency, cross.Size, cross.Text = 1, UDim2.fromScale(1, 1), "+"
+	cross.Font, cross.TextScaled, cross.TextColor3, cross.ZIndex = Enum.Font.GothamBold, true, THEME.panel, 2
+	cross.Parent = dot
+	table.insert(strikes, { t = now(), miles = miles, bearing = bearing, dot = dot })
+end)
+
+-- when a new scenario starts its clock restarts: clear the old strikes
+workspace:GetAttributeChangedSignal("SimTime"):Connect(function()
+	local t = workspace:GetAttribute("SimTime") or 0
+	if #strikes > 0 and t < strikes[#strikes].t - 1 then
+		for _, s in ipairs(strikes) do s.dot:Destroy() end
+		strikes = {}
+	end
 end)
 
 local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
+local function dir(b) return COMPASS[math.floor(((b % 360) + 22.5) / 45) % 8 + 1] end
 local function mmss(s)
 	s = math.max(0, math.floor(s))
 	return ("%02d:%02d"):format(s // 60, s % 60)
 end
+local function ago(s)
+	if s < 60 then return "just now" end
+	return ("%d min ago"):format(math.floor(s / 60))
+end
+
+local spin = 0
+RunService.RenderStepped:Connect(function(dt)
+	spin = (spin + dt * 90) % 360
+	sweepPivot.Rotation = spin
+end)
+
 while true do
+	local t = now()
+	-- age the dots: white when fresh, through amber to dim red, gone after 30 minutes
+	local keep = {}
+	for _, s in ipairs(strikes) do
+		local age = t - s.t
+		if age > WINDOW_S then
+			s.dot:Destroy()
+		else
+			local k = math.clamp(age / WINDOW_S, 0, 1)
+			s.dot.BackgroundColor3 = k < 0.15 and THEME.fresh or (k < 0.5 and THEME.amber or THEME.red)
+			s.dot.BackgroundTransparency = k * 0.7
+			table.insert(keep, s)
+		end
+	end
+	strikes = keep
+
+	local nearest, recent, older = nil, {}, {}
+	for _, s in ipairs(strikes) do
+		if not nearest or s.miles < nearest.miles then nearest = s end
+		if t - s.t <= RECENT_S then table.insert(recent, s) elseif t - s.t <= 2 * RECENT_S then table.insert(older, s) end
+	end
+	if nearest then
+		nearestLine.Text = ("Nearest %.1f mi %s  ·  %s"):format(nearest.miles, dir(nearest.bearing), ago(t - nearest.t))
+		nearestLine.TextColor3 = nearest.miles < STOP_MI and THEME.red or THEME.amber
+	else
+		nearestLine.Text, nearestLine.TextColor3 = "No strikes in the last 30 min", THEME.green
+	end
+	local function avg(set)
+		local sum = 0
+		for _, s in ipairs(set) do sum += s.miles end
+		return #set > 0 and sum / #set or nil
+	end
+	local a, b = avg(recent), avg(older)
+	local trend = ""
+	if a and b then
+		local change = a - b
+		trend = change < -0.5 and ("  ·  TREND APPROACHING %.1f mi/10 min"):format(-change)
+			or change > 0.5 and ("  ·  TREND RECEDING %.1f mi/10 min"):format(change) or "  ·  TREND STEADY"
+	end
+	trendLine.Text = ("Last 10 min: %d strike%s%s"):format(#recent, #recent == 1 and "" or "s", trend)
+
 	local real = beacon:GetAttribute("Countdown") or 0
 	local left = real > 0 and real or (workspace:GetAttribute("SimCountdown") or 0)
-	local last = nearest and ("Last strike %.0f mi %s"):format(nearest.miles, COMPASS[math.floor(((nearest.bearing % 360) + 22.5) / 45) % 8 + 1]) or nil
 	if left > 0 then
-		status.Text = ("STOP WORK  %s%s"):format(mmss(left), last and ("\n" .. last) or "")
-		status.TextColor3 = THEME.red
-	elseif last then
-		status.Text = "Clear inside 10 mi\n" .. last
-		status.TextColor3 = (nearest.miles < STOP_MI and THEME.green) or THEME.amber
+		stopLine.Text, stopLine.TextColor3 = "STOP WORK  ·  ALL CLEAR IN " .. mmss(left), THEME.red
 	else
-		status.Text, status.TextColor3 = "No strikes detected", THEME.green
+		stopLine.Text, stopLine.TextColor3 = "CLEAR  ·  no strike inside 10 mi for 30 min", THEME.green
 	end
 	task.wait(0.25)
 end
