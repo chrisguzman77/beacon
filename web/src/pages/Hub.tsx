@@ -5,7 +5,7 @@ import { isTakeover } from '@/site/types'
 import { buildFactors, isHazard } from '@/site/factors'
 import { useIdle } from '@/sweet-treats/useIdle'
 import { useFactorHistory } from '@/sweet-treats/useFactorHistory'
-import SiteBoard from '@/site/SiteBoard'
+import HubBoard from '@/site/HubBoard'
 import AlarmState from '@/site/AlarmState'
 import CautionScreen from '@/site/CautionScreen'
 import AppNav from '@/components/AppNav'
@@ -64,7 +64,7 @@ export default function Hub() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-bg text-ink select-none">
-      {alarm ? <AlarmState s={snapshot} /> : <SiteBoard key={snapshot.site.id} s={snapshot} live={live} idle={idle} history={history} />}
+      {alarm ? <AlarmState s={snapshot} /> : <HubBoard key={snapshot.site.id} s={snapshot} live={live} idle={idle} history={history} />}
       {caution && <CautionScreen hazards={hazards} site={snapshot.site.name} />}
     </div>
   )

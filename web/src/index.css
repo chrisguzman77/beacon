@@ -1,14 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
-/* One dark theme for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
+/* One theme (the MARSH design) for the dashboard, site page and crew page. Values come from src/tokens.ts via applyTokens(). */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Inter Variable', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
     /* PlanIT tokens */
     --color-bg: var(--t-bg);
@@ -70,7 +72,7 @@
 
 :root {
     --radius: 0.75rem;
-    color-scheme: dark;
+    color-scheme: light;
 }
 
 @layer base {
@@ -97,3 +99,9 @@
   to { stroke-dashoffset: 40; }
 }
 .web-flow { animation: web-flow 0.8s linear infinite; }
+
+/* Reduced motion (bottom bar toggle, or the system setting): no pulses, glides or slides. */
+[data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

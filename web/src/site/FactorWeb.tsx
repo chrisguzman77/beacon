@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import type { PointerEvent, WheelEvent } from 'react'
 import Panel from '@/components/Panel'
 import { color, indexColor } from '@/tokens'
+import { Check, TriangleAlert } from 'lucide-react'
 import { buildFactors, groups, worst } from './factors'
 import type { Factor, Status } from './factors'
 import type { Snapshot } from './types'
@@ -13,7 +14,7 @@ import type { Snapshot } from './types'
 type Pt = { x: number; y: number }
 export type FactorWebHandle = { fit: () => void }
 
-const HUB_R = { x: 600, y: 330 }
+const HUB_R = { x: 470, y: 270 }
 const CELL = { w: 200, h: 92 } // factor node 184 x ~70 plus gap
 const COLS = 2
 
@@ -42,15 +43,17 @@ function layout(factors: Factor[]) {
   return pos
 }
 
+// MARSH cards on the dark main panel: cream cards, a tinted face and edge when a hazard needs
+// attention, light links that take the hazard color when it does.
+const quiet = 'rgb(245 247 237 / 0.28)'
 function look(status: Status, tint = color.border) {
-  if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 42%, ${color.bg})`, value: color.text, line: tint, glow: tint, depth: 3 }
-  if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.bg})`, value: tint, line: tint, glow: `color-mix(in srgb, ${tint} 55%, transparent)`, depth: 2 }
-  if (status === 'ok') return { edge: color.signal, fill: color.surface, value: color.text, line: `color-mix(in srgb, ${color.signal} 55%, transparent)`, glow: undefined, depth: 2 }
-  return { edge: color.border, fill: color.surface, value: color.text, line: color.border, glow: undefined, depth: 1 }
+  if (status === 'danger') return { edge: tint, fill: `color-mix(in srgb, ${tint} 16%, ${color.surface})`, line: tint, depth: 2 }
+  if (status === 'caution') return { edge: tint, fill: `color-mix(in srgb, ${tint} 8%, ${color.surface})`, line: tint, depth: 2 }
+  return { edge: color.border, fill: color.surface, line: quiet, depth: 1 }
 }
 
-const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '12 8' : undefined)
-const tag: Record<Status, string> = { danger: 'DANGER', caution: 'CAUTION', ok: 'OK', info: '' }
+const dash = (s: Status) => (s === 'info' ? '2 6' : s === 'danger' ? '10 7' : undefined)
+const statusText: Record<Status, string> = { danger: 'Danger', caution: 'Caution', ok: 'Normal', info: '' }
 
 type Props = { s: Snapshot; tour?: boolean; selected?: string | null; onSelect?: (id: string | null) => void; backdrop?: string }
 
@@ -155,8 +158,8 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
       }}
       onWheel={wheel}
     >
-      <div className="absolute inset-0" style={grid(160, '40', 0.4)} />
-      <div className="absolute inset-0" style={grid(40, '2a', 1)} />
+      <div className="absolute inset-0" style={grid(160, '22', 0.4)} />
+      <div className="absolute inset-0" style={grid(40, '12', 1)} />
 
       <div
         className="absolute top-1/2 left-1/2"
@@ -190,33 +193,23 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
         {factors.map((x) => {
           const p = pos[x.id]
           const l = look(x.status, x.tint)
+          const on = selected === x.id
           return (
             <div
               key={x.id}
               data-node={x.id}
-              className="absolute w-[184px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-              style={{ left: p.x, top: p.y, zIndex: selected === x.id ? 5 : undefined }}
+              className="absolute w-[188px] -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              style={{ left: p.x, top: p.y, zIndex: on ? 5 : undefined }}
             >
-              <Panel
-                size={12}
-                edge={selected === x.id ? color.text : l.edge}
-                fill={l.fill}
-                depth={selected === x.id ? 3 : l.depth}
-                glow={selected === x.id ? color.signal : l.glow}
-                inner="flex flex-col gap-1 px-4 py-3"
-              >
-                <span className="flex items-center justify-between text-label font-semibold uppercase tracking-[0.14em] text-dim">
-                  {x.label}
-                  {tag[x.status] && (
-                    <span
-                      className={`font-mono text-[11px] font-bold ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`}
-                      style={{ color: x.status === 'ok' ? color.signal : x.status === 'danger' ? color.text : x.tint }}
-                    >
-                      {tag[x.status]}
-                    </span>
-                  )}
-                </span>
-                <span className="text-[28px] leading-none font-bold" style={{ color: l.value }}>{x.value}</span>
+              <Panel size={12} edge={on ? color.accent : l.edge} fill={l.fill} depth={on ? 3 : l.depth} inner="flex flex-col gap-1 px-4 py-3">
+                <span className="truncate text-[13px]" style={{ color: color.muted }}>{x.label}</span>
+                <span className="text-[26px] leading-none" style={{ color: color.text }}>{x.value}</span>
+                {statusText[x.status] && (
+                  <span className="flex items-center gap-1.5 text-[12px]" style={{ color: x.status === 'ok' ? color.muted : x.tint }}>
+                    {x.status === 'ok' ? <Check className="size-3.5" strokeWidth={2.5} /> : <TriangleAlert className={`size-3.5 ${x.status === 'danger' ? 'animate-beacon-pulse' : ''}`} strokeWidth={2.5} />}
+                    <span className={x.status === 'ok' ? '' : 'font-semibold'}>{statusText[x.status]}</span>
+                  </span>
+                )}
               </Panel>
             </div>
           )
@@ -224,33 +217,33 @@ const FactorWeb = forwardRef<FactorWebHandle, Props>(function FactorWeb({ s, tou
 
         {hubs.map((h) => {
           const p = pos[`hub:${h.id}`]
-          const l = look(h.status, h.tint)
+          const hot = h.status === 'danger' || h.status === 'caution'
           return (
-            <div key={h.id} className="absolute w-[150px] -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
-              <Panel size={16} edge={l.edge} fill={color.raised} depth={3} glow={l.glow} inner="flex flex-col items-center gap-1 px-3 py-3">
-                <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-dim">CLUSTER</span>
-                <span className="text-body font-black tracking-[0.12em] uppercase" style={{ color: h.status === 'info' ? color.text : l.edge }}>
-                  {h.label}
-                </span>
-              </Panel>
+            <div key={h.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: p.x, top: p.y }}>
+              <span
+                className="flex items-center gap-2 rounded-md px-4 py-2 text-[14px] font-bold whitespace-nowrap shadow-md"
+                style={{ background: hot ? color.accent : color.raised, color: color.accentInk, boxShadow: hot ? `inset 0 0 0 2px ${h.tint}` : undefined }}
+              >
+                {hot && <TriangleAlert className="size-4" style={{ color: h.tint }} strokeWidth={2.5} />}
+                {h.label}
+              </span>
             </div>
           )
         })}
 
-        <div className="absolute w-[250px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
-          <Panel size={22} edge={indexColor(s.index)} fill={color.raised} depth={3} glow={`color-mix(in srgb, ${indexColor(s.index)} 45%, transparent)`}
-            inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
-            <span className="text-label font-semibold uppercase tracking-[0.18em] text-dim">Hazard index</span>
+        <div className="absolute w-[240px] -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0 }}>
+          <Panel size={12} edge={indexColor(s.index)} fill={color.surface} depth={3} inner="flex flex-col items-center gap-1 px-5 py-4 text-center">
+            <span className="text-[13px] font-bold tracking-[0.02em] uppercase" style={{ color: color.muted }}>Hazard index</span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[88px] leading-[0.9] font-bold" style={{ color: indexColor(s.index) }}>{s.index}</span>
-              <span className="text-heading font-semibold text-dim">/10</span>
+              <span className="text-[76px] leading-[0.95] font-semibold" style={{ color: indexColor(s.index) }}>{s.index}</span>
+              <span className="text-[24px]" style={{ color: color.muted }}>/10</span>
             </span>
-            <span className="line-clamp-2 text-label leading-snug">{s.index_reason}</span>
+            <span className="line-clamp-2 text-[13px] leading-snug">{s.index_reason}</span>
           </Panel>
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 55%, ${backdrop} 100%)` }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 72%, ${backdrop} 100%)` }} />
     </div>
   )
 })

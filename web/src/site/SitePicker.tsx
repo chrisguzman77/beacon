@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Search } from 'lucide-react'
-import Panel, { cut } from '@/components/Panel'
+import Panel from '@/components/Panel'
 import { LiveBadge } from '@/dashboard/RankedList'
 import { rank, useDash } from '@/dashboard/store'
 import { color, indexColor } from '@/tokens'
@@ -33,21 +33,13 @@ export default function SitePicker({ current, name }: { current: number; name: s
 
   return (
     <div ref={box} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="p-[2px]"
-        style={{ clipPath: cut(10), background: open ? color.signal : color.border }}
-        aria-expanded={open}
-      >
-        <span className="flex items-center gap-3 px-4 py-2" style={{ clipPath: cut(9), background: color.surface }}>
-          <span className="font-mono text-[10px] font-bold tracking-[0.2em] text-dim">SITE</span>
-          <span className="max-w-[260px] truncate text-body font-semibold">{name}</span>
-          <ChevronDown className="size-4 text-dim" />
-        </span>
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-sm px-1 hover:underline" aria-expanded={open} title="Switch site">
+        <span className="max-w-[320px] truncate text-[16px] font-bold">{name} / Site {String(current).padStart(2, '0')}</span>
+        <ChevronDown className="size-4" style={{ color: color.muted }} />
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 z-40 mt-2 w-[440px]">
+        <div className="absolute top-full right-0 z-40 mt-2 w-[440px]">
           <Panel size={14} depth={3} edge={color.signal} inner="flex flex-col gap-3 p-3">
             <label className="flex items-center gap-2 px-2 py-2" style={{ boxShadow: `inset 0 0 0 1px ${color.border}` }}>
               <Search className="size-4 text-dim" />

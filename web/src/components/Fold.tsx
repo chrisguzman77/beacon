@@ -30,10 +30,10 @@ export default function Fold({ id, title, summary, badge, edge, defaultOpen = fa
   }
 
   return (
-    <Panel size={14} depth={open ? 2 : 1} edge={edge} inner="flex flex-col">
+    <Panel size={12} depth={1} edge={edge} inner="flex flex-col">
       <button onClick={toggle} className="flex items-center justify-between gap-3 px-5 py-4 text-left" aria-expanded={open}>
         <span className="flex items-center gap-3">
-          <span className="text-body font-bold tracking-[0.12em] uppercase">{title}</span>
+          <span className="text-[13px] font-bold tracking-[0.02em] uppercase">{title}</span>
           {!open && summary && <span className="font-mono text-label font-bold tracking-wider whitespace-nowrap text-dim">{summary}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-3 whitespace-nowrap">

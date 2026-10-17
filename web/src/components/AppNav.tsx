@@ -1,11 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { cut } from '@/components/Panel'
-import { color, shape } from '@/tokens'
+import { color } from '@/tokens'
 
-// Top level sections. Keeps the current query string (?fake=1) when switching.
+// Top level sections, MARSH tab style: amber when active. Keeps the query string (?fake=1).
 const tabs = [
-  { to: '/dashboard', label: 'Dashboard', code: '01' },
-  { to: '/hub', label: 'Hub', code: '02' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/hub', label: 'Hub' },
 ]
 
 export default function AppNav() {
@@ -15,22 +14,14 @@ export default function AppNav() {
         <NavLink
           key={t.to}
           to={`${t.to}${location.search}`}
-          className="p-[2px]"
-          style={({ isActive }) => ({ clipPath: cut(10), background: isActive ? (shape.marsh ? color.accent : color.signal) : color.border })}
+          className="rounded-md px-4 py-2 text-label font-semibold"
+          style={({ isActive }) => ({
+            background: isActive ? color.accent : color.surface,
+            color: isActive ? color.accentInk : color.text,
+            boxShadow: isActive ? undefined : `inset 0 0 0 1px ${color.border}`,
+          })}
         >
-          {({ isActive }) => (
-            <span
-              className="flex items-center gap-2 px-4 py-2 font-mono text-label font-bold tracking-[0.18em] uppercase"
-              style={{
-                clipPath: cut(9),
-                background: isActive ? (shape.marsh ? color.accent : `color-mix(in srgb, ${color.signal} 16%, ${color.bg})`) : color.surface,
-                color: isActive ? (shape.marsh ? color.accentInk : color.signal) : color.muted,
-              }}
-            >
-              <span className="text-[10px] opacity-70">{t.code}</span>
-              {t.label}
-            </span>
-          )}
+          {t.label}
         </NavLink>
       ))}
     </nav>

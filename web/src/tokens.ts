@@ -2,31 +2,34 @@
 // CSS variables, index.css maps those into the Tailwind theme, and JS (the map,
 // charts) imports the same values. Never type a raw color anywhere else.
 
-// Technical safety: near-black with green-tinted panels and a bright signal green for
-// edges and controls. High contrast so the room display and phones read in sun, glare and dim venues.
+// The MARSH design (Cam's Figma, web/design/marsh), colors sampled from the screens. MARSH is a
+// style example only; nothing here is tied to one place or climate.
 export const color = {
-  bg: '#040806',
-  surface: '#0A140F',
-  raised: '#102019',
-  border: '#2B6B48',
-  text: '#F0FFF6',
-  muted: '#8DB8A0',
-  signal: '#00FF88', // UI chrome: panel edges, control stripes, pressed state. Never a hazard meaning
-  online: '#00FF88',
-  offline: '#FFB300',
-  chrome: '#040806', // MARSH frame bars (top bar, bottom nav)
-  chromeText: '#F0FFF6',
-  accent: '#00FF88', // active tab and primary action
-  accentInk: '#040806', // text on the accent
+  bg: '#E8EADF', // page
+  surface: '#F8F9F2', // cards
+  raised: '#DCE4D3', // sage tiles, table headers
+  border: '#D7DCD1',
+  text: '#1D2822', // ink
+  muted: '#5F6B62',
+  signal: '#3F7D4E', // OK and checks. Never a hazard meaning
+  online: '#3F7D4E',
+  offline: '#B7791F',
+  chrome: '#17221D', // top bar and dark panels
+  chromeSoft: '#27322B', // bottom bar and dark tabs
+  chromeText: '#F5F7ED',
+  accent: '#F4BD4F', // amber: active tab, primary action, urgent banner
+  accentPale: '#FAE7B6', // warning banners and callouts
+  accentInk: '#1D2822',
+  forest: '#465E3B',
 }
 
-// One color per hazard type, used identically on every screen.
+// One color per hazard type, used identically on every screen. Deep enough to read on paper.
 export const hazard = {
-  stopwork: '#FF3B30', // lightning and stop work
-  heat: '#FFB300',
-  flood: '#00D4FF',
-  wildlife: '#FF5FD2', // magenta, green is taken by the UI and means "safe"
-  unsafe: '#C77DFF', // beacon tilt, e-stop
+  stopwork: '#C8352B', // lightning and stop work
+  heat: '#C98A12',
+  flood: '#1F7FA8',
+  wildlife: '#B23C8E',
+  unsafe: '#7A4FC2', // beacon tilt, e-stop
 }
 
 // Full screen takeover backgrounds: saturated but deep enough that white text holds contrast.
@@ -60,7 +63,7 @@ export const hazardLabel: Record<HazardKey, string> = {
 }
 
 // Hazard index 0 to 10, green through yellow to red. The only gradient in the app.
-export const indexStops = { low: '#00FF88', mid: '#FFD600', high: '#FF3B30' }
+export const indexStops = { low: '#3F7D4E', mid: '#C98A12', high: '#C8352B' }
 
 export function indexColor(index: number): string {
   if (index <= 3) return indexStops.low
@@ -72,9 +75,9 @@ export function indexColor(index: number): string {
 export const type = {
   countdown: 240,
   display: 120,
-  heading: 32,
-  body: 20,
-  label: 14,
+  heading: 34,
+  body: 16,
+  label: 13,
 }
 
 export const size = {
@@ -83,51 +86,8 @@ export const size = {
 
 export const motion = { ms: 200, ease: 'cubic-bezier(0.2, 0, 0, 1)' }
 
-// Shape and depth for the current look.
-export const shape = { round: 0, glow: true, shadow: 0.7, stripes: true, marsh: false }
-
-// Looks, picked with ?look= (remembered in this browser). tech is the original; field, night and
-// hybrid interpret Cam's MARSH Figma screens (web/design/marsh), which are a style example only:
-// nothing here is tied to one place or climate. Each look swaps colors and shape only.
-type Look = { color: Partial<typeof color>; hazard?: Partial<typeof hazard>; index?: typeof indexStops; shape: Partial<typeof shape> }
-const lightHazard = { stopwork: '#C8352B', heat: '#C98A12', flood: '#1F7FA8', wildlife: '#B23C8E', unsafe: '#7A4FC2' }
-const fieldColor = {
-  bg: '#E8EADF', surface: '#F6F6EF', raised: '#DDE5D3', border: '#C6CDBB', text: '#18221B', muted: '#5E6B60',
-  signal: '#2F6B3F', online: '#2F8F4E', offline: '#B7791F', chrome: '#18221B', chromeText: '#EEF0E6', accent: '#F2B94B', accentInk: '#18221B',
-}
-export const looks: Record<string, Look> = {
-  tech: { color: {}, shape: {} },
-  field: { color: fieldColor, hazard: lightHazard, index: { low: '#2F8F4E', mid: '#C98A12', high: '#C8352B' }, shape: { round: 8, glow: false, shadow: 0.12, stripes: false, marsh: true } },
-  night: {
-    color: {
-      bg: '#111915', surface: '#18231C', raised: '#213027', border: '#34473A', text: '#EEF0E6', muted: '#9DAA98',
-      signal: '#8CC78A', online: '#8CC78A', offline: '#F2B94B', chrome: '#0A0F0C', chromeText: '#EEF0E6', accent: '#F2B94B', accentInk: '#18221B',
-    },
-    hazard: { stopwork: '#FF5A4E', heat: '#F2B94B', flood: '#4FC3E8', wildlife: '#F07AC8', unsafe: '#B794F6' },
-    index: { low: '#8CC78A', mid: '#F2B94B', high: '#FF5A4E' },
-    shape: { round: 8, glow: false, shadow: 0.5, stripes: false, marsh: true },
-  },
-  hybrid: { color: fieldColor, hazard: lightHazard, index: { low: '#2F8F4E', mid: '#C98A12', high: '#C8352B' }, shape: { round: 0, glow: false, shadow: 0.14, stripes: true, marsh: true } },
-}
-
-function pickLook() {
-  let id = new URLSearchParams(location.search).get('look')
-  try {
-    if (id && looks[id]) localStorage.setItem('look', id)
-    else id = localStorage.getItem('look')
-  } catch {
-    /* no storage, URL only */
-  }
-  return id && looks[id] ? id : 'tech'
-}
-export const lookId = pickLook()
-
-// Applied as this module loads, so every component reads the chosen look's values.
-const look = looks[lookId]
-Object.assign(color, look.color)
-Object.assign(hazard, look.hazard ?? {})
-Object.assign(indexStops, look.index ?? {})
-Object.assign(shape, look.shape)
+// Corners and depth: soft 6 px rounding, light shadows, no glow (the MARSH cards).
+export const shape = { round: 6, shadow: 0.08 }
 
 export function applyTokens() {
   const s = document.documentElement.style
