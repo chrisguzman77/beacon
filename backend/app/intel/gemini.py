@@ -1,9 +1,9 @@
 """Gemini calls for intel (ai-ml-guide section 7). Every call uses a JSON response schema; text goes through the number guard."""
-import json, logging, re
+import asyncio, json, logging, re
 from pathlib import Path
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 log = logging.getLogger('intel.gemini')
@@ -26,11 +26,27 @@ def client():
     return _client
 
 
-async def generate(contents, schema: dict) -> dict:
-    r = await client().aio.models.generate_content(
-        model=settings.gemini_model, contents=contents,
-        config=types.GenerateContentConfig(response_mime_type='application/json', response_schema=schema))
-    return json.loads(r.text)
+_slots = asyncio.Semaphore(4)   # at most 4 Gemini calls in flight; the 6 PM jobs fire ~30 at once
+RETRYABLE = {429, 500, 503}
+
+
+async def generate(contents, schema: dict, patient: bool = False) -> dict:
+    """On a rate limit or overload, wait and retry instead of failing: up to ~3 minutes when patient (the 6 PM
+    batch, so a burst queues instead of falling back to templates), one short retry otherwise (a crew member is
+    waiting on the upload). An exhausted daily quota is not retried."""
+    waits = [5, 10, 20, 40, 60, 60] if patient else [3]
+    for attempt in range(len(waits) + 1):
+        try:
+            async with _slots:
+                r = await client().aio.models.generate_content(
+                    model=settings.gemini_model, contents=contents,
+                    config=types.GenerateContentConfig(response_mime_type='application/json', response_schema=schema))
+            return json.loads(r.text)
+        except errors.APIError as e:
+            if e.code not in RETRYABLE or attempt == len(waits) or 'PerDay' in str(e):
+                raise
+            log.warning('gemini %s, retrying in %ss', e.code, waits[attempt])
+            await asyncio.sleep(waits[attempt])
 
 
 # --- number guard ---------------------------------------------------------------
@@ -82,7 +98,7 @@ async def briefing(payload: dict) -> tuple[dict, str]:
               'Payload: ' + json.dumps(payload, ensure_ascii=False))
     for attempt in range(2):
         try:
-            out = await generate(prompt, BRIEFING_SCHEMA)
+            out = await generate(prompt, BRIEFING_SCHEMA, patient=True)
         except Exception:
             log.exception('briefing call failed')
             break

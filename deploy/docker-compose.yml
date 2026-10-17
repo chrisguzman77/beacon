@@ -6,8 +6,12 @@ services:
     volumes: ["uploads:/app/uploads"]
     restart: unless-stopped
   web:
-    build: ../web
-    ports: ["80:80"]
+    build:
+      context: ../web
+      # VITE_* are baked in at build time (web/Dockerfile defaults VITE_API_URL to the api domain). Auth0 login stays
+      # off until all three are set together: domain dev-5vjivlkbfz7ozg5s.us.auth0.com, audience https://planit-beacon/api,
+      # and the SPA client id (public). Setting the domain alone breaks the login button.
+    ports: ["127.0.0.1:8080:80"]   # Caddy owns 80/443 and proxies the bare domain here
     restart: unless-stopped
 volumes:
   uploads:

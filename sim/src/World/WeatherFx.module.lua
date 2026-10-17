@@ -24,13 +24,13 @@ local targets = {
 }
 
 local CLEAR = {
-	lighting = { ClockTime = 15, Brightness = 2.5, OutdoorAmbient = Color3.fromRGB(140, 140, 150) },
+	lighting = { Brightness = 2.5, OutdoorAmbient = Color3.fromRGB(140, 140, 150) },
 	atmosphere = { Density = 0.34, Haze = 1.6, Glare = 0.25, Color = Color3.fromRGB(196, 198, 172), Decay = Color3.fromRGB(96, 112, 96) },
 	grade = { Brightness = 0, Contrast = 0.05, Saturation = 0.1, TintColor = Color3.new(1, 1, 1) },
 	clouds = { Cover = 0.45, Density = 0.6, Color = Color3.new(1, 1, 1) },
 }
 local STORM = {
-	lighting = { ClockTime = 17.2, Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(90, 95, 110) },
+	lighting = { Brightness = 1.2, OutdoorAmbient = Color3.fromRGB(90, 95, 110) },
 	atmosphere = { Density = 0.55, Haze = 2.5, Glare = 0, Color = Color3.fromRGB(110, 115, 125), Decay = Color3.fromRGB(70, 75, 90) },
 	grade = { Brightness = -0.05, Contrast = 0.12, Saturation = -0.25, TintColor = Color3.fromRGB(215, 225, 240) },
 	clouds = { Cover = 0.95, Density = 0.85, Color = Color3.fromRGB(120, 125, 135) },
@@ -85,6 +85,11 @@ function WeatherFx.setWater(depth_mm, instant)
 	else
 		TweenService:Create(water, TweenInfo.new(RISE_SECONDS, Enum.EasingStyle.Sine), goal):Play()
 	end
+end
+
+-- the sun's position comes from the scenario clock (ScenarioEngine), the weather only dims and tints it
+function WeatherFx.setClock(hours)
+	Lighting.ClockTime = hours
 end
 
 function WeatherFx.reset()
