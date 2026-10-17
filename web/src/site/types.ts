@@ -1,3 +1,5 @@
+import type { Alert } from '@/api'
+
 // The site page's view of one site: live device state plus conditions, crew and reports.
 // Filled by the fake (?fake=1) today and from GET /sites/{id} plus the site websocket next.
 
@@ -45,6 +47,7 @@ export type Snapshot = {
   river_flood_ft?: number
   flood_zone?: string
   lcd?: string[] // the beacon LCD1602's two lines, exactly as shown
+  alert_log?: Alert[] // open and past alerts, newest first, for the compliance log
 }
 
 export function isTakeover(s: Snapshot) {

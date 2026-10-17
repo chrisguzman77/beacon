@@ -15,6 +15,7 @@ type Detail = {
   lat: number
   lon: number
   alerts: Alert[]
+  alert_history?: Alert[]
   index: { index: number; top_features?: { label: string }[] } | null
   briefing: { english: string; spanish: string; for_date: string; payload?: Record<string, number | string> } | null
   reports: Report[]
@@ -77,6 +78,8 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       report_url: '',
       demo_scale: 1,
       lcd: device.lcd,
+      // Open alerts (kept current by the websocket) over the history from GET /sites/{id}, newest first.
+      alert_log: [...new Map([...(detail.alert_history ?? []), ...detail.alerts].map((a) => [a.alert_id, a])).values()].sort((a, b) => b.started.localeCompare(a.started)),
       ...cond,
     })
   }

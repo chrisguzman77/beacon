@@ -23,7 +23,18 @@ function reasonsFor(s: Snapshot): string[] {
   const usual = [`Heat index ${Math.round(s.heat_index_f)}°F`, `Gusts ${Math.round((s.wind_gust_mph ?? 0) * 1.609)} km/h`, `Soil moisture ${((s.soil_pct ?? 0) / 100).toFixed(2)}`]
   return [...new Set([...hz, ...usual])].slice(0, 3)
 }
-const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s) })
+// Two past stop works for the compliance log: one released by the supervisor after three strikes,
+// one that ran out yesterday.
+const loaded = Date.now()
+const at = (minAgo: number) => new Date(loaded - minAgo * 60_000).toISOString()
+const strike = (minAgo: number, miles: number) => ({ ts: at(minAgo), source: 'beacon', distance_m: Math.round(miles * 1609) })
+const fakeLog = (siteId: number) => [
+  { alert_id: 9101, site_id: siteId, type: 'stopwork', started: at(190), expires: at(132), cleared: at(150), cleared_by: 'Maria Lopez', awaiting_clear: false,
+    payload: { resets: 2, history: [strike(190, 8), strike(176, 6), strike(162, 4)] } },
+  { alert_id: 9102, site_id: siteId, type: 'stopwork', started: at(1500), expires: at(1470), cleared: null, cleared_by: null, awaiting_clear: false,
+    payload: { resets: 0, history: [strike(1500, 9)] } },
+]
+const withLcd = (s: Snapshot): Snapshot => ({ ...s, lcd: lcdFor(s), index_reasons: s.index_reasons ?? reasonsFor(s), alert_log: s.alert_log ?? fakeLog(s.site.id) })
 
 type Frame = { at: number; patch: Partial<Snapshot> }
 const base = script.base as Snapshot

@@ -12,6 +12,7 @@ import DeviceCard from './DeviceCard'
 import MusterPanel from './MusterPanel'
 import BriefingPanel from './BriefingPanel'
 import ReportsPanel from './ReportsPanel'
+import CompliancePanel from './CompliancePanel'
 import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
@@ -131,6 +132,7 @@ export default function HubBoard({ s, live, history }: Props) {
           <MusterPanel s={s} />
           <ReportsPanel s={s} />
           <BriefingPanel s={s} />
+          <CompliancePanel s={s} />
         </div>
       </div>
 
