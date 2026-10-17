@@ -34,7 +34,7 @@ const fakeLog = (siteId: number) => [
   { alert_id: 9102, site_id: siteId, type: 'stopwork', started: at(1500), expires: at(1470), cleared: null, cleared_by: null, awaiting_clear: false,
     payload: { resets: 0, history: [strike(1500, 9)] } },
 ]
-// What the Roblox twin's storm scenario sent, for the scenario panel.
+// What the site twin's storm scenario sent, for the scenario panel.
 const fakeSim: Snapshot['sim'] = [
   { ts: at(162), kind: 'strike', text: 'Strike 4 mi from the site' },
   { ts: at(176), kind: 'strike', text: 'Strike 6 mi from the site' },

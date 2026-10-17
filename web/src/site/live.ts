@@ -48,7 +48,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
   let explain: Explain | null = null
   let sim: SimEvent[] = []
   const simAdd = (e: SimEvent) => (sim = [e, ...sim.filter((x) => !(x.kind === e.kind && x.ts === e.ts))].slice(0, 6))
-  // Strikes Roblox sent, read from the alerts (each stop work keeps its strikes with their source).
+  // Strikes the twin sent, read from the alerts (each stop work keeps its strikes with their source).
   const simStrikes = (alerts: Alert[]) =>
     alerts.flatMap((a) => ((a.payload.history as { ts: string; source?: string; distance_m?: number }[] | undefined) ?? []).filter((h) => h.source === 'sim'))
       .forEach((h) => simAdd({ ts: h.ts, kind: 'strike', text: h.distance_m ? `Strike ${Math.round(h.distance_m / 1609)} mi from the site` : 'Strike near the site' }))
@@ -107,7 +107,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       else if (m.type === 'report') detail.reports = [m as Report, ...detail.reports.filter((r) => r.report_id !== m.report_id)]
       else if (m.type === 'briefing') detail.briefing = { english: m.english ?? '', spanish: m.spanish ?? '', for_date: m.for_date ?? '', payload: m.payload }
       else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear }
-      // Roblox weather and water also update the readings below; here they are logged for the scenario panel.
+      // the twin weather and water also update the readings below; here they are logged for the scenario panel.
       if (m.type === 'conditions' && m.source === 'sim') {
         const ts = new Date().toISOString()
         if (m.water_depth_mm != null) simAdd({ ts, kind: 'water', text: `Water ${m.water_depth_mm} mm at the beacon` })

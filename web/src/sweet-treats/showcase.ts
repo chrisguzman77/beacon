@@ -28,7 +28,7 @@ export const steps: Step[] = [
   { name: 'Flood danger', patch: () => ({ alert_type: 'flood_confirmed', reason: 'FLOOD CONFIRMED', led: 'yellow', water_pct: 45, precip_24h_in: 3.6, soil_pct: 96, river_stage_ft: 10.4, flood_zone: 'AE', index: 8, index_reason: 'Flood confirmed, river above flood stage' }) },
   { name: 'High wind', patch: () => ({ wind_gust_mph: 38, index: 7, index_reason: 'Gusts to 38 mph, no work at height' }) },
   { name: 'Wildlife', patch: () => ({ reports: alligator(), index: 6, index_reason: 'Alligator reported near the north gate' }) },
-  { name: 'Lightning', patch: () => ({ crew: [...base.crew, { id: 9, name: 'Judge1', in: true, roblox: true }], alert_type: 'stopwork', reason: 'LIGHTNING 8 MI', led: 'red', presence: true, zone_clear: false, radar: { d: 182, s: 41, m: 12 }, last_flash_ts: now(), index: 9, index_reason: 'Lightning 8 mi west' }) },
+  { name: 'Lightning', patch: () => ({ crew: [...base.crew, { id: 9, name: 'Judge1', in: true, twin: true }], alert_type: 'stopwork', reason: 'LIGHTNING 8 MI', led: 'red', presence: true, zone_clear: false, radar: { d: 182, s: 41, m: 12 }, last_flash_ts: now(), index: 9, index_reason: 'Lightning 8 mi west' }) },
   { name: 'Beacon unsafe', patch: () => ({ alert_type: 'beacon_unsafe', reason: 'BEACON TILTED', led: 'strobe', tilt: 22, index: 7, index_reason: 'Beacon tilted 22°, check the mount' }) },
   { name: 'Offline', patch: () => ({ online: false, index: 3, index_reason: 'Cloud link lost, local rules active' }) },
   {

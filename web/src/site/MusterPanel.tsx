@@ -1,11 +1,12 @@
-import { Gamepad2 } from 'lucide-react'
+import { Box } from 'lucide-react'
 import Fold from '@/components/Fold'
 import { Pill } from '@/components/marsh'
 import { color, hazard } from '@/tokens'
 import type { Snapshot } from './types'
+import { twin } from '@/lib/twin'
 
 // Draft (Cam: headcount + roster). Big headcount and radar zone status, then everyone with an
-// IN or OUT tag, checked in first. Roblox players carry a controller icon.
+// IN or OUT tag, checked in first. twin visitors carry a cube icon.
 export default function MusterPanel({ s }: { s: Snapshot }) {
   const crew = [...s.crew].sort((a, b) => Number(b.in) - Number(a.in))
   const crewIn = crew.filter((c) => c.in).length
@@ -37,7 +38,7 @@ export default function MusterPanel({ s }: { s: Snapshot }) {
             <li key={c.id} className="flex items-center justify-between border-t border-line py-2.5 first:border-t-0">
               <span className="flex items-center gap-2 text-[15px]" style={{ color: c.in ? color.text : color.muted }}>
                 {c.name}
-                {c.roblox && <Gamepad2 className="size-4 text-dim" aria-label="Roblox player" />}
+                {c.twin && <Box className="size-4 text-dim" aria-label={twin.player} />}
               </span>
               <Pill tint={c.in ? (stop ? hazard.stopwork : color.signal) : color.muted}>{c.in ? 'In' : 'Out'}</Pill>
             </li>

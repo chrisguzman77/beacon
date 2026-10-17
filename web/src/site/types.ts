@@ -6,10 +6,10 @@ import type { Alert } from '@/api'
 // A crew hazard photo report (POST /reports), tagged by the AI. lat/lon pin it on the site plot.
 export type Report = { report_id?: number; tag: string; description: string; ts: string; lat?: number | null; lon?: number | null; photo_path?: string | null; confidence?: number; note?: string }
 
-// Something the Roblox twin did (backend source 'sim'): a strike, weather or water, newest first.
+// Something the site twin did (backend source 'sim'): a strike, weather or water, newest first.
 export type SimEvent = { ts: string; kind: 'strike' | 'weather' | 'water'; text: string }
 
-export type CrewMember = { id: number; name: string; in: boolean; roblox?: boolean } // roblox: joined from the Roblox twin
+export type CrewMember = { id: number; name: string; in: boolean; twin?: boolean } // twin: joined through the site twin
 
 export type Snapshot = {
   kind: 'snapshot'
@@ -51,7 +51,7 @@ export type Snapshot = {
   flood_zone?: string
   lcd?: string[] // the beacon LCD1602's two lines, exactly as shown
   alert_log?: Alert[] // open and past alerts, newest first, for the compliance log
-  sim?: SimEvent[] // the Roblox twin's recent events, for the scenario panel
+  sim?: SimEvent[] // the site twin's recent events, for the scenario panel
 }
 
 export function isTakeover(s: Snapshot) {
