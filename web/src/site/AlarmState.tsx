@@ -20,8 +20,8 @@ export default function AlarmState({ s }: { s: Snapshot }) {
   const sub = unsafe ? s.reason || 'Equipment power is cut' : miles ? `Strike detected ${miles} mi away · the clock restarts on every new strike` : s.reason
 
   return (
-    <div className="flex h-full flex-col" style={{ background: color.chrome, color: color.text }}>
-      <header className="flex h-14 shrink-0 items-center justify-between px-7" style={{ color: color.chromeText }}>
+    <div className="flex min-h-dvh flex-col lg:h-full lg:min-h-0" style={{ background: color.chrome, color: color.text }}>
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 lg:px-7" style={{ color: color.chromeText }}>
         <div className="flex items-center gap-3">
           <Scan className="size-6" style={{ color: color.accent }} strokeWidth={2.25} />
           <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
@@ -30,7 +30,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
         <span className="text-[13px] font-semibold tracking-wide" style={{ color: color.accent }}>{s.online ? 'STOP WORK IN EFFECT' : 'OFFLINE · LOCAL RULES ACTIVE'}</span>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-5 rounded-sm px-7 py-6" style={{ background: color.bg }}>
+      <main className="flex flex-1 flex-col gap-5 rounded-sm px-4 py-5 lg:min-h-0 lg:px-7 lg:py-6" style={{ background: color.bg }}>
         <div className="flex items-end justify-between">
           <div>
             <p className="font-mono text-[11px] tracking-[0.12em]" style={{ color: color.muted }}>SITE {String(s.site.id).padStart(2, '0')} / URGENT WARNING</p>
@@ -40,20 +40,20 @@ export default function AlarmState({ s }: { s: Snapshot }) {
         </div>
 
         {/* The act now banner, countdown on the right */}
-        <section className="flex items-stretch gap-6 rounded-md px-6 py-5" style={{ background: color.accent, boxShadow: `inset 0 0 0 1.5px ${color.text}` }}>
-          <div className="flex w-24 shrink-0 flex-col items-center justify-center gap-2 border-r pr-6" style={{ borderColor: 'rgb(29 40 34 / 0.35)' }}>
+        <section className="flex flex-col items-stretch gap-4 rounded-md px-5 py-5 lg:flex-row lg:gap-6 lg:px-6" style={{ background: color.accent, boxShadow: `inset 0 0 0 1.5px ${color.text}` }}>
+          <div className="hidden w-24 shrink-0 flex-col items-center justify-center gap-2 border-r pr-6 lg:flex" style={{ borderColor: 'rgb(29 40 34 / 0.35)' }}>
             <TriangleAlert className="size-12" strokeWidth={1.75} />
             <span className="text-[12px] font-bold">ACT NOW</span>
           </div>
           <div className="flex min-w-0 flex-1 flex-col justify-center">
             <p className="font-mono text-[11px] tracking-[0.1em]">{category}</p>
-            <h2 className="text-[34px] leading-tight font-bold">{title}</h2>
+            <h2 className="text-[26px] leading-tight font-bold lg:text-[34px]">{title}</h2>
             <p className="text-[16px]">{sub}</p>
           </div>
-          <div className="flex shrink-0 flex-col items-end justify-center border-l pl-6" style={{ borderColor: 'rgb(29 40 34 / 0.35)' }}>
+          <div className="flex shrink-0 flex-col items-start justify-center lg:items-end lg:border-l lg:pl-6" style={{ borderColor: 'rgb(29 40 34 / 0.35)' }}>
             {s.countdown > 0 ? (
               <>
-                <span className="font-mono text-[112px] leading-[0.9] font-bold tabular-nums">{formatCountdown(s.countdown)}</span>
+                <span className="font-mono text-[80px] leading-[0.9] font-bold tabular-nums lg:text-[112px]">{formatCountdown(s.countdown)}</span>
                 <span className="font-mono text-[11px] tracking-[0.1em]">UNTIL WORK MAY RESUME</span>
               </>
             ) : s.awaiting_clear ? (
@@ -70,7 +70,7 @@ export default function AlarmState({ s }: { s: Snapshot }) {
           </div>
         </section>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[1.15fr_1fr] gap-5">
+        <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.15fr_1fr]">
           {/* Immediate protective actions */}
           <section className="flex flex-col gap-4 rounded-md p-6" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
             <header className="flex items-center justify-between">

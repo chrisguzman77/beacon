@@ -3,7 +3,7 @@
 // and their factors are left out rather than shown as zero.
 import { get, WS } from '@/api'
 import type { Alert } from '@/api'
-import type { Report, Snapshot } from './types'
+import type { Report, SimEvent, Snapshot } from './types'
 
 type Device = { led?: Snapshot['led']; countdown?: number; index?: number; interlock?: Snapshot['interlock']; presence?: boolean; online?: boolean; lcd?: string[] }
 type Muster = { in: string[]; out: string[]; zone_clear: boolean }
@@ -46,6 +46,12 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
   let muster: Muster = { in: [], out: [], zone_clear: true }
   let cond: Partial<Snapshot> = {}
   let explain: Explain | null = null
+  let sim: SimEvent[] = []
+  const simAdd = (e: SimEvent) => (sim = [e, ...sim.filter((x) => !(x.kind === e.kind && x.ts === e.ts))].slice(0, 6))
+  // Strikes Roblox sent, read from the alerts (each stop work keeps its strikes with their source).
+  const simStrikes = (alerts: Alert[]) =>
+    alerts.flatMap((a) => ((a.payload.history as { ts: string; source?: string; distance_m?: number }[] | undefined) ?? []).filter((h) => h.source === 'sim'))
+      .forEach((h) => simAdd({ ts: h.ts, kind: 'strike', text: h.distance_m ? `Strike ${Math.round(h.distance_m / 1609)} mi from the site` : 'Strike near the site' }))
 
   const emit = () => {
     if (!detail) return
@@ -78,6 +84,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       report_url: '',
       demo_scale: 1,
       lcd: device.lcd,
+      sim: [...sim].sort((a, b) => b.ts.localeCompare(a.ts)),
       // Open alerts (kept current by the websocket) over the history from GET /sites/{id}, newest first.
       alert_log: [...new Map([...(detail.alert_history ?? []), ...detail.alerts].map((a) => [a.alert_id, a])).values()].sort((a, b) => b.started.localeCompare(a.started)),
       ...cond,
@@ -91,13 +98,22 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data)
       if (!detail) return
-      if (m.type === 'alert') detail.alerts = [...detail.alerts.filter((a) => a.alert_id !== m.alert.alert_id), m.alert]
+      if (m.type === 'alert') {
+        detail.alerts = [...detail.alerts.filter((a) => a.alert_id !== m.alert.alert_id), m.alert]
+        simStrikes([m.alert])
+      }
       else if (m.type === 'device') device = { ...device, ...m }
       else if (m.type === 'count') device = { ...device, countdown: m.seconds ?? 0 }
       else if (m.type === 'report') detail.reports = [m as Report, ...detail.reports.filter((r) => r.report_id !== m.report_id)]
       else if (m.type === 'briefing') detail.briefing = { english: m.english ?? '', spanish: m.spanish ?? '', for_date: m.for_date ?? '', payload: m.payload }
       else if (m.type === 'muster') muster = { in: m.in ?? [], out: m.out ?? [], zone_clear: !!m.zone_clear }
-      else if (m.type === 'conditions')
+      // Roblox weather and water also update the readings below; here they are logged for the scenario panel.
+      if (m.type === 'conditions' && m.source === 'sim') {
+        const ts = new Date().toISOString()
+        if (m.water_depth_mm != null) simAdd({ ts, kind: 'water', text: `Water ${m.water_depth_mm} mm at the beacon` })
+        else simAdd({ ts, kind: 'weather', text: [m.temp_c != null && `${Math.round(m.temp_c * 9 / 5 + 32)}°F`, m.humidity != null && `${Math.round(m.humidity)}% humidity`, m.gust != null && `gusts ${Math.round(m.gust)} mph`, m.precip_mm != null && `${m.precip_mm} mm rain`].filter(Boolean).join(', ') || 'Weather update' })
+      }
+      if (m.type === 'conditions')
         cond = {
           ...cond,
           ...(m.heat_index_f != null && { heat_index_f: m.heat_index_f }),
@@ -124,6 +140,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       if (stopped) return
       detail = d
       explain = x
+      simStrikes([...(d.alert_history ?? []), ...d.alerts])
       device = d.device ?? {}
       muster = m
       emit()

@@ -218,6 +218,19 @@ export default function FactorWeb({ s, focus, onFocus, history }: Props) {
   // Lines reach each card's near edge: for corner cards, a point a little inside the card.
   const lineEnd = (a: (typeof around)[number]) => (a.anchor ? { x: a.x * 0.8, y: a.y * 0.55 } : a)
 
+  // Narrow screens (phones): no ring. The middle card on top, the rest in a grid below, no lines.
+  if (w > 0 && w < 720)
+    return (
+      <div ref={box} className="relative w-full">
+        <div key={`${level}:${group ?? ''}:${factor?.id ?? ''}`} className="flex animate-in flex-col items-center gap-5 py-12 duration-300 fade-in">
+          {center}
+          <div className={`grid w-full gap-4 [&>*>*]:!w-full ${level === 'factor' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {around.map((a) => <div key={a.key}>{a.node}</div>)}
+          </div>
+        </div>
+      </div>
+    )
+
   return (
     <div ref={box} className="relative h-full w-full overflow-hidden">
       {/* The floor: a grid tipped back in perspective, so the web reads as lying on a surface. */}

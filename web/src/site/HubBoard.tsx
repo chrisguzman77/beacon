@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, Gauge, Radio, TriangleAlert, Users } from 'lucide-react'
 import Panel from '@/components/Panel'
@@ -13,6 +14,7 @@ import MusterPanel from './MusterPanel'
 import BriefingPanel from './BriefingPanel'
 import ReportsPanel from './ReportsPanel'
 import CompliancePanel from './CompliancePanel'
+import ScenarioPanel from './ScenarioPanel'
 import { buildFactors, groups, isHazard, worst } from './factors'
 import type { Snapshot } from './types'
 
@@ -92,11 +94,11 @@ export default function HubBoard({ s, live, history }: Props) {
       </div>
 
       {top && (
-        <div className="flex items-center justify-between gap-4 rounded-sm py-3 pr-5 pl-4" style={{ background: color.accentPale, borderLeft: `4px solid ${color.text}` }}>
-          <span className="flex min-w-0 items-center gap-3 text-[15px]">
+        <div className="flex flex-col items-start justify-between gap-2 rounded-sm py-3 pr-5 pl-4 sm:flex-row sm:items-center sm:gap-4" style={{ background: color.accentPale, borderLeft: `4px solid ${color.text}` }}>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[15px]">
             <TriangleAlert className="size-5 shrink-0" />
             <b className="whitespace-nowrap uppercase">{top.label} {top.status === 'danger' ? 'warning' : 'caution'}</b>
-            <span className="truncate">{top.note}{hazards.length > 1 ? ` · ${hazards.length - 1} more` : ''}</span>
+            <span className="sm:truncate">{top.note}{hazards.length > 1 ? ` · ${hazards.length - 1} more` : ''}</span>
           </span>
           <button onClick={() => setFocus({ group: top.group, factor: top.id })} className="flex shrink-0 items-center gap-1 text-[15px]">
             View protective actions <ArrowRight className="size-4" />
@@ -104,9 +106,9 @@ export default function HubBoard({ s, live, history }: Props) {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_380px] grid-rows-[minmax(0,1fr)] gap-4">
+      <div className="flex flex-col gap-4 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_380px] lg:grid-rows-[minmax(0,1fr)]">
         {/* The web lies straight on the page; labels float over its edges. */}
-        <div className="relative min-h-0">
+        <div className="relative min-h-[560px] lg:min-h-0">
           <FactorWeb s={s} focus={focus} onFocus={setFocus} history={history} />
           <div className="absolute top-0 left-0 flex items-center gap-2">
             {(focus.group || focus.factor) && (
@@ -118,7 +120,7 @@ export default function HubBoard({ s, live, history }: Props) {
               FACTOR WEB{groupLabel ? ` / ${groupLabel.toUpperCase()}` : ' / LIVE'}{factor ? ` / ${factor.label.toUpperCase()}` : ''}
             </Chip>
           </div>
-          <div className="pointer-events-none absolute bottom-0 left-0 max-w-[30%]" style={{ display: factor ? 'none' : undefined }}>
+          <div className="pointer-events-none absolute bottom-0 left-0 hidden max-w-[30%] lg:block" style={{ display: factor ? 'none' : undefined }}>
             <p className="text-[24px] leading-tight font-semibold">{s.site.name}</p>
             <p className="text-[13px]" style={{ color: color.muted }}>
               {hazards.length ? `${hazards.length} factor${hazards.length > 1 ? 's need' : ' needs'} attention` : 'All monitored factors normal'}
@@ -127,8 +129,9 @@ export default function HubBoard({ s, live, history }: Props) {
             </p>
           </div>
         </div>
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+        <div className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
           {s.site.beacon !== false && <DeviceCard s={s} />}
+          {s.site.beacon !== false && <ScenarioPanel s={s} />}
           <MusterPanel s={s} />
           <ReportsPanel s={s} />
           <BriefingPanel s={s} />
@@ -136,8 +139,8 @@ export default function HubBoard({ s, live, history }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Tile icon={<Gauge className="size-5" />} label="Hazard index" value={`${s.index} / 10`} tint={indexColor(s.index)} sub={s.index_reason} />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Tile icon={<Gauge className="size-5" />} label="Hazard index" value={`${s.index} / 10`} tint={indexColor(s.index)} sub={s.index_reason} link={{ to: `/about${location.search}`, text: 'How the index works' }} />
         <Tile icon={<Users className="size-5" />} label="Crew on site" value={`${crewIn} of ${s.crew.length}`} sub={`Work zone ${s.zone_clear ? 'clear' : 'occupied'}`} />
         <Tile icon={<BookOpen className="size-5" />} label="Next briefing" value={s.next_briefing} sub="English and Spanish · site time" />
       </div>
@@ -153,12 +156,15 @@ function Chip({ children, className = '' }: { children: ReactNode; className?: s
   )
 }
 
-function Tile({ icon, label, value, sub, tint }: { icon: ReactNode; label: string; value: string; sub: string; tint?: string }) {
+function Tile({ icon, label, value, sub, tint, link }: { icon: ReactNode; label: string; value: string; sub: string; tint?: string; link?: { to: string; text: string } }) {
   return (
     <Panel size={12} depth={0} edge={color.raised} fill={color.raised} inner="flex items-start gap-3 px-5 py-3">
       <span className="mt-0.5" style={{ color: color.muted }}>{icon}</span>
       <span className="min-w-0">
-        <span className="block text-[11px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>{label}</span>
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="block text-[11px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>{label}</span>
+          {link && <Link to={link.to} className="text-[12px] underline" style={{ color: color.muted }}>{link.text}</Link>}
+        </span>
         <span className="block text-[22px] leading-tight" style={{ color: tint ?? color.text }}>{value}</span>
         <span className="line-clamp-2 block text-[13px] leading-snug" style={{ color: color.muted }}>{sub}</span>
       </span>

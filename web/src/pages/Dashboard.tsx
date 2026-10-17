@@ -8,6 +8,8 @@ import RankedList from '@/dashboard/RankedList'
 import UsMap from '@/dashboard/UsMap'
 import QuickView from '@/dashboard/QuickView'
 import StatusBar from '@/dashboard/StatusBar'
+import { useTitle } from '@/lib/useTitle'
+import { useRecentReports } from '@/sweet-treats/useRecentReports'
 import { miles, nearest, useDeviceLocation } from '@/sweet-treats/useDeviceLocation'
 import { alertHazard, color, hazard, hazardLabel, indexColor, indexStops } from '@/tokens'
 import type { HazardKey } from '@/tokens'
@@ -54,6 +56,7 @@ export default function Dashboard() {
   const [group, setGroup] = useState<Group>('none')
   const [fitSignal, setFitSignal] = useState(0)
   const here = useDeviceLocation()
+  const reports = useRecentReports(sites)
 
   useEffect(() => connect(), [connect])
 
@@ -74,6 +77,8 @@ export default function Dashboard() {
   const crew = sites.reduce((n, s) => n + s.crew_on_site, 0)
   const fake = new URLSearchParams(location.search).has('fake')
 
+  useTitle(stops > 0 ? `Stop work at ${stops} site${stops > 1 ? 's' : ''}` : 'Dashboard')
+
   const head =
     stops > 0
       ? { crumb: `URGENT WARNING / ${stops} SITE${stops > 1 ? 'S' : ''}`, text: 'Stop work' }
@@ -82,7 +87,7 @@ export default function Dashboard() {
         : { crumb: 'OVERVIEW', text: 'All clear' }
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="min-h-dvh w-full lg:h-screen lg:overflow-hidden">
       <Frame
         unit="CONTROL / ALL SITES"
         active="dashboard"
@@ -103,7 +108,7 @@ export default function Dashboard() {
         </div>
         <StatusBar sites={sites} />
 
-        <div className="grid min-h-0 flex-1 grid-cols-[360px_1fr_420px] grid-rows-[minmax(0,1fr)] gap-4">
+        <div className="flex flex-col gap-4 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(300px,360px)_1fr_minmax(340px,420px)] lg:grid-rows-[minmax(0,1fr)]">
           {/* Left: the selected site, quick view */}
           {site ? (
             <QuickView site={site} rank={rankOf.get(site.site_id) ?? 0} total={sites.length} distance={here ? miles(here, site) : undefined} />
@@ -114,8 +119,8 @@ export default function Dashboard() {
           )}
 
           {/* Middle: the United States */}
-          <div className="relative overflow-hidden rounded-md" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
-            <UsMap sites={shown} selected={selected} onSelect={(id) => select(id)} here={here} fitSignal={fitSignal} />
+          <div className="relative h-[340px] overflow-hidden rounded-md sm:h-[440px] lg:h-auto" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
+            <UsMap sites={shown} selected={selected} onSelect={(id) => select(id)} here={here} fitSignal={fitSignal} reports={reports} />
             <MapChip className="absolute top-4 left-4">UNITED STATES / LIVE</MapChip>
             <button onClick={() => setFitSignal((n) => n + 1)} className="absolute top-4 right-4" title="Show the whole country">
               <MapChip><Navigation className="size-4" /> FIT</MapChip>
@@ -124,7 +129,7 @@ export default function Dashboard() {
           </div>
 
           {/* Right: every site, filter, sort and group */}
-          <section className="flex min-h-0 flex-col gap-3 rounded-md p-4" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
+          <section className="flex h-[75dvh] min-h-0 flex-col gap-3 rounded-md p-4 lg:h-auto" style={{ background: color.surface, boxShadow: `inset 0 0 0 1px ${color.border}` }}>
             <header className="flex items-baseline justify-between">
               <h2 className="text-[12px] font-bold tracking-[0.04em] uppercase" style={{ color: color.muted }}>Sites</h2>
               <span className="font-mono text-[11px]" style={{ color: color.muted }}>{shown.length} of {sites.length}</span>
@@ -226,6 +231,9 @@ function Legend({ located }: { located: boolean }) {
       <span className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">{dot(indexColor(2), `0 0 0 2px ${color.text}`)} Beacon</span>
         <span className="flex items-center gap-1.5">{dot('transparent', `inset 0 0 0 2px ${color.signal}`)} Crew on site</span>
+        <span className="flex items-center gap-1.5">
+          <svg width="10" height="13" viewBox="-6 -15 12 15" aria-hidden><path d="M0 0 C -6 -8 -6 -15 0 -15 C 6 -15 6 -8 0 0 Z" fill={hazard.wildlife} /></svg> Report, 24 h
+        </span>
         {located && <span className="flex items-center gap-1.5">{dot(color.text)} You</span>}
       </span>
     </div>

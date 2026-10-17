@@ -45,7 +45,7 @@ export default function QuickView({ site, rank, total, distance }: Props) {
   const idx = site.index ?? s?.index ?? null
 
   return (
-    <div key={site.site_id} className="flex min-h-0 animate-in flex-col gap-3 overflow-y-auto pr-1 duration-300 fade-in slide-in-from-left-1">
+    <div key={site.site_id} className="flex min-h-0 animate-in flex-col gap-3 overflow-y-auto pr-1 duration-300 fade-in slide-in-from-left-1 [&>*]:shrink-0">
       <section className="rounded-md p-5" style={{ background: color.chrome, color: color.chromeText }}>
         <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.12em] uppercase opacity-75">
           <MapPin className="size-3.5" /> {distance !== undefined ? `Nearest site · ${Math.round(distance)} mi from you` : 'Selected site'}
@@ -57,6 +57,7 @@ export default function QuickView({ site, rank, total, distance }: Props) {
           <Stat label="Index" value={idx == null ? '–' : String(idx)} sub="of 10" tint={idx == null ? undefined : indexColor(idx)} />
           <Stat label="Workers" value={String(crewIn)} sub={s ? (s.zone_clear ? 'zone clear' : 'in the zone') : 'on site'} />
         </div>
+        <Link to={`/about${location.search}`} className="mt-3 inline-block text-[12px] underline opacity-75 hover:opacity-100">How the index works</Link>
       </section>
 
       {stop && (

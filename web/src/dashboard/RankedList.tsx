@@ -64,6 +64,11 @@ function Row({ s, rank, active, onSelect }: { s: SiteRow; rank: number; active: 
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
           <span className="text-[12px]" style={{ color: color.muted }}>{s.county}, {s.state}</span>
+          {s.beacon && s.measured_hi != null && (
+            <span className="rounded-sm px-1.5 py-px text-[11px] font-semibold" style={{ background: color.raised }} title="Heat index measured by the beacon's own sensor">
+              Beacon reads {Math.round(s.measured_hi)}°F
+            </span>
+          )}
           {kinds.map((k) => (
             <Chip key={k} k={k} />
           ))}
