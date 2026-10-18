@@ -1,7 +1,7 @@
 # Gateway websocket (Pi to backend)
 
 URL: wss://PUBLIC/ws/gateway/{site_id}?token=GATEWAY_TOKEN
-Ping every 15 s. JSON per message. The Pi queues messages while disconnected and replays them with their original ts on reconnect.
+Ping every 5 s. JSON per message. The Pi queues messages while disconnected and replays them with their original ts on reconnect.
 
 Up (Pi to backend)
 {"kind":"pod","ts":"...","P":1,"D":182,"S":41,"M":12,"T":33.1,"H":78,"W":0,"TILT":0}
