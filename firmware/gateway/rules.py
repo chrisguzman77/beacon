@@ -18,6 +18,8 @@ _stopwork_since = 0.0
 _water_said_at = -1e9
 _last_pod_up = 0.0
 _from_backend = False         # the running stop work came from the backend's STOPWORK, not the Pi's own sensors
+_offline_since = time.monotonic()   # the gateway starts offline; its first connect takes a moment
+OFFLINE_ARM_S = 3             # the offline fail-safe arms only after this long without the backend
 
 
 def setup(_uno, _lcd, _voice, _cloud, _interlock):
@@ -64,6 +66,9 @@ def restore_lock():
 
 
 def on_online_change():
+    global _offline_since
+    if not S.online:
+        _offline_since = time.monotonic()
     changed()
     if S.online and _from_backend and S.locked and not S.estop:
         asyncio.get_running_loop().create_task(_released_while_offline())
@@ -129,7 +134,7 @@ def on_flash():
     global _flash_at, _flash_wall_us
     _flash_at, _flash_wall_us = time.monotonic(), wall_us()
     cloud.send({'kind': 'flash', 'ts_us': _flash_wall_us})
-    if not S.online and not mic.active:
+    if not S.online and not mic.active and time.monotonic() - _offline_since >= OFFLINE_ARM_S:
         # Offline the laptop's thunder cannot reach the Pi, and there is no microphone here: fail safe.
         log.info('flash while offline with no microphone: stop work, distance unknown')
         start_stopwork(None, _flash_at, report={'kind': 'local_stopwork', 'ts': now_iso(), 'distance_m': None,
@@ -306,7 +311,8 @@ def on_cmd(m: dict):
     elif cmd == 'BRIEFING':
         S.briefing = {k: m.get(k) for k in ('english', 'spanish', 'for_date')}
         config.BRIEFING_FILE.write_text(json.dumps(S.briefing))
-        lcd.hold('BRIEFING READY', 'UP EN  DOWN ES', 10)
+        if not S.locked and S.pin_entry is None:   # never cover a stop work, a lockout, or PIN entry
+            lcd.hold('BRIEFING READY', 'UP EN  DOWN ES', 10)
     elif cmd == 'DEMO_SCALE':
         config.DEMO_COUNTDOWN_SCALE = max(1, int(m.get('value') or 1))
     else:

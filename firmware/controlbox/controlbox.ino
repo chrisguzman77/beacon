@@ -25,6 +25,8 @@ int hazardIndex = -1;        // -1 until the Pi sends INDEX
 uint32_t stripWant = 0, stripShown = 1;   // the strip's color, sent only when it changes and the serial line is quiet
 unsigned long lastByteAt = 0, lastStripAt = 0;
 char line1[17] = "";         // LCD line 1 as shown, padded to 16, for the MM:SS rewrite
+char line2[17] = "";         // and line 2, both kept for the LCD's self repair
+unsigned long lastHeal = 0;
 char buf[64];
 byte len = 0;
 unsigned long lastTick = 0, lastStrobe = 0, lastDigit = 0, needleOffAt = 0, lastStep = 0;
@@ -73,9 +75,22 @@ void pad(char *dst, const char *src, int n) {   // first n chars of src, then sp
   dst[16] = 0;
 }
 
+void nibble(byte n) {        // one raw 4 bit write to the LCD with RS low (pins as in lcd(12, 11, 5, 4, 3, 2))
+  const int d[4] = {5, 4, 3, 2};
+  digitalWrite(12, LOW);
+  for (int i = 0; i < 4; i++) digitalWrite(d[i], (n >> i) & 1);
+  digitalWrite(11, HIGH); delayMicroseconds(1); digitalWrite(11, LOW); delayMicroseconds(150);
+}
+
+void healLcd() {             // a motor kick mid write can knock the LCD out of step (junk until a reset): resync, redraw
+  nibble(0x3); delayMicroseconds(4500); nibble(0x3); nibble(0x3); nibble(0x2);   // back to 4 bit mode from any state
+  lcd.command(0x28); lcd.command(0x0C); lcd.command(0x06);   // 2 lines, display on, cursor off, left to right
+  lcd.setCursor(0, 0); lcd.print(line1);
+  lcd.setCursor(0, 1); lcd.print(line2);
+}
+
 void showLines(const char *text) {   // "<line1>|<line2>"
   const char *bar = strchr(text, '|');
-  char line2[17];
   pad(line1, text, bar ? bar - text : 16);
   pad(line2, bar ? bar + 1 : "", 16);
   if (kind != NONE && hasClock()) setClock();
@@ -160,5 +175,7 @@ void loop() {
   if ((stripWant != stripShown || now - lastStripAt >= 1000) && !Serial.available() && micros() - lastByteAt > 3000) {
     strip.fill(stripWant); strip.show(); stripShown = stripWant; lastStripAt = now;
   }
+  // the LCD's self repair, every 5 s while the serial line is quiet (about 6 ms, too short to see)
+  if (now - lastHeal >= 5000 && !Serial.available() && micros() - lastByteAt > 20000) { lastHeal = now; healLcd(); }
   if (micros() - lastDigit >= 2000) { lastDigit = micros(); slot = (slot + 1) % 4; showSlot(slot); }
 }

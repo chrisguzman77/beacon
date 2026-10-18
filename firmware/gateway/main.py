@@ -1,5 +1,5 @@
 """OmniRisk beacon gateway: one asyncio process (hardware guide Appendix C). Run with `uv run main.py`."""
-import asyncio, atexit, json, logging, os, signal, sys
+import asyncio, atexit, json, logging, os, signal, sys, time
 
 import config, mic, remote, rules
 from cloud import Cloud
@@ -13,9 +13,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)-9s %(message
 log = logging.getLogger('main')
 
 
+_pod_opened_at = 0.0
+
+
+def pod_opened():
+    global _pod_opened_at
+    _pod_opened_at = time.monotonic()
+
+
 def on_pod_line(line: str):
     if line.startswith('FLASH:'):
-        rules.on_flash()
+        if time.monotonic() - _pod_opened_at > 2:   # the pod holds lines while nothing reads its port: those are stale
+            rules.on_flash()
     elif line.startswith('IR:'):
         remote.on_ir(line[3:].strip().upper())
     else:
@@ -63,7 +72,7 @@ async def main():
     rules.changed()                               # motor on only if nothing is locked
 
     uno.port.start()
-    Port('pod', loop, on_pod_line).start()
+    Port('pod', loop, on_pod_line, on_open=pod_opened).start()
     # systemctl stop, Ctrl-C, or a crash leaves GPIO 18 driven low: the motor never runs without the gateway.
     # os._exit skips gpiozero's cleanup, which would release the pin as a floating input the L293D can read as high.
     def motor_off_and_exit():
