@@ -150,7 +150,7 @@ def main():
     keys = KEYS[REMOTE]
     np = neopixel.NeoPixel(Pin(16), 1)
     led(np, GREEN)
-    uart = UART(1, baudrate=256000, tx=Pin(8), rx=Pin(9), rxbuf=512)
+    uart = UART(0, baudrate=256000, tx=Pin(0), rx=Pin(1), rxbuf=512)   # radar TX on GP1, RX on GP0 (v5 build)
     radar_out = Pin(5, Pin.IN)
     tilt_pin = Pin(3, Pin.IN, Pin.PULL_UP)
     sensor = dht.DHT11(Pin(2))
