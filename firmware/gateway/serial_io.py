@@ -8,6 +8,7 @@ import config
 
 log = logging.getLogger('serial')
 NAMES = {'pod': ('micropython', 'pico', 'rp2040'), 'uno': ('arduino', '1a86', 'ch340', 'wch', 'usb_serial')}
+BAUD = {'pod': 115200, 'uno': 9600}   # the UNO is slow on purpose (contracts/serial.md); the pod's USB ignores it
 
 
 def find(kind: str) -> str | None:
@@ -39,7 +40,7 @@ class Port:
                 time.sleep(2)
                 continue
             try:
-                ser = serial.Serial(path, 115200, timeout=0.2)
+                ser = serial.Serial(path, BAUD[self.kind], timeout=0.2)
                 if self.kind == 'uno':
                     time.sleep(2)   # the UNO resets when its port opens
                 self.ser, self._warned = ser, False

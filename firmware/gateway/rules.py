@@ -177,6 +177,7 @@ def tick(n: int):
         if n <= 0:
             S.stopwork, S.awaiting_clear = False, True     # rule 3: stays locked until a PIN or a dashboard clear
             log.info('countdown done, awaiting supervisor')
+            say.say(voice.COUNTDOWN_DONE)
             lcd.interrupt()
             changed()
             return
@@ -262,6 +263,8 @@ def on_pod(d: dict):
             S.heat_level = level
             if level == 2 and rising:
                 start_rest()
+            elif level == 0:
+                say.say(voice.HEAT_NORMAL)
             changed()
     water = d.get('W', 0)                         # rule 5
     S.water_pct = int(water)
@@ -273,12 +276,12 @@ def on_pod(d: dict):
         changed()
     elif water <= 15 and S.water:
         S.water = False
+        say.say(voice.WATER_CLEARED)
         changed()
     tilt = bool(d.get('TILT'))                    # rule 6
     if tilt != S.tilt:
         S.tilt, send_now = tilt, True
-        if tilt:
-            say.say(voice.TIPPED)
+        say.say(voice.TIPPED if tilt else voice.UPRIGHT)
         changed()
     if send_now or now - _last_pod_up >= 1:      # the backend only acts on changes and every 5 s, no need for 10 Hz
         _last_pod_up = now

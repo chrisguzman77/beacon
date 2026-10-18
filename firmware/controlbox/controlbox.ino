@@ -6,7 +6,7 @@
 #include <Adafruit_NeoPixel.h>
 
 const bool COMMON_ANODE = false;       // the 4 digit display: false for 3461AS, true for 3461BS
-const int STRIP_LEDS = 8, STRIP_BRIGHTNESS = 40;   // the WS2812B status strip; keep brightness low on the 9V module
+const int STRIP_LEDS = 29, STRIP_BRIGHTNESS = 40;   // the WS2812B status strip; keep brightness low on the 9V module
 const int NEEDLE_MIN = 10, NEEDLE_MAX = 170;   // servo angles for index 0 and 10 (hardware guide 7.5)
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
@@ -126,7 +126,7 @@ void handle(const char *s) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);         // slow on purpose: a byte (1 ms) outlasts strip.show()'s pause, so none is ever lost
   int outs[] = {DS, STCP, SHCP};
   for (int p : outs) pinMode(p, OUTPUT);
   for (int p : digitPins) pinMode(p, OUTPUT);

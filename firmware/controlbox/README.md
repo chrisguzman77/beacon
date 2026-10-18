@@ -22,7 +22,7 @@ UNO=$(ls /dev/serial/by-id/* | grep -i -E 'arduino|1a86|ch340|wch' | head -1); e
 
 ## TEST at the serial port
 
-`~/beacon/firmware/gateway/.venv/bin/python -m serial.tools.miniterm --echo --eol LF $UNO 115200`. Opening the port
+`~/beacon/firmware/gateway/.venv/bin/python -m serial.tools.miniterm --echo --eol LF $UNO 9600`. Opening the port
 resets the UNO, so wait 2 s. Type each line, Enter. Every command answers `OK`.
 
 | Type | You should see |

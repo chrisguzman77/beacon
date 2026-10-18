@@ -682,7 +682,7 @@ The Pi has no screen. Everything happens over ssh from the laptop on the same ho
 import serial, glob, threading, sys
 ports = glob.glob('/dev/serial/by-id/*')
 pod = serial.Serial([p for p in ports if 'Pico' in p or 'MicroPython' in p][0], 115200, timeout=0.1)
-uno = serial.Serial([p for p in ports if 'Arduino' in p or 'USB' in p][0], 115200, timeout=0.1)
+uno = serial.Serial([p for p in ports if 'Arduino' in p or 'USB' in p][0], 9600, timeout=0.1)
 def reader():
     while True:
         line = pod.readline().decode(errors='ignore').strip()
@@ -999,6 +999,8 @@ OK                after any command
 - Crew [N] checked in. Crew [N] checked out.
 
 - Emergency stop pressed.
+
+- When a danger ends: Standing water cleared. Beacon upright. Sensors back to normal. Heat index back to normal. No strikes for the full countdown. Area clear. A supervisor PIN restarts the equipment.
 
 - Tomorrow's briefing. (followed by the generated text)
 

@@ -91,6 +91,10 @@ TIPPED = 'Beacon tipped. Sensors unreliable.'
 CLEARED = 'Supervisor cleared. Equipment power restored.'
 WRONG_PIN = 'Wrong PIN.'
 ESTOP = 'Emergency stop pressed.'
+WATER_CLEARED = 'Standing water cleared.'
+UPRIGHT = 'Beacon upright. Sensors back to normal.'
+HEAT_NORMAL = 'Heat index back to normal.'
+COUNTDOWN_DONE = 'No strikes for the full countdown. Area clear. A supervisor PIN restarts the equipment.'
 
 
 def zone_clear(checked_in, not_out):
