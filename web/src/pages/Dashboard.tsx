@@ -37,7 +37,7 @@ function sortBy(sites: SiteRow[], by: Sort) {
 }
 
 // The hazard a site is filed under: its most urgent alert.
-const PRIORITY: HazardKey[] = ['stopwork', 'unsafe', 'flood', 'heat', 'wildlife']
+const PRIORITY: HazardKey[] = ['stopwork', 'unsafe', 'flood', 'heat', 'wind', 'wildlife']
 const topHazard = (s: SiteRow) => PRIORITY.find((k) => has(s, k))
 const risk = (s: SiteRow) => (s.index == null ? 'No index yet' : s.index >= 7 ? 'High (7–10)' : s.index >= 4 ? 'Elevated (4–6)' : 'Low (0–3)')
 

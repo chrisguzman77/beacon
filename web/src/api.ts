@@ -6,7 +6,7 @@ export const WS = API.replace(/^http/, 'ws')
 export type Alert = {
   alert_id: number
   site_id: number
-  type: string // stopwork | heat_danger | heat_warning | flood_confirmed | flood_warning | beacon_unsafe | estop | wildlife
+  type: string // stopwork | heat_danger | heat_warning | flood_confirmed | flood_warning | wind_danger | wind_warning | beacon_unsafe | estop | wildlife
   started: string
   expires: string | null
   cleared: string | null
