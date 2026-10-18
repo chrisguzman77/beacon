@@ -10,7 +10,7 @@ here = Path(__file__).parent
 out_dir = here.parent.parent / "place"
 version = datetime.now().strftime("%m%d-%H%M")
 
-MODULES = ["Scenarios", "WeatherFx", "Lightning", "ScenarioEngine", "SceneBuilder"]
+MODULES = ["Scenarios", "WeatherFx", "Lightning", "StormModel", "ScenarioEngine", "SceneBuilder"]
 SERVER = ["ScenarioServer", "Zone", "BeaconVisuals", "Wildlife", "Conditions", "Crew"]
 CLIENT = ["FlashClient", "ScenarioUI", "Ambience", "DemoDirector", "ZoneHud", "LightningRadar"]
 

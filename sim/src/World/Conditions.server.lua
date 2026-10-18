@@ -100,8 +100,10 @@ end
 
 local function n(x) return math.floor(x + 0.5) end -- string.format %d needs whole numbers
 
-local function logEvent(text)
+local function logEvent(text, replaceTop)
 	local entry = clock(S.t) .. "  " .. text
+	-- a storm restarts the countdown dozens of times: those fold into one updating line instead of flooding the log
+	if replaceTop and log[1] and log[1]:find("COUNTDOWN RESET", 1, true) then table.remove(log, 1) end
 	table.insert(log, 1, entry)
 	while #log > 12 do table.remove(log) end
 	workspace:SetAttribute("ShiftLog", HttpService:JSONEncode(log))
@@ -277,8 +279,10 @@ events.Strike.Event:Connect(function(bearing, miles)
 	if miles < STOP_MILES then
 		local restart = S.near and (S.t - S.near.t) < ALL_CLEAR_S
 		S.near = strike -- every strike inside 10 miles restarts the 30 minutes
-		logEvent(("%s: strike %d mi %s, %s"):format(restart and "COUNTDOWN RESET" or "STOP WORK", n(miles), strike.dir,
-			restart and "30 minute all clear restarted" or "30 minute all clear started, crew to the trucks"))
+		S.resets = restart and (S.resets or 0) + 1 or 0
+		logEvent(("%s: strike %d mi %s, %s%s"):format(restart and "COUNTDOWN RESET" or "STOP WORK", n(miles), strike.dir,
+			restart and "30 minute all clear restarted" or "30 minute all clear started, crew to the trucks",
+			S.resets > 1 and (" (%d resets)"):format(S.resets) or ""), restart)
 	end
 	render()
 end)

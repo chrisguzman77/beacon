@@ -89,9 +89,10 @@ function Lightning.strike(bearing, miles)
 	local light = Instance.new("PointLight")
 	light.Brightness, light.Range, light.Color = 20, 60, BOLT_COLOR
 	light.Parent = impact
-	Lighting.ExposureCompensation = BASE_EXPOSURE + 1.5
+	-- the sky lights up like the screen flash: 1/d^2, full at 3 mi or closer, never under 0.15
+	Lighting.ExposureCompensation = BASE_EXPOSURE + 1.5 * math.max(0.15, math.min(1, 9 / (miles * miles)))
 
-	-- 2. physical path: every client flashes white and schedules thunder
+	-- 2. physical path: every client flashes (brightness by distance) and schedules thunder (delay by distance and air temperature)
 	flashEvent:FireAllClients(miles)
 	strikeRadar:FireAllClients(bearing, miles)
 
@@ -111,7 +112,7 @@ function Lightning.strike(bearing, miles)
 			Debris:AddItem(p, 0.4)
 		end
 	end)
-	print(("[Lightning] strike bearing %d miles %.1f"):format(bearing, miles))
+	print(("[Lightning] strike bearing %.1f miles %.2f"):format(bearing, miles))
 end
 
 return Lightning
