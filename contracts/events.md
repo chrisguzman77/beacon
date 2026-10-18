@@ -16,7 +16,7 @@ Payloads by type
 - presence: { count: 0..3, still_energy, moving_energy, distance_cm }
 - water: { depth_mm }
 - tilt: { value: 0 | 1 }
-- checkin: { crew_id | crew_number | roblox_user, action: "in" | "out", lat, lon, via: "phone" | "kiosk" | "remote" | "roblox" }
+- checkin: { crew_id, action: "in" | "out", via: "phone" | "remote" | "roblox", plus lat, lon (phone), crew_number (remote, the IR digit), or roblox_user (roblox) }
 - hazard_report: { report_id, tag, description, lat, lon }
 - estop: {}
 - nws_alert: { event, severity, headline }

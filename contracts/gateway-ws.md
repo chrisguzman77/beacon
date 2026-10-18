@@ -26,7 +26,6 @@ Down (backend to Pi)
 The backend keeps the last "state" message per site in memory and serves it at GET /sites/{id}/device for pollers (Roblox, dashboard). It also pushes it on WS /ws/site/{id}.
 
 Change log
-- contract: checkin carries crew_id and via (kiosk | remote) instead of crew_number, and ts for replay
-- contract: added CREW down so the kiosk has the roster offline
+- contract: checkin carries ts for replay
 - contract: pin carries ok so the backend records who released without re-checking the PIN
-- contract: touchscreen and kiosk removed; checkin is crew_number via remote only, CREW command removed
+- contract: touchscreen and kiosk removed; checkin is crew_number via remote only (the crew_id kiosk checkin and the CREW roster command are gone)
