@@ -94,9 +94,10 @@ function Lightning.strike(bearing, miles)
 	local light = Instance.new("PointLight")
 	light.Brightness, light.Range, light.Color = 20, 60, BOLT_COLOR
 	light.Parent = impact
-	Lighting.ExposureCompensation = BASE_EXPOSURE + 1.5
+	-- the sky lights up like the screen flash: 1/d^2, full at 3 mi or closer, never under 0.15
+	Lighting.ExposureCompensation = BASE_EXPOSURE + 1.5 * math.max(0.15, math.min(1, 9 / (miles * miles)))
 
-	-- 2. physical path: every client flashes white and schedules thunder
+	-- 2. physical path: every client flashes (brightness by distance) and schedules thunder (delay by distance and air temperature)
 	flashEvent:FireAllClients(miles)
 	strikeRadar:FireAllClients(bearing, miles)
 
@@ -116,7 +117,7 @@ function Lightning.strike(bearing, miles)
 			Debris:AddItem(p, 0.4)
 		end
 	end)
-	print(("[Lightning] strike bearing %d miles %.1f"):format(bearing, miles))
+	print(("[Lightning] strike bearing %.1f miles %.2f"):format(bearing, miles))
 end
 
 return Lightning
@@ -127,6 +128,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Scenarios = require(script.Parent.Scenarios)
 local Lightning = require(script.Parent.Lightning)
+local StormModel = require(script.Parent.StormModel)
 local WeatherFx = require(script.Parent.WeatherFx)
 local events = ReplicatedStorage:WaitForChild("SimEvents")
 
@@ -137,14 +139,24 @@ local state = {
 	scenario = nil, key = nil, name = "", clockStart = "13:00",
 	simTime = 0, speed = 60, playing = false, fired = {}, note = "",
 	duration = 0, markers = {},
+	storms = {}, -- running storms: { t0, p, strikes, next }, strikes fire at t0 + strike.t in sim time
 }
+
+-- A storm event's parameters: the fields it writes out, over its preset (a button's) if it names one
+local function stormParams(e)
+	local p = e.preset and table.clone(StormModel.presets[e.preset]) or {}
+	for _, k in ipairs({ "seed", "from_bearing", "start_mi", "speed_mph", "cross_track_mi", "peak_per_min", "life_min" }) do
+		if e[k] ~= nil then p[k] = e[k] end
+	end
+	return p
+end
 
 -- duration and markers let the panel draw a timeline with a tick for every strike, flood step, and briefing
 function Engine.snapshot()
 	return {
 		key = state.key, name = state.name, clockStart = state.clockStart,
 		simTime = state.simTime, speed = state.speed, playing = state.playing, note = state.note,
-		duration = state.duration, markers = state.markers,
+		duration = state.duration, markers = state.markers, stormSpeed = Engine.stormSpeed(),
 	}
 end
 
@@ -166,10 +178,21 @@ function Engine.load(key)
 	state.clockStart = sc.clockStart or "13:00"
 	state.simTime, state.speed, state.playing = 0, sc.speed or 60, false
 	state.fired, state.note = {}, ""
-	state.duration, state.markers = 0, {}
+	state.duration, state.markers, state.storms = 0, {}, {}
 	for _, e in ipairs(sc.events) do
 		state.duration = math.max(state.duration, e.t)
-		if e.type ~= "weather" then
+		if e.type == "storm" then
+			-- a tick for every strike inside 10 mi; the timeline runs to the all clear after the last one
+			local p = stormParams(e)
+			local strikes = StormModel.generate(p)
+			for _, s in ipairs(strikes) do
+				if s.miles < StormModel.STOP_MILES then
+					table.insert(state.markers, { t = e.t + s.t, type = "strike", miles = s.miles })
+				end
+			end
+			local sum = StormModel.summary(strikes)
+			state.duration = math.max(state.duration, e.t + StormModel.lifeSeconds(p), e.t + (sum.allClearT or 0))
+		elseif e.type ~= "weather" then
 			table.insert(state.markers, { t = e.t, type = e.type, miles = e.miles })
 		end
 	end
@@ -193,34 +216,80 @@ function Engine.setSpeed(s)
 	emit()
 end
 
+-- start a storm whose clock zero is t0 (sim seconds); its strikes then fire from the Heartbeat in sim time
+function Engine.startStorm(params, t0)
+	local strikes = StormModel.generate(params)
+	table.insert(state.storms, { t0 = t0, p = params, strikes = strikes, next = 1 })
+	local sum = StormModel.summary(strikes, StormModel.pace(params))
+	print(("[Storm] seed %d from %d deg, %d strikes, %d inside 10 mi, first %.2f mi"):format(params.seed,
+		math.floor(params.from_bearing + 0.5), sum.count, sum.inside, sum.first and sum.first.miles or 0))
+	return strikes
+end
+
+-- Reset to calm: the storms stop where they are
+function Engine.stopStorms()
+	state.storms = {}
+end
+
+-- While a storm lives, the sim clock runs at the speed that plays its approach and passage in
+-- StormModel.REAL_SECONDS, whatever the scenario's own speed; after it dies the scenario's speed is back
+function Engine.stormSpeed()
+	local cap
+	for _, st in ipairs(state.storms) do
+		if state.simTime < st.t0 + StormModel.lifeSeconds(st.p) then
+			cap = math.min(cap or math.huge, StormModel.pace(st.p))
+		end
+	end
+	return cap
+end
+
 local function dispatch(e)
-	if e.type == "strike" then
-		Lightning.strike(e.bearing, e.miles)
+	if e.type == "storm" then
+		Engine.startStorm(stormParams(e), e.t)
 	elseif e.type == "weather" then
+		-- the air temperature sets the speed of sound for the thunder delay on every client
+		if e.temp_c then workspace:SetAttribute("AirTempC", e.temp_c) end
 		WeatherFx.apply(e)
 		events.Weather:Fire({ temp_c = e.temp_c, humidity = e.humidity, precip_mm = e.rain or 0, gust = e.gust })
 	elseif e.type == "water" then
 		WeatherFx.setWater(e.depth_mm)
-		events.Water:Fire(e.depth_mm)
+		-- pad_mm, when given, is the water at the beacon (the river crossing's rise is scenery until the levee overtops)
+		events.Water:Fire(e.pad_mm or e.depth_mm)
 	elseif e.type == "wildlife" then
 		WeatherFx.spawnGator()
+		local wildlife = events:FindFirstChild("Wildlife")
+		if wildlife then wildlife:Fire(e.species or "American alligator") end
 	elseif e.type == "note" then
 		state.note = e.text
 		emit()
 	end
-	print(("[Engine] t=%d %s"):format(e.t, e.type))
+	print(("[Engine] t=%d %s"):format(math.floor(e.t), e.type))
+end
+
+-- fire every storm strike that is due; the snapshot goes out first so the sim clock everyone reads (the
+-- Conditions countdown, the radar's strike ages) is the strike's own time
+local function fireStrikes()
+	for _, st in ipairs(state.storms) do
+		while st.strikes[st.next] and st.t0 + st.strikes[st.next].t <= state.simTime do
+			local s = st.strikes[st.next]
+			st.next += 1
+			emit()
+			Lightning.strike(s.bearing, s.miles)
+		end
+	end
 end
 
 local acc = 0
 RunService.Heartbeat:Connect(function(dt)
 	if not state.playing or not state.scenario then return end
-	state.simTime += dt * state.speed
+	state.simTime += dt * (Engine.stormSpeed() or state.speed)
 	for i, e in ipairs(state.scenario.events) do
 		if not state.fired[i] and e.t <= state.simTime then
 			state.fired[i] = true
 			dispatch(e)
 		end
 	end
+	fireStrikes()
 	acc += dt
 	if acc >= 0.5 then
 		acc = 0
@@ -232,7 +301,7 @@ end)
 -- instant hazards: fire one event now, through the same path as a scenario's timeline
 function Engine.fire(e)
 	local now = table.clone(e)
-	now.t = math.floor(state.simTime) -- stamped with the current sim time, as if it were on the timeline
+	now.t = state.simTime -- stamped with the current sim time, as if it were on the timeline
 	dispatch(now)
 	emit()
 end
@@ -258,88 +327,87 @@ Scenarios.instant = {
 	},
 }
 
+-- Heat rule for every scenario: the heat index (the backend's NWS Rothfusz formula) stays under 103 F unless heat
+-- is the story (heat_day, everglades_day). Water rule: the backend confirms a flood at any depth above 0 and the
+-- beacon warns from 8 mm, so water stays 0 until the flood is the story, rises past 10 mm, and ends back at 0.
 Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
 
--- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead
--- with strikes down to 3 miles, and moves off east. Every strike inside 10 miles restarts the 30 minute all
--- clear; the last one inside 10 is the 8 mile strike at 15:00, so the site is clear to work again at 15:30.
+-- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes nearly
+-- overhead (1 mi to the side), and moves off east. Every strike inside 10 miles restarts the 30 minute all clear.
+-- The storm (seed 271) starts 20 mi out at 14:05: first strike 14:07 at 19.5 mi, first inside 10 mi at 14:11,
+-- last inside 10 at 15:07, so the site is clear to work again at 15:37.
+-- A storm event { t, type = "storm", seed, from_bearing, start_mi, speed_mph, cross_track_mi, peak_per_min,
+-- life_min } runs StormModel: the cell starts start_mi out on from_bearing and walks in at speed_mph, passing
+-- cross_track_mi to the side; life_min = 2 * start_mi / speed_mph puts its peak over the site. Every scenario storm
+-- here is 20 mi out at 30 mph over 80 minutes at a peak of 2 strikes a minute, played over 5 real minutes; the
+-- seed and cross track were picked so the first strike is beyond 10 mi and dozens land inside it.
 Scenarios.lightning_cell = {
 	name = "Lightning cell passes over", clockStart = "14:00", speed = 120,
 	events = {
-		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 33, humidity = 70, gust = 15 },
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
 		{ t = 1,    type = "note",    text = "14:00 a thunderstorm cell builds west of the site. Watch the radar: the red ring is 10 miles." },
-		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 32, humidity = 74, gust = 30 },
-		{ t = 600,  type = "strike",  bearing = 270, miles = 18 },
-		{ t = 900,  type = "strike",  bearing = 268, miles = 15 },
-		{ t = 1200, type = "strike",  bearing = 265, miles = 13 },
-		{ t = 1500, type = "strike",  bearing = 262, miles = 11 },
-		{ t = 1800, type = "strike",  bearing = 260, miles = 9 },
-		{ t = 1810, type = "note",    text = "14:30 strike 9 miles out, inside the ring. STOP WORK, the 30 minute all clear starts." },
-		{ t = 2100, type = "strike",  bearing = 255, miles = 7 },
-		{ t = 2400, type = "strike",  bearing = 250, miles = 5 },
+		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 30, humidity = 66, gust = 30 }, -- 93 F
+		{ t = 300,  type = "storm",   seed = 271, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 1, peak_per_min = 2, life_min = 80 },
+		{ t = 700,  type = "note",    text = "14:11 first strike inside the 10 mile ring. STOP WORK, the 30 minute all clear starts." },
 		{ t = 2600, type = "weather", clouds = 0.95, rain = 45, temp_c = 27, humidity = 94, gust = 42 },
-		{ t = 2700, type = "strike",  bearing = 240, miles = 3 },
-		{ t = 3000, type = "strike",  bearing = 120, miles = 4 },
-		{ t = 3300, type = "strike",  bearing = 100, miles = 6 },
-		{ t = 3600, type = "strike",  bearing = 90,  miles = 8 },
-		{ t = 3610, type = "note",    text = "15:00 strike 8 miles east, still inside 10. Every close strike restarts the 30 minutes." },
-		{ t = 4200, type = "strike",  bearing = 85,  miles = 12 },
+		{ t = 3000, type = "note",    text = "14:50 the cell is overhead and moving off east. Every strike inside 10 miles restarts the 30 minutes." },
 		{ t = 4200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 29, humidity = 85, gust = 15 },
-		{ t = 4800, type = "strike",  bearing = 80,  miles = 15 },
-		{ t = 5400, type = "strike",  bearing = 78,  miles = 19 },
-		{ t = 5460, type = "note",    text = "15:31 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
+		{ t = 5850, type = "note",    text = "15:37 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
 	},
 }
 
 -- The brief's river example: a river site gets a flood risk warning after a night of heavy rain. The crossing sits
 -- behind a levee; the river climbs through the morning and overtops it. Plays at the Mississippi crossing setting.
+-- depth_mm is the river's rise (the scene); pad_mm is the water at the beacon, posted to the backend, and stays 0
+-- until the levee overtops, so the rain and the river carry the flood warning before that.
 Scenarios.mississippi_flood = {
 	name = "Mississippi crossing, river flood", site = "river", clockStart = "05:00", speed = 240, soil = 0.75,
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.85, rain = 30, temp_c = 22, humidity = 96, gust = 18 },
 		{ t = 1,    type = "note",    text = "05:00 after a night of heavy rain upstream. River sites get a flood risk warning before the crew mobilizes." },
-		{ t = 600,  type = "water",   depth_mm = 20 },
-		{ t = 1800, type = "water",   depth_mm = 50 },
-		{ t = 2400, type = "strike",  bearing = 200, miles = 12 },
-		{ t = 3000, type = "water",   depth_mm = 80 },
+		{ t = 600,  type = "water",   depth_mm = 20,  pad_mm = 0 },
+		{ t = 1800, type = "water",   depth_mm = 50,  pad_mm = 0 },
+		{ t = 1200, type = "storm",   seed = 1686, from_bearing = 200, start_mi = 20, speed_mph = 30, cross_track_mi = 3, peak_per_min = 2, life_min = 80 },
+		{ t = 3000, type = "water",   depth_mm = 80,  pad_mm = 0 },
 		{ t = 3600, type = "note",    text = "06:00 the river is near the top of the levee. Equipment off the floodplain, the crossing work is postponed." },
-		{ t = 4200, type = "water",   depth_mm = 110 },
+		{ t = 4200, type = "water",   depth_mm = 110, pad_mm = 15 }, -- past the levee top (100 mm): water reaches the pad
 		{ t = 4260, type = "note",    text = "06:11 the levee is overtopping. Flood confirmed on site: stop work, everyone to high ground." },
-		{ t = 5400, type = "water",   depth_mm = 130 },
+		{ t = 5400, type = "water",   depth_mm = 130, pad_mm = 35 },
 		{ t = 7200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 24, humidity = 90, gust = 10 },
+		{ t = 8400, type = "water",   depth_mm = 90,  pad_mm = 0 },
+		{ t = 8460, type = "note",    text = "The river drops back under the levee top and the pad drains. Standing water cleared." },
+		{ t = 9600, type = "water",   depth_mm = 0,   pad_mm = 0 },
 	},
 }
 
 -- The challenge brief, start to finish. 6:45 AM in August on a remote Everglades site where the crew is laying a
 -- temporary mat road for the equipment that will build a new transmission line. A week of rain has the ground at
 -- 82% saturation, so boots sink and trucks bog down. The heat index passes 110 F by noon. Thunderstorms build to
--- the west after 1 PM and walk in to 6 miles. Someone saw a gator by the jobsite yesterday, today it is on the road.
+-- the west after 1 PM and walk in across the site. Someone saw a gator by the jobsite yesterday, today it is on the road.
 -- At 6 PM site time the next-day briefing goes out. t is simulated seconds after 06:45; 300x plays the day in
 -- under three minutes. soil is the starting saturation the Conditions board carries forward.
 Scenarios.everglades_day = {
 	name = "Everglades mat road, August", clockStart = "06:45", speed = 300, soil = 0.82,
 	events = {
 		{ t = 0,     type = "weather", clouds = 0.25, rain = 0, temp_c = 27, humidity = 94, gust = 6 },
-		{ t = 0,     type = "water",   depth_mm = 5 },
+		{ t = 0,     type = "water",   depth_mm = 0 },
 		{ t = 1,     type = "note",    text = "06:45 go/no-go. A week of rain: soil 82% saturated, expect mud and stuck trucks. Heat index past 110 F by noon. Storms building west after 1 PM. Gator seen yesterday by the slough." },
 		{ t = 2700,  type = "wildlife", species = "American alligator" },
 		{ t = 2760,  type = "note",    text = "07:31 crew report: alligator on the mat road. Photo pinned to the site map and shared with every crew on this job." },
 		{ t = 8100,  type = "weather", clouds = 0.2,  rain = 0,  temp_c = 31, humidity = 78, gust = 8 },
 		{ t = 15300, type = "weather", clouds = 0.2,  rain = 0,  temp_c = 34, humidity = 64, gust = 10 },
-		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 35, humidity = 62, gust = 12 },
-		{ t = 18960, type = "note",    text = "12:00 heat index over 110 F. Rest breaks in the cooling tent, water every 15 minutes." },
+		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 36, humidity = 62, gust = 12 }, -- heat index 121 F, past heat danger (115)
+		{ t = 18960, type = "note",    text = "12:00 heat index 121 F, past the 115 F danger line. Rest break in the cooling tent, water every 15 minutes." },
 		{ t = 22500, type = "weather", clouds = 0.55, rain = 0,  temp_c = 35, humidity = 60, gust = 20 },
 		{ t = 24300, type = "weather", clouds = 0.75, rain = 0,  temp_c = 33, humidity = 66, gust = 30 },
-		{ t = 26100, type = "strike",  bearing = 270, miles = 15 },
-		{ t = 27000, type = "strike",  bearing = 265, miles = 11 },
-		{ t = 27900, type = "strike",  bearing = 260, miles = 8 },
-		{ t = 27960, type = "note",    text = "14:30 strike 8 miles west. STOP WORK, 30 minute all clear, crew to the trucks." },
-		{ t = 28800, type = "strike",  bearing = 255, miles = 6 },
+		-- seed 923, 2.5 mi to the side: first strike 13:34 at 19.2 mi, first inside 10 mi 13:47, last 14:32, all clear 15:02
+		{ t = 24300, type = "storm",   seed = 923, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 2.5, peak_per_min = 2, life_min = 80 },
+		{ t = 25340, type = "note",    text = "13:47 lightning inside 10 miles. STOP WORK, 30 minute all clear, crew to the trucks." },
 		{ t = 29400, type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 45 },
 		{ t = 30600, type = "water",   depth_mm = 30 },
 		{ t = 32400, type = "water",   depth_mm = 60 },
-		{ t = 33300, type = "strike",  bearing = 250, miles = 4 },
 		{ t = 37800, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 28, humidity = 90, gust = 12 },
+		{ t = 39600, type = "water",   depth_mm = 0 },
 		{ t = 40500, type = "note",    text = "18:00 site time: next-day safety briefing sent to the crew, English and Spanish. Tomorrow: same heat, mats need re-leveling where the trucks sank." },
 	},
 }
@@ -347,14 +415,13 @@ Scenarios.everglades_day = {
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
 	events = {
-		{ t = 0,    type = "weather", clouds = 0.2, rain = 0, temp_c = 33, humidity = 70, gust = 15 },
-		{ t = 600,  type = "weather", clouds = 0.7, rain = 0, temp_c = 31, humidity = 78, gust = 35 },
-		{ t = 900,  type = "strike",  bearing = 270, miles = 15 },
-		{ t = 1200, type = "strike",  bearing = 265, miles = 11 },
-		{ t = 1500, type = "strike",  bearing = 260, miles = 8 },
-		{ t = 1800, type = "strike",  bearing = 250, miles = 6 },
+		{ t = 0,    type = "weather", clouds = 0.2, rain = 0, temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
+		{ t = 600,  type = "weather", clouds = 0.7, rain = 0, temp_c = 30, humidity = 68, gust = 35 }, -- 94 F
+		-- seed 279, 2 mi to the side: first strike 13:14 at 16.1 mi, first inside 10 mi 13:18 at 8.1, last 14:10, all clear 14:40
+		{ t = 600,  type = "storm",   seed = 279, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 2, peak_per_min = 2, life_min = 80 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
 		{ t = 2400, type = "water",   depth_mm = 10 },
+		{ t = 3600, type = "water",   depth_mm = 0 },
 	},
 }
 
@@ -365,21 +432,21 @@ Scenarios.hurricane = {
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.5,  rain = 2,  temp_c = 29, humidity = 85, gust = 30 },
 		{ t = 1200, type = "weather", clouds = 0.8,  rain = 20, temp_c = 28, humidity = 92, gust = 50 },
-		{ t = 1800, type = "strike",  bearing = 200, miles = 12 },
-		{ t = 2400, type = "strike",  bearing = 190, miles = 9 },
+		-- the outer bands from the south, seed 29, 1.5 mi to the side: first strike 14.0 mi, first inside 10 mi at 8.1
+		{ t = 1200, type = "storm",   seed = 29, from_bearing = 180, start_mi = 20, speed_mph = 30, cross_track_mi = 1.5, peak_per_min = 2, life_min = 80 },
 		{ t = 3000, type = "weather", clouds = 0.95, rain = 60, temp_c = 27, humidity = 97, gust = 75 },
-		{ t = 3300, type = "strike",  bearing = 180, miles = 6 },
 		{ t = 3600, type = "water",   depth_mm = 20 },
-		{ t = 3900, type = "strike",  bearing = 170, miles = 4 },
 		{ t = 4800, type = "water",   depth_mm = 60 },
 		{ t = 5400, type = "note",    text = "Surge and rain push the swamp over the pad. The beacon's water sensor trips, the crew moves to high ground by the trucks." },
 		{ t = 6000, type = "water",   depth_mm = 100 },
 		{ t = 6600, type = "weather", clouds = 0.85, rain = 25, temp_c = 27, humidity = 95, gust = 45 },
+		{ t = 7800, type = "water",   depth_mm = 40 },
+		{ t = 9000, type = "water",   depth_mm = 0 },
 	},
 }
 
--- Heat index at 70 percent humidity. 33 C is about 104 F (heat_warning at 103),
--- 36 C is about 117 F (heat_danger at 115), 39 C is well past both.
+-- Heat index at 70 percent humidity (the backend's NWS formula). 31 C is about 100 F, 33 C about 110 F (heat_warning
+-- at 103), 36 C about 129.5 F (heat_danger at 115), 39 C about 153 F.
 Scenarios.heat_day = {
 	name = "Heat day", clockStart = "10:00", speed = 120,
 	events = {
@@ -398,16 +465,17 @@ Scenarios.flash_flood = {
 		{ t = 900,  type = "water",   depth_mm = 0 },
 		{ t = 1200, type = "weather", clouds = 0.9, rain = 60, temp_c = 25, humidity = 97, gust = 30 },
 		{ t = 1500, type = "water",   depth_mm = 20 },
-		{ t = 1800, type = "strike",  bearing = 120, miles = 7 },
+		{ t = 600,  type = "storm",   seed = 971, from_bearing = 120, start_mi = 20, speed_mph = 30, cross_track_mi = 3, peak_per_min = 2, life_min = 80 },
 		{ t = 2100, type = "water",   depth_mm = 60 },
 		{ t = 2700, type = "water",   depth_mm = 90 },
 		{ t = 3300, type = "weather", clouds = 0.6, rain = 5, temp_c = 26, humidity = 90, gust = 10 },
 		{ t = 3900, type = "water",   depth_mm = 40 },
+		{ t = 4500, type = "water",   depth_mm = 0 },
 	},
 }
 
--- Wildlife is visual only. The dashboard's wildlife layer comes from iNaturalist,
--- there is no /sim/wildlife route, so this scenario just spawns the gator by the slough.
+-- The gator spawns by the slough and SimEvents.Wildlife("American alligator") goes to the backend through the
+-- Bridge (POST /sim/wildlife).
 Scenarios.gator = {
 	name = "Gator sighting", clockStart = "08:00", speed = 30,
 	events = {
@@ -567,7 +635,7 @@ end
 
 local function plumbing()
 	local sim = ensure(ReplicatedStorage, "Folder", "SimEvents")
-	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged", "Reset" }) do -- Reset: contracts/roblox-bridge.md
+	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged", "Reset", "Wildlife" }) do -- Reset, Wildlife: contracts/roblox-bridge.md
 		ensure(sim, "BindableEvent", n)
 	end
 	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere", "StrikeRadar" }) do
@@ -1583,6 +1651,136 @@ end
 
 return Builder
 ]==] },
+	{ "StormModel", "ModuleScript", [==[-- StormModel (ModuleScript)
+-- A thunderstorm cell that walks across the site and produces every strike. No strike distance is typed by hand:
+-- each one is where the model's cell happened to be when the model's clock said it fired.
+--   frame      the site at the origin, miles; bearing 0 is north, clockwise, as in Lightning.groundPoint
+--   motion     the cell starts start_mi out on from_bearing and moves toward the site at speed_mph, passing
+--              cross_track_mi to the side at its closest. p(t) = p0 + v * t, t in simulated seconds
+--   life       cloud-to-ground rate lambda(t) = peak_per_min * sin(pi * t / life), so the storm builds, peaks as
+--              the cell passes the site (life = 2 * start_mi / speed_mph), and dies on the far side
+--   timing     non-homogeneous Poisson by thinning: dt = -ln(U) / lambda_max, kept with probability lambda / lambda_max
+--   placement  95% Rayleigh (sigma 1.5 mi) around the core at a uniform angle, 5% "bolts from the blue" 5 to 10 mi
+--              ahead of the core within 45 degrees of its motion
+--   per strike distance = hypot, bearing = atan2, to the site. Never rounded or clamped.
+-- Its random numbers come from its own generator seeded per storm, used for nothing else, so a seed is always the
+-- same storm. It is a Park-Miller generator written out here (not Roblox's Random) so the Lune harness gets the
+-- exact strikes Studio does, which is how the seeds below were checked.
+local StormModel = {}
+
+StormModel.SIGMA_MI = 1.5
+StormModel.BLUE_SHARE = 0.05
+StormModel.STOP_MILES = 10
+StormModel.ALL_CLEAR_S = 30 * 60
+-- one storm, approach to passage, plays in this many real seconds; the engine slows the sim clock to fit
+StormModel.REAL_SECONDS = 300
+
+local MOD = 2147483647
+local function generator(seed)
+	local state = math.floor(seed) % MOD
+	if state == 0 then state = 1 end
+	return function()
+		state = (state * 48271) % MOD -- exact in doubles: 48271 * 2^31 < 2^53
+		return state / MOD -- in (0, 1), never 0, so ln(U) is finite
+	end
+end
+
+-- The storms the buttons start (the scenarios write theirs out in Scenarios). Every storm in the World shares one
+-- track so the life cycle puts the peak over the site: 20 mi out at 30 mph reaches the site at 40 min, so life is
+-- 80 min and the cell dies 20 mi past. A peak of 2 strikes a minute is the low end of an ordinary storm; at 2, an
+-- 80 minute storm played over 300 real s keeps the strikes inside 10 mi about 3.2 to 3.8 real seconds apart on
+-- average (checked in the harness). Seeds were picked from the first 2000 so the first strike is beyond 10 mi and
+-- dozens land inside it.
+local BASE = { start_mi = 20, speed_mph = 30, peak_per_min = 2, life_min = 80 }
+local function track(t)
+	for k, v in pairs(BASE) do if t[k] == nil then t[k] = v end end
+	return t
+end
+StormModel.presets = {
+	-- Each button starts a whole storm; the label is where its first strike inside 10 mi lands (for 15, its very
+	-- first strike). seed 279, 3 mi to the side: first 16.2 mi, first inside 8.0 mi, 57 inside, 3.4 s apart
+	strike8 = track({ seed = 279, from_bearing = 270, cross_track_mi = 3 }),
+	-- seed 552 cross 2: first 16.4, first inside 6.0, 3.2 s apart
+	strike6 = track({ seed = 552, from_bearing = 255, cross_track_mi = 2 }),
+	-- seed 419 cross 2: first 15.0, first inside 9.8, 3.5 s apart
+	strike15 = track({ seed = 419, from_bearing = 270, cross_track_mi = 2 }),
+	-- Strike here: the clicked spot sets from_bearing; the storm is Storm W's (seed 279, 2 mi to the side, first
+	-- 16.1 mi, first inside 8.1 mi) turned to come from there. Distances do not depend on the direction.
+	here = track({ seed = 279, from_bearing = 270, cross_track_mi = 2 }),
+}
+
+-- The strike list for one storm, in order: { t = sim seconds from the storm's start, bearing, miles }.
+-- Pure: the same parameters always give the same list.
+function StormModel.generate(p)
+	local rand = generator(p.seed)
+	local life = p.life_min * 60
+	local lambdaMax = p.peak_per_min / 60
+	local v = p.speed_mph / 3600
+	local strikes = {}
+	local t = 0
+	while true do
+		t += -math.log(rand()) / lambdaMax
+		if t >= life then break end
+		if rand() <= math.sin(math.pi * t / life) then
+			-- storm frame: the cell moves along +x, the site at the origin, cross_track_mi to its left
+			local cx, cy = -p.start_mi + v * t, p.cross_track_mi
+			local x, y
+			if rand() < StormModel.BLUE_SHARE then
+				local d = 5 + 5 * rand()
+				local a = math.rad((rand() * 2 - 1) * 45)
+				x, y = cx + d * math.cos(a), cy + d * math.sin(a)
+			else
+				local r = StormModel.SIGMA_MI * math.sqrt(-2 * math.log(rand()))
+				local th = 2 * math.pi * rand()
+				x, y = cx + r * math.cos(th), cy + r * math.sin(th)
+			end
+			-- to the site's frame: +x points the way the storm moves (from_bearing + 180), counterclockwise is -bearing
+			local bearing = (p.from_bearing + 180 - math.deg(math.atan2(y, x))) % 360
+			-- x, y (storm frame, miles) are kept so the harness can check the geometry
+			table.insert(strikes, { t = t, bearing = bearing, miles = math.sqrt(x * x + y * y), x = x, y = y })
+		end
+	end
+	return strikes
+end
+
+-- the storm's own duration in sim seconds, and the sim speed that plays it in REAL_SECONDS
+function StormModel.lifeSeconds(p) return p.life_min * 60 end
+function StormModel.pace(p) return p.life_min * 60 / StormModel.REAL_SECONDS end
+
+-- What the demo needs from a storm, for the harness and for picking seeds
+function StormModel.summary(strikes, pace)
+	local inside, firstInside, lastInside = 0, nil, nil
+	for _, s in ipairs(strikes) do
+		if s.miles < StormModel.STOP_MILES then
+			inside += 1
+			firstInside = firstInside or s
+			lastInside = s
+		end
+	end
+	local gap = (inside >= 2 and pace) and (lastInside.t - firstInside.t) / (inside - 1) / pace or nil
+	return {
+		count = #strikes, inside = inside, first = strikes[1], firstInside = firstInside, lastInside = lastInside,
+		allClearT = lastInside and lastInside.t + StormModel.ALL_CLEAR_S, realGap = gap,
+	}
+end
+
+-- Light and sound, in real seconds (FlashClient). Speed of sound from the air temperature in C.
+function StormModel.soundSpeed(tempC) return 331.3 + 0.606 * (tempC or 25) end
+function StormModel.thunderDelay(miles, tempC) return miles * 1609.344 / StormModel.soundSpeed(tempC) end
+-- amplitude 1/d, full at 1 mi or closer, fading to silent between 10 and 15 mi
+function StormModel.thunderGain(miles)
+	local g = math.min(1, 1 / math.max(miles, 1e-6))
+	if miles >= 15 then return 0 end
+	if miles > 10 then g *= (15 - miles) / 5 end
+	return g
+end
+-- flash brightness 1/d^2, full at 3 mi or closer, never under 0.15 so a far flash still shows
+function StormModel.flashBrightness(miles)
+	return math.max(0.15, math.min(1, 9 / math.max(miles * miles, 1e-6)))
+end
+
+return StormModel
+]==] },
 	{ "WeatherFx", "ModuleScript", [==[-- WeatherFx (ModuleScript)
 -- Blends the sky between a clear Florida afternoon and a storm by the scenario's cloud cover.
 local Lighting = game:GetService("Lighting")
@@ -2351,8 +2549,10 @@ end
 
 local function n(x) return math.floor(x + 0.5) end -- string.format %d needs whole numbers
 
-local function logEvent(text)
+local function logEvent(text, replaceTop)
 	local entry = clock(S.t) .. "  " .. text
+	-- a storm restarts the countdown dozens of times: those fold into one updating line instead of flooding the log
+	if replaceTop and log[1] and log[1]:find("COUNTDOWN RESET", 1, true) then table.remove(log, 1) end
 	table.insert(log, 1, entry)
 	while #log > 12 do table.remove(log) end
 	workspace:SetAttribute("ShiftLog", HttpService:JSONEncode(log))
@@ -2528,8 +2728,10 @@ events.Strike.Event:Connect(function(bearing, miles)
 	if miles < STOP_MILES then
 		local restart = S.near and (S.t - S.near.t) < ALL_CLEAR_S
 		S.near = strike -- every strike inside 10 miles restarts the 30 minutes
-		logEvent(("%s: strike %d mi %s, %s"):format(restart and "COUNTDOWN RESET" or "STOP WORK", n(miles), strike.dir,
-			restart and "30 minute all clear restarted" or "30 minute all clear started, crew to the trucks"))
+		S.resets = restart and (S.resets or 0) + 1 or 0
+		logEvent(("%s: strike %d mi %s, %s%s"):format(restart and "COUNTDOWN RESET" or "STOP WORK", n(miles), strike.dir,
+			restart and "30 minute all clear restarted" or "30 minute all clear started, crew to the trucks",
+			S.resets > 1 and (" (%d resets)"):format(S.resets) or ""), restart)
 	end
 	render()
 end)
@@ -2623,6 +2825,19 @@ local function setVisible(m, visible)
 	end
 end
 
+-- a scenario starts from calm: the crew is back at the work face at once, not still walking from the truck
+local resetEvent = game:GetService("ReplicatedStorage"):WaitForChild("SimEvents"):FindFirstChild("Reset")
+if resetEvent then
+	resetEvent.Event:Connect(function()
+		for _, w in ipairs(workers) do
+			w.m:PivotTo(w.home)
+			w.hidden = false
+			setVisible(w.m, true)
+			setWalking(w, false)
+		end
+	end)
+end
+
 local t = 0
 RunService.Heartbeat:Connect(function(dt)
 	t += dt
@@ -2708,10 +2923,8 @@ local TIMELINE = {
 	{ t = 15300, shot = "Board", text = "11:00 the heat index climbs. The board combines heat, wind, rain, soil, lightning, flood, and wildlife into one picture." },
 	{ t = 18900, shot = "Tent", text = "12:00 heat index past 110 F. The beacon sounds the heat alarm and the crew rotates through the cooling tent." },
 	{ t = 24300, shot = "Storm", text = "13:30 thunderstorms building to the west. Watch the screen flash: the real beacon's light sensor is aimed at it." },
-	{ t = 27900, shot = "Beacon", text = "14:30 strike 8 miles out. STOP WORK: the beacon strobes, the fan on the table stops, a 30 minute all clear starts." },
-	{ t = 28800, shot = "Beacon", text = "14:45 a new strike at 6 miles restarts the 30 minute countdown. The crew stays in the trucks." },
+	-- the strikes caption themselves below, with the distances the storm model actually produced
 	{ t = 29400, shot = "Flood", text = "14:55 the downpour. Water rises over the pad, the beacon switches to the flood alarm, the trucks sink to their axles." },
-	{ t = 37800, shot = "Board", text = "17:15 the storm moves off. The all clear runs out 30 minutes after the last strike inside 10 miles." },
 	{ t = 40500, shot = "Wide", text = "18:00 site time: the next-day safety briefing goes out in English and Spanish. Tomorrow's plan starts tonight." },
 }
 local CUT = TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -2789,11 +3002,45 @@ local function clockText(st)
 	return ("%02d:%02d"):format(math.floor(minutes / 60) % 24, math.floor(minutes % 60))
 end
 
+-- Lightning captions from the strikes themselves: the first strike inside 10 mi with its real distance, each
+-- reset, and the all clear 30 sim minutes after the last one. Kept on this client from the radar feed and SimTime.
+local STOP_MI, ALL_CLEAR_S = 10, 30 * 60
+local COMPASS = { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" }
+local lastSnap, lastInside, clearedShown = nil, nil, true
+local function demoOn() return workspace:GetAttribute("DemoMode") == true and lastSnap and lastSnap.key == "everglades_day" end
+local function liveCaption(text, shot)
+	bar.Visible = true
+	caption.Text = text
+	if shot then cutTo(shot) end
+end
+ReplicatedStorage:WaitForChild("StrikeRadar").OnClientEvent:Connect(function(bearing, miles)
+	if not demoOn() or miles >= STOP_MI then return end
+	local now = workspace:GetAttribute("SimTime") or lastSnap.simTime
+	local dir = COMPASS[math.floor(((bearing % 360) + 22.5) / 45) % 8 + 1]
+	local snap = { clockStart = lastSnap.clockStart, simTime = now }
+	if lastInside and now - lastInside < ALL_CLEAR_S then
+		liveCaption(("%s a new strike %.1f miles %s restarts the 30 minute countdown. The crew stays in the trucks.")
+			:format(clockText(snap), miles, dir))
+	else
+		liveCaption(("%s strike %.1f miles %s, inside the 10 mile ring. STOP WORK: the beacon strobes, the fan on the table stops, a 30 minute all clear starts.")
+			:format(clockText(snap), miles, dir), "Beacon")
+	end
+	lastInside, clearedShown = now, false
+end)
+
 stateEvent.OnClientEvent:Connect(function(st)
+	lastSnap = st
 	if not workspace:GetAttribute("DemoMode") or st.key ~= "everglades_day" then
 		if currentStep then stop() end
+		lastInside, clearedShown = nil, true
 		return
 	end
+	if lastInside and not clearedShown and st.simTime - lastInside >= ALL_CLEAR_S then
+		clearedShown = true
+		liveCaption(("%s ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume."):format(clockText(st)), "Board")
+		return
+	end
+	if lastInside and st.simTime < lastInside then lastInside, clearedShown = nil, true end -- the day looped
 	local step = 1
 	for i, s in ipairs(TIMELINE) do
 		if st.simTime >= s.t then step = i end
@@ -2812,13 +3059,19 @@ workspace:GetAttributeChangedSignal("DemoMode"):Connect(function()
 end)
 ]==] },
 	{ "FlashClient", "LocalScript", [==[-- FlashClient (LocalScript in StarterPlayerScripts)
+-- Light and sound of a strike, in real seconds. The flash is instant; the thunder arrives after the distance over
+-- the speed of sound at the scenario's air temperature. Same formulas as StormModel (a server module the client
+-- cannot require), so keep the two in step.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 
-local SECONDS_PER_MILE = 4.69
+local METERS_PER_MILE = 1609.344
 local FLASH_FRAMES = 3
+-- Sound.Volume at 1 mi and closer. Thunder falls off as 1/d from there, so a strike at 8 mi plays at 1/8 of this;
+-- 3 keeps it loud enough for the laptop speakers to reach the mic listener at demo distances.
+local FULL_VOLUME = 3
 
 local player = Players.LocalPlayer
 local flashEvent = ReplicatedStorage:WaitForChild("FlashEvent")
@@ -2839,7 +3092,20 @@ frame.ZIndex = 1000
 frame.Visible = false
 frame.Parent = gui
 
-local function flash()
+-- speed of sound in air, m/s, at T degrees C
+local function soundSpeed(tempC) return 331.3 + 0.606 * tempC end
+-- flash brightness 1/d^2, full at 3 mi or closer, floor 0.15 so it shows at any distance
+local function brightness(miles) return math.max(0.15, math.min(1, 9 / (miles * miles))) end
+-- thunder amplitude 1/d, full at 1 mi or closer, fading to silent between 10 and 15 mi
+local function gain(miles)
+	if miles >= 15 then return 0 end
+	local g = math.min(1, 1 / miles)
+	if miles > 10 then g *= (15 - miles) / 5 end
+	return g
+end
+
+local function flash(miles)
+	frame.BackgroundTransparency = 1 - brightness(miles)
 	frame.Visible = true
 	for _ = 1, FLASH_FRAMES do
 		RunService.RenderStepped:Wait()
@@ -2847,20 +3113,36 @@ local function flash()
 	frame.Visible = false
 end
 
-local function thunder(miles)
+local function play(speed, volume)
 	local s = thunderTemplate:Clone()
-	s.Volume = math.clamp(1.3 - miles * 0.04, 0.6, 1)
-	-- far strikes sound lower and longer, the air soaks up the crack and leaves the rumble
-	s.PlaybackSpeed = math.clamp(1.05 - miles * 0.02, 0.75, 1)
+	s.Volume, s.PlaybackSpeed = volume, speed
 	s.Parent = SoundService
 	s.Ended:Connect(function() s:Destroy() end)
 	s:Play()
 end
 
+local function thunder(miles, volume)
+	-- far strikes sound lower: the air soaks up the crack and leaves the rumble
+	local speed = math.clamp(1.05 - miles * 0.02, 0.75, 1)
+	play(speed, volume)
+	-- and rumble longer: the sound comes in over a longer path spread, so far thunder gets slower, quieter echoes
+	-- trailing the first roll (none for a close crack, two past 6 mi)
+	local echoes = miles > 6 and 2 or miles > 3 and 1 or 0
+	for i = 1, echoes do
+		task.delay(0.35 * i * (miles / 5), play, speed * (1 - 0.06 * i), volume * 0.6 ^ i)
+	end
+end
+
 flashEvent.OnClientEvent:Connect(function(miles)
-	task.spawn(flash)
-	task.delay(miles * SECONDS_PER_MILE, thunder, miles)
-	print(("[Flash] flash now, thunder in %.1f s"):format(miles * SECONDS_PER_MILE))
+	task.spawn(flash, miles)
+	local delay = miles * METERS_PER_MILE / soundSpeed(workspace:GetAttribute("AirTempC") or 25)
+	local volume = FULL_VOLUME * gain(miles)
+	-- for the harness and for checking a demo laptop: what this client scheduled for the last strike
+	player:SetAttribute("LastThunderDelay", delay)
+	player:SetAttribute("LastThunderVolume", volume)
+	player:SetAttribute("LastFlashBrightness", brightness(miles))
+	if volume > 0 then task.delay(delay, thunder, miles, volume) end
+	print(("[Flash] flash now at %.2f mi, thunder in %.1f s%s"):format(miles, delay, volume > 0 and "" or " (too far to hear)"))
 end)
 ]==] },
 	{ "LightningRadar", "LocalScript", [==[-- LightningRadar (LocalScript in StarterPlayerScripts)
@@ -3251,7 +3533,8 @@ local function resetHazards()
 end
 
 local DEMO_SCENARIO, DEMO_SPEED, DEMO_PAUSE = "everglades_day", 600, 6
--- the demo runs the quiet hours fast and slows for the moments that matter: about 75 seconds for the whole day
+-- the demo runs the quiet hours fast and slows for the moments that matter. The storm sets its own pace on top
+-- (the engine plays a storm's approach and passage over 5 real minutes), so the day takes about 6 minutes.
 local DEMO_PACE = {
 	{ upTo = 2600,  speed = 900 }, -- dawn
 	{ upTo = 3000,  speed = 150 }, -- the gator report
@@ -3285,9 +3568,11 @@ end
 -- Instant buttons: each fires its events once, now, through the engine, so the Bridge posts them like any scenario
 local CALM = { type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 }
 local INSTANT = {
-	strike8 = { { type = "strike", bearing = 270, miles = 8 } },
-	strike6 = { { type = "strike", bearing = 255, miles = 6 } },
-	strike15 = { { type = "strike", bearing = 270, miles = 15 } },
+	-- the lightning buttons each start a whole simulated storm (StormModel.presets): it builds 20 mi out, walks in,
+	-- and the label is where its first strike inside 10 mi lands (for 15, its very first strike)
+	strike8 = { { type = "storm", preset = "strike8" } },
+	strike6 = { { type = "storm", preset = "strike6" } },
+	strike15 = { { type = "storm", preset = "strike15" } },
 	heat = { { type = "weather", clouds = 0.2, rain = 0, temp_c = 36, humidity = 62, gust = 10 } },
 	flood = { { type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 30 }, { type = "water", depth_mm = 60 } },
 	wind = { { type = "weather", clouds = 0.8, rain = 10, temp_c = 30, humidity = 80, gust = 45 } },
@@ -3324,7 +3609,7 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		local events = INSTANT[arg]
 		if not events then return end
 		-- make sure a clock is running so a stop work can count down to its all clear
-		if arg == "calm" then resetHazards() end
+		if arg == "calm" then Engine.stopStorms() resetHazards() end
 		if not Engine.loadedKey() then
 			workspace:SetAttribute("DemoMode", false)
 			Engine.load("instant")
@@ -3349,10 +3634,17 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	end
 end)
 
+-- Strike here starts a storm too: the clicked spot sets the direction it comes from
 strikeHere.OnServerEvent:Connect(function(p, pos)
 	if not isOperator(p) or typeof(pos) ~= "Vector3" then return end
-	local bearing, miles = Lightning.fromPosition(pos)
-	Lightning.strike(bearing, miles)
+	local bearing = Lightning.fromPosition(pos)
+	if not Engine.loadedKey() then
+		workspace:SetAttribute("DemoMode", false)
+		Engine.load("instant")
+	end
+	if not Engine.isPlaying() then Engine.play() end
+	Engine.fire({ type = "storm", preset = "here", from_bearing = bearing })
+	print(("[StrikeHere] storm from %.0f deg by %s"):format(bearing, p.Name))
 end)
 
 local looping = false
@@ -3974,7 +4266,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1018-0212, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1018-0341, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
