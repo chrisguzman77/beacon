@@ -1,4 +1,5 @@
 """REST and the site websocket. contracts/api.md."""
+import asyncio
 import secrets
 import uuid
 from pathlib import Path
@@ -157,6 +158,19 @@ async def clear_alert(alert_id: int, body: ClearIn, user=Depends(require_supervi
     if r["type"] == "stopwork" and SITES[r["site_id"]]["beacon"]:
         await gateway.send(r["site_id"], {"cmd": "CLEAR", "by": by})
     return alert_json(r)
+
+
+class PinIn(BaseModel):
+    pin: str
+
+
+@router.post("/supervisor/pin")
+async def check_pin(body: PinIn, user=Depends(get_user)):
+    """A typed supervisor PIN, for Change site on a crew phone. A wrong PIN waits 1 s to slow guessing."""
+    ok = secrets.compare_digest(body.pin.encode(), settings.supervisor_pin.encode())
+    if not ok:
+        await asyncio.sleep(1)
+    return {"ok": ok}
 
 
 @router.websocket("/ws/site/{site_id}")
