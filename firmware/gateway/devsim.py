@@ -3,7 +3,7 @@
     uv run devsim.py            prints the two fake serial ports, then start the gateway with the env it prints
 Commands (stdin, or lines appended to the file given with --control):
     flash | p 0|1 | t <C> <H> | w <0..100> | tilt 0|1 | ir <KEY>          the pod
-    bang | stopwork <miles> | clear <name> | index <n> | muster <in> <out> | briefing | rest   the backend
+    bang | stopwork <miles> | clear <name> | index <n> | muster <in> <out> | briefing | rest | water <pct>   the backend
     backend off | backend on                                                 drop or restore the backend
 """
 import argparse, asyncio, json, os, sys, time, tty
@@ -112,7 +112,9 @@ async def command(line, pod_fd):
     elif c == 'muster':
         await down({'cmd': 'MUSTER', 'in': [f'crew{i}' for i in range(int(w[1]))], 'out': [f'gone{i}' for i in range(int(w[2]))]})
     elif c == 'rest':
-        await down({'cmd': 'REST', 'seconds': 900})
+        await down({'cmd': 'REST', 'seconds': 900, 'heat_index_f': 120.7})
+    elif c == 'water':     # the site twin's flood as the backend sends it
+        await down({'cmd': 'WATER', 'pct': int(w[1])})
     elif c == 'briefing':
         await down({'cmd': 'BRIEFING', 'english': 'Heat index 104 tomorrow. Take water breaks.',
                     'spanish': 'Índice de calor 104 mañana. Tomen descansos.', 'for_date': '2026-10-18'})

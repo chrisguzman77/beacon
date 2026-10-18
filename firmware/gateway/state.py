@@ -15,9 +15,11 @@ class State:
     # rest break and sensors
     rest: bool = False
     heat_f: float | None = None
+    rest_heat_f: float | None = None  # the heat index behind a rest break from the backend (the twin's, not the pod's)
     heat_level: int = 0               # 0 normal, 1 warning >= 103, 2 danger >= 115
     water: bool = False
     water_pct: int = 0
+    sim_water_pct: int = 0            # the site twin's flood, from the backend's WATER command
     tilt: bool = False
     presence: bool = False
     zone_clear: bool = False
@@ -58,7 +60,7 @@ class State:
         if self.awaiting_clear:
             return 'LOCKED OUT', 'NEEDS SUPERVISOR'
         if self.rest:
-            return f'HEAT REST  {mmss}', f'HEAT INDEX {round(self.heat_f or 0)}F'
+            return f'HEAT REST  {mmss}', f'HEAT INDEX {round(self.rest_heat_f or self.heat_f or 0)}F'
         if self.tilt:
             return 'BEACON TIPPED', 'SENSORS UNSAFE'
         if self.water:

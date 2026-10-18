@@ -8,6 +8,8 @@ from state import S
 log = logging.getLogger('rules')
 FAR_M = 16093                 # 10 miles
 SAME_STRIKE_S = 5             # the backend's STOPWORK and the local flash to bang of one Roblox bolt are one strike
+RESET_SAY_EVERY_S = 30        # a real storm resets the countdown often; say so at most this often
+WATER_SAY_EVERY_S = 60        # the standing water line, at most this often
 uno = lcd = say = cloud = interlock = None
 
 _flash_at = None              # monotonic time of the last unpaired FLASH, and its wall clock in microseconds
@@ -16,6 +18,7 @@ _last_count_at = 0.0
 _last_presence_at = 0.0
 _stopwork_since = 0.0
 _water_said_at = -1e9
+_reset_said_at = -1e9
 _last_pod_up = 0.0
 _from_backend = False         # the running stop work came from the backend's STOPWORK, not the Pi's own sensors
 _offline_since = time.monotonic()   # the gateway starts offline; its first connect takes a moment
@@ -107,8 +110,10 @@ def heat_index_f(t_c: float, rh: float) -> float:
 def start_stopwork(distance_m, strike_at: float, seconds: int = config.STOPWORK_SECONDS, report: dict | None = None,
                    from_backend: bool = False):
     """Rule 1 and 2: a local flash to bang pairing and the backend's STOPWORK end here, so both paths act the same."""
-    global _stopwork_since, _from_backend
-    if (S.stopwork or S.awaiting_clear) and abs(strike_at - S.strike_at) <= SAME_STRIKE_S:
+    global _stopwork_since, _from_backend, _reset_said_at
+    # One bolt reaches the Pi twice, once from the backend and once by flash to bang, so a trigger from the other
+    # source within 5 s is the same strike. Two backend strikes are always two, each restarting the countdown.
+    if (S.stopwork or S.awaiting_clear) and from_backend != _from_backend and abs(strike_at - S.strike_at) <= SAME_STRIKE_S:
         log.info('same strike as the running stop work, no reset')
         if report:
             cloud.send(report, queue=True)
@@ -122,7 +127,11 @@ def start_stopwork(distance_m, strike_at: float, seconds: int = config.STOPWORK_
     _stopwork_since, _from_backend = time.monotonic(), from_backend
     interlock.apply(True)                         # the motor first, then everything else
     uno.send(f'STOPWORK:{secs}')
-    say.say(voice.RESET if resetting else voice.lightning(miles), urgent=True)
+    if not resetting:
+        say.say(voice.lightning(miles), urgent=True)
+    elif time.monotonic() - _reset_said_at >= RESET_SAY_EVERY_S:
+        _reset_said_at = time.monotonic()
+        say.say(voice.RESET, urgent=True)
     if report:
         cloud.send(report, queue=True)
     log.info('stop work: %s, %s s%s', S.reason, secs, ' (reset)' if resetting else '')
@@ -203,14 +212,18 @@ def every_second():
 
 
 def release(by: str):
-    """A right PIN at the beacon or CLEAR from the dashboard."""
-    S.stopwork = S.awaiting_clear = S.estop = S.zone_clear = False
+    """A right PIN at the beacon or CLEAR from the dashboard, or a Roblox reset (which also ends a rest break)."""
+    was_locked = S.locked
+    S.stopwork = S.awaiting_clear = S.estop = S.zone_clear = S.rest = False
     S.countdown, S.countdown_kind, S.reason = 0, '', ''
     interlock.apply(S.locked)
     save_lock()
     uno.send('CLEAR')
-    say.say(voice.CLEARED, urgent=True)
-    lcd.hold('RELEASED BY', f'{by.upper()[:10]} {time.strftime("%H:%M")}', 10)
+    if was_locked:                                # a reset that only ended a rest break says nothing about power
+        say.say(voice.CLEARED, urgent=True)
+        lcd.hold('RELEASED BY', f'{by.upper()[:10]} {time.strftime("%H:%M")}', 10)
+    else:
+        lcd.refresh()
     log.info('released by %s', by)
     publish()
 
@@ -226,22 +239,39 @@ def on_estop():
     changed()
 
 
-def start_rest(seconds: int = config.REST_SECONDS):
+def start_rest(seconds: int = config.REST_SECONDS, heat_f: float | None = None):
     if S.rest:
         return
-    S.rest = True
+    S.rest, S.rest_heat_f = True, heat_f or S.heat_f
     if not S.stopwork:                            # the stop work countdown owns the display while it runs
         secs = max(1, seconds // config.DEMO_COUNTDOWN_SCALE)
         S.countdown, S.countdown_kind = secs, 'rest'
         uno.send(f'REST:{secs}')
-    say.say(voice.heat(S.heat_f or 115))
+    say.say(voice.heat(S.rest_heat_f or 115))
     changed()
 
 
 # --- sensors --------------------------------------------------------------------------------------------------------
 
+def water_rule():
+    """Rule 5. The pod's own probe or the site twin's flood (WATER from the backend), whichever reads higher."""
+    global _water_said_at
+    water = max(S.pod.get('W', 0), S.sim_water_pct)
+    S.water_pct = int(water)
+    if water > 20 and not S.water:
+        S.water = True
+        if time.monotonic() - _water_said_at > WATER_SAY_EVERY_S:
+            _water_said_at = time.monotonic()
+            say.say(voice.WATER)
+        changed()
+    elif water <= 15 and S.water:
+        S.water = False
+        say.say(voice.WATER_CLEARED)
+        changed()
+
+
 def on_pod(d: dict):
-    global _last_presence_at, _water_said_at, _last_pod_up
+    global _last_presence_at, _last_pod_up
     now = time.monotonic()
     S.pod = d
     send_now = False
@@ -266,18 +296,7 @@ def on_pod(d: dict):
             elif level == 0:
                 say.say(voice.HEAT_NORMAL)
             changed()
-    water = d.get('W', 0)                         # rule 5
-    S.water_pct = int(water)
-    if water > 20 and not S.water:
-        S.water = True
-        if now - _water_said_at > 600:
-            _water_said_at = now
-            say.say(voice.WATER)
-        changed()
-    elif water <= 15 and S.water:
-        S.water = False
-        say.say(voice.WATER_CLEARED)
-        changed()
+    water_rule()                                  # rule 5
     tilt = bool(d.get('TILT'))                    # rule 6
     if tilt != S.tilt:
         S.tilt, send_now = tilt, True
@@ -305,7 +324,7 @@ def on_cmd(m: dict):
         uno.send(f'INDEX:{S.index}')
         changed()
     elif cmd == 'REST':
-        start_rest(int(m.get('seconds') or config.REST_SECONDS))
+        start_rest(int(m.get('seconds') or config.REST_SECONDS), m.get('heat_index_f'))
     elif cmd == 'MUSTER':
         inn, out = m.get('in') or [], m.get('out') or []
         S.crew_on_site, S.crew_checked_in_today = len(inn), len(inn) + len(out)
@@ -316,6 +335,10 @@ def on_cmd(m: dict):
         config.BRIEFING_FILE.write_text(json.dumps(S.briefing))
         if not S.locked and S.pin_entry is None:   # never cover a stop work, a lockout, or PIN entry
             lcd.hold('BRIEFING READY', 'UP EN  DOWN ES', 10)
+    elif cmd == 'WATER':                          # the site twin's flood depth, as the probe's 0..100
+        S.sim_water_pct = max(0, min(100, int(m.get('pct') or 0)))
+        water_rule()
+        changed()                                 # the LCD shows the new LOW POINT % while it warns
     elif cmd == 'DEMO_SCALE':
         config.DEMO_COUNTDOWN_SCALE = max(1, int(m.get('value') or 1))
     else:
