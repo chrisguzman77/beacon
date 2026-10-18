@@ -20,4 +20,9 @@ echo "$PI_USER ALL=(root) NOPASSWD: /usr/bin/systemctl start beacon-gateway, /us
 visudo -cqf "$tmp" && install -m 440 "$tmp" /etc/sudoers.d/beacon-gateway
 rm -f "$tmp"
 
-echo "Done: espeak-ng installed, beacon-gateway.service installed (not started), $PI_USER can start and stop it."
+# Wi-Fi never gives up: NetworkManager's default stops after 4 tries for 5 minutes, so a hotspot that blinks off
+# (demo step 7) could take 5 minutes to come back. 0 is retry forever, for every saved and future network.
+printf '[connection]\nconnection.autoconnect-retries=0\n' > /etc/NetworkManager/conf.d/50-beacon-wifi-retry.conf
+nmcli general reload conf
+
+echo "Done: espeak-ng installed, beacon-gateway.service installed (not started), $PI_USER can start and stop it, Wi-Fi retries forever."
