@@ -27,8 +27,9 @@ unsigned long lastByteAt = 0;
 char line1[17] = "";         // LCD line 1 as shown, padded to 16, for the MM:SS rewrite
 char buf[64];
 byte len = 0;
-unsigned long lastTick = 0, lastStrobe = 0, lastDigit = 0, needleOffAt = 0;
+unsigned long lastTick = 0, lastStrobe = 0, lastDigit = 0, needleOffAt = 0, lastStep = 0;
 bool strobeOn = false, needleOn = false;
+int needleAt = -1, needleTo = 0;   // degrees; -1 until the first INDEX, which goes straight there
 byte slot = 0;
 
 void color(bool r, bool g, bool b) { stripWant = strip.Color(r * 255, g * 160, b * 255); }   // r + g reads as yellow
@@ -92,9 +93,9 @@ void startCountdown(Kind k, long secs) {
 
 void moveNeedle(int ix) {
   hazardIndex = ix;
-  needle.attach(SERVO_PIN);
-  needle.write(map(ix, 0, 10, NEEDLE_MIN, NEEDLE_MAX));
-  needleOn = true;
+  needleTo = map(ix, 0, 10, NEEDLE_MIN, NEEDLE_MAX);
+  if (needleAt < 0) needleAt = needleTo;   // after a reset the needle is usually already near the gateway's index
+  if (!needleOn) { needle.write(needleAt); needle.attach(SERVO_PIN); needleOn = true; }
   needleOffAt = millis() + 700;   // detach once it has arrived, so the SG90 does not hum or jitter
 }
 
@@ -144,7 +145,15 @@ void loop() {
     }
   }
   if (kind == STOPWORK && now - lastStrobe >= 250) { lastStrobe = now; strobeOn = !strobeOn; color(strobeOn, 0, 0); }
-  if (needleOn && (long)(now - needleOffAt) >= 0) { needle.detach(); needleOn = false; }
+  // 2 degrees every 15 ms, like the Sweep example: one big jump pulls more current than our supply gives and stalls it
+  if (needleOn && now - lastStep >= 15) {
+    lastStep = now;
+    if (needleAt != needleTo) {
+      needleAt += constrain(needleTo - needleAt, -2, 2);
+      needle.write(needleAt);
+      needleOffAt = now + 700;
+    } else if ((long)(now - needleOffAt) >= 0) { needle.detach(); needleOn = false; }
+  }
 
   // strip.show() pauses interrupts for about 30 us per LED, so it waits for 3 ms of serial quiet and never eats a command
   if (stripWant != stripShown && !Serial.available() && micros() - lastByteAt > 3000) {
