@@ -73,6 +73,8 @@ class Voice:
                 await asyncio.to_thread(synth)
             else:
                 await self._play('espeak-ng', '-v', 'es-419' if lang == 'es' else 'en-us', '-s', '155', '-w', f.name, text)
+            if shutil.which('amixer'):   # a USB speaker that reconnects comes back at its default volume, about 40%
+                await self._play('amixer', '-q', 'sset', 'PCM', '100%', 'unmute')
             await self._play('aplay', '-q', *dev, f.name)
 
 
