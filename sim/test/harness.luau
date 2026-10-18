@@ -140,6 +140,7 @@ roblox.implementMethod("Players", "CreateHumanoidModelFromDescription", function
 end)
 roblox.implementProperty("Player", "Character", function() return nil end)
 roblox.implementMethod("Player", "GetMouse", function() return { Target = nil } end)
+roblox.implementProperty("Player", "CharacterAdded", function(self) return signalOf(self, "CharacterAdded") end)
 roblox.implementProperty("TextButton", "MouseButton1Click", function(self) return signalOf(self, "click") end)
 roblox.implementMethod("Camera", "GetPropertyChangedSignal", function(self, name) return signalOf(self, "prop:" .. name) end)
 roblox.implementProperty("UserInputService", "InputBegan", function(self) return signalOf(self, "InputBegan") end)
@@ -292,13 +293,21 @@ if bridgeScript then
 end
 task.wait(0.2)
 
+print("== spawn starts in first person, free to scroll out")
+signalOf(LOCAL_PLAYER, "CharacterAdded"):Fire()
+task.wait() -- the deferred handler runs
+local clamped = LOCAL_PLAYER.CameraMaxZoomDistance
+task.wait(0.1)
+check(clamped == 0.5 and LOCAL_PLAYER.CameraMaxZoomDistance == 40,
+	("zoom clamped to first person on spawn (%s), then the normal range back (%s)"):format(tostring(clamped), tostring(LOCAL_PLAYER.CameraMaxZoomDistance)))
+
 print("== build")
 local site = workspace:FindFirstChild("Site")
 if MERGED then
 	local scene = workspace.PlanITSite
 	check(scene:FindFirstChild("Beacon") == nil and scene:FindFirstChild("RainSheet") == nil, "old beacon and rain retired")
 	local bp = workspace.Beacon.Base.CFrame.Position
-	check(math.abs(bp.Y - 9.4) < 0.01 and math.abs(bp.X + 6) < 0.01, ("our beacon stands on the platform deck (post center %.1f, %.1f, %.1f)"):format(bp.X, bp.Y, bp.Z))
+	check(math.abs(bp.Y - 10.6) < 0.01 and math.abs(bp.X + 6) < 0.01, ("our beacon stands on its skid on the platform deck (post center %.1f, %.1f, %.1f)"):format(bp.X, bp.Y, bp.Z))
 	local sp = scene:FindFirstChildOfClass("SpawnLocation").CFrame.Position
 	check(sp.X < -30, ("spawn out on the boardwalk, outside the zone (x %.0f)"):format(sp.X))
 	check(#site_floating() >= 160, "their lily pads and boat ride the flood (" .. #site_floating() .. ")")

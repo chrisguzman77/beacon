@@ -290,7 +290,7 @@ local pivot = hub and hub.CFrame or needle.CFrame
 local function applyIndex()
 	local idx = liveRisk() -- the needle shows live risk; it eases back to the model's Index when hazards clear
 	if beacon:GetAttribute("LiveRisk") ~= idx then beacon:SetAttribute("LiveRisk", idx) end
-	local turn = CFrame.Angles(0, 0, math.rad(90 - idx * 18))
+	local turn = CFrame.Angles(0, 0, math.rad(70 - idx * 14)) -- +-70 degrees so 0 and 10 stand clear of the gauge edge
 	local goal = hub and pivot * turn * CFrame.new(0, needle.Size.Y / 2, 0) or pivot * turn
 	TweenService:Create(needle, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { CFrame = goal }):Play()
 end

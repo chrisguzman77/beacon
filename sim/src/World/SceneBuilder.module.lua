@@ -180,6 +180,9 @@ local function beacon()
 	local base = part(m, "Base", Vector3.new(0.7, 10, 0.7), CFrame.new(0, 5, 0), C.steel, Enum.Material.Metal)
 	m.PrimaryPart = base
 	part(m, "Footing", Vector3.new(3, 0.6, 3), CFrame.new(0, 0.3, 0), C.concrete, Enum.Material.Concrete)
+	-- an equipment skid under the footing, the way site beacons are set out; on the boardwalk it lifts the gauge
+	-- clear of the railing (on open ground it sits below grade)
+	part(m, "Skid", Vector3.new(3.6, 1.2, 3.6), CFrame.new(0, -0.6, 0), C.steel, Enum.Material.DiamondPlate)
 	part(m, "Head", Vector3.new(4.4, 3.6, 1.4), CFrame.new(0, 8.2, 0), C.safety)
 	-- the real unit's silhouette: a tilted solar panel behind the head, the sensor pod on a short mast, a whip antenna
 	part(m, "SolarBracket", Vector3.new(0.3, 2.2, 0.3), CFrame.new(0, 6.2, -1.1) * CFrame.Angles(math.rad(-20), 0, 0), C.steel, Enum.Material.Metal)
@@ -223,7 +226,9 @@ local function beacon()
 	label(g, "Hi", "10", UDim2.fromScale(0.1, 0.25), UDim2.fromScale(0.87, 0.7), C.dim)
 	local hubCf = CFrame.new(0, 6.95, 0.95)
 	part(m, "NeedleHub", Vector3.new(0.3, 0.3, 0.3), hubCf, C.dark, Enum.Material.Metal, Enum.PartType.Ball)
-	part(m, "Needle", Vector3.new(0.08, 1, 0.06), hubCf * CFrame.Angles(0, 0, math.rad(90)) * CFrame.new(0, 0.5, 0), C.white, Enum.Material.Neon)
+	-- longer, thicker, and brighter than before so it reads from the spawn; the sweep is +-70 degrees (BeaconVisuals)
+	local needle = part(m, "Needle", Vector3.new(0.14, 1.15, 0.08), hubCf * CFrame.Angles(0, 0, math.rad(70)) * CFrame.new(0, 0.575, 0), Color3.fromRGB(255, 245, 225), Enum.Material.Neon)
+	needle.CastShadow = false
 
 	-- equipment lockout LCD
 	local lcd = part(m, "Lcd", Vector3.new(3.4, 1.1, 0.3), CFrame.new(0, 4.6, 0.5), C.black)
@@ -1087,7 +1092,8 @@ function Builder.build()
 	zone()
 	if scene then
 		-- the beacon pivots on its post, whose center is 5 studs up
-		workspace.Beacon:PivotTo(CFrame.new(-6, DECK_Y, -6) * CFrame.Angles(0, math.rad(-90), 0) * CFrame.new(0, 5, 0)) -- faces west, down the boardwalk
+		local SKID = 1.2 -- the beacon stands on its skid on the deck
+		workspace.Beacon:PivotTo(CFrame.new(-6, DECK_Y + SKID, -6) * CFrame.Angles(0, math.rad(-90), 0) * CFrame.new(0, 5, 0)) -- faces west, down the boardwalk
 		jobsite(site)
 		wildlife(site, {
 			swims = { { 40, -60, 30, 3.2 }, { -100, 50, 25, 2.6 }, { 120, 80, 40, 3.6 }, { -200, -60, 30, 2.2 } },
