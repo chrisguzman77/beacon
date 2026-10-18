@@ -127,7 +127,8 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
 	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
-	if action == "load" then Engine.load(arg)
+	-- one click runs a scenario: load it and play its timeline from the start, replacing whatever was running
+	if action == "load" then Engine.load(arg) Engine.play()
 	elseif action == "play" then Engine.play()
 	elseif action == "pause" then Engine.pause()
 	elseif action == "speed" then Engine.setSpeed(tonumber(arg) or 60)

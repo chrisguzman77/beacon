@@ -3180,7 +3180,8 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
 	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
-	if action == "load" then Engine.load(arg)
+	-- one click runs a scenario: load it and play its timeline from the start, replacing whatever was running
+	if action == "load" then Engine.load(arg) Engine.play()
 	elseif action == "play" then Engine.play()
 	elseif action == "pause" then Engine.pause()
 	elseif action == "speed" then Engine.setSpeed(tonumber(arg) or 60)
@@ -3214,6 +3215,7 @@ end)
 -- timeline with a tick for every strike, flood step, wildlife report, and note; the guided demo; the scenarios;
 -- playback speed; free play lightning. Scales with the screen and collapses to its header.
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -3551,6 +3553,18 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end)
 
+-- chat bottom right (the input bar moves with the window): clear of this panel (bottom left), the radar (top left),
+-- and the zone card (top right). Also saved into the place by make_place.luau.
+task.spawn(function()
+	local window = TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+	if window then
+		pcall(function()
+			window.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			window.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end)
+	end
+end)
+
 local function refresh() panel.Visible = player:GetAttribute("Operator") == true end
 player:GetAttributeChangedSignal("Operator"):Connect(refresh)
 refresh()
@@ -3783,7 +3797,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-2309, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-2333, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

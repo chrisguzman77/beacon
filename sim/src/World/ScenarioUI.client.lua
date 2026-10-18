@@ -3,6 +3,7 @@
 -- timeline with a tick for every strike, flood step, wildlife report, and note; the guided demo; the scenarios;
 -- playback speed; free play lightning. Scales with the screen and collapses to its header.
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -337,6 +338,18 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed or not freePlay then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		if mouse.Target then strikeHere:FireServer(mouse.Hit.Position) end
+	end
+end)
+
+-- chat bottom right (the input bar moves with the window): clear of this panel (bottom left), the radar (top left),
+-- and the zone card (top right). Also saved into the place by make_place.luau.
+task.spawn(function()
+	local window = TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+	if window then
+		pcall(function()
+			window.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			window.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end)
 	end
 end)
 

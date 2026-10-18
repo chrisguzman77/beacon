@@ -43,12 +43,13 @@ local function signalOf(inst, key)
 end
 
 -- WaitForChild waits up to 5 s in real time for something another script creates
-local function waitForChild(self, name)
-	for _ = 1, 500 do
+local function waitForChild(self, name, timeout)
+	for _ = 1, (timeout and math.min(timeout, 5) or 5) * 100 do
 		local c = self:FindFirstChild(name)
 		if c then return c end
 		task.wait(0.01)
 	end
+	if timeout then return nil end -- with a timeout Roblox returns nil instead of waiting forever
 	error("WaitForChild timed out: " .. self:GetFullName() .. "." .. name)
 end
 local CLASSES = { "Instance", "DataModel", "Workspace", "StarterPlayer", "StarterPlayerScripts", "ReplicatedStorage", "ServerStorage",
@@ -342,8 +343,11 @@ local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
 check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 27, "client panel with 27 buttons (collapse, demo, 2 sites, 8 instant, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
 
-print("== Studio auto play starts the guided demo after 5 s")
+print("== Play opens calm and idle, the demo starts from its button")
 task.wait(5.2)
+step(0.5)
+check(workspace:GetAttribute("DemoMode") ~= true and #fired.strike == 0, "pressing Play starts nothing on its own")
+rs.ScenarioControl:FireServer("demo")
 step(0.5)
 local caption = LOCAL_PLAYER.PlayerGui:FindFirstChild("DemoCaption")
 check(workspace:GetAttribute("DemoMode") == true and caption and caption:FindFirstChild("Caption", true).Text:find("06:45") ~= nil,
@@ -355,7 +359,8 @@ print("== storm_west")
 local control = rs.ScenarioControl
 control:FireServer("load", "storm_west")
 check(workspace:GetAttribute("DemoMode") == false, "picking a scenario takes over from the demo")
-control:FireServer("play")
+step(1)
+check(workspace:GetAttribute("SimTime") ~= nil and workspace:GetAttribute("SimTime") > 0, "one click on a scenario loads and plays it")
 step(45, 0.25)
 local miles = {}
 for _, s in ipairs(fired.strike) do table.insert(miles, s[2]) end
@@ -400,6 +405,7 @@ end
 
 print("== beacon follows the index")
 rs.ScenarioControl:FireServer("load", "tipped") -- a calm scenario: the sim's own hazards reset
+rs.ScenarioControl:FireServer("pause") -- loading plays it now; paused, it leaves the hand set hazards alone
 step(0.5)
 if LIVE and bridgeScript then print("  skipped in live mode, the Bridge rewrites these attributes from the backend every second") else
 local tag = beacon.Light.LevelTag
