@@ -36,7 +36,9 @@ end
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
 rescale()
 local card = Instance.new("Frame")
-card.AnchorPoint, card.Position, card.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 16), UDim2.fromOffset(300, 0)
+-- top right, just below Roblox's top bar (this ScreenGui keeps the top bar inset); the radar fits itself below it
+card.Name = "ZoneCard"
+card.AnchorPoint, card.Position, card.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 12), UDim2.fromOffset(300, 0)
 card.AutomaticSize = Enum.AutomaticSize.Y
 card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = Color3.fromRGB(14, 16, 22), 0.15, 0
 card.Parent = gui
