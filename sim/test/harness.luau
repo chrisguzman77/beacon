@@ -63,13 +63,14 @@ roblox.implementProperty("RunService", "Heartbeat", function() return heartbeat 
 roblox.implementProperty("RunService", "RenderStepped", function() return renderStepped end)
 roblox.implementMethod("RunService", "IsStudio", function() return true end)
 
-local fired = { strike = {}, weather = {}, water = {}, presence = {}, flash = {} }
+local fired = { strike = {}, weather = {}, water = {}, presence = {}, flash = {}, reset = {} }
 roblox.implementProperty("BindableEvent", "Event", function(self) return signalOf(self, "Event") end)
 roblox.implementMethod("BindableEvent", "Fire", function(self, ...)
 	local list = fired[string.lower(self.Name == "PresenceChanged" and "presence" or self.Name)]
 	if list then table.insert(list, { ... }) end
 	signalOf(self, "Event"):Fire(...)
 end)
+roblox.implementProperty("Folder", "ChildAdded", function(self) return signalOf(self, "ChildAdded") end)
 roblox.implementProperty("RemoteEvent", "OnServerEvent", function(self) return signalOf(self, "OnServerEvent") end)
 roblox.implementProperty("RemoteEvent", "OnClientEvent", function(self) return signalOf(self, "OnClientEvent") end)
 roblox.implementMethod("RemoteEvent", "FireAllClients", function(self, ...)
@@ -346,7 +347,8 @@ if MERGED then
 	check(dress:FindFirstChild("ReelFlange") and dress:FindFirstChild("Generator") and dress:FindFirstChild("Drum"), "conductor reel, generator, road drums on site")
 end
 local rs = game:GetService("ReplicatedStorage")
-check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs:FindFirstChild("FlashEvent"), "SimEvents (4) and FlashEvent for the Bridge contract")
+check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 5 and rs.SimEvents:FindFirstChild("Reset") and rs:FindFirstChild("FlashEvent"),
+	"SimEvents (Strike, Weather, Water, PresenceChanged, Reset) and FlashEvent for the Bridge contract")
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
 local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
@@ -632,6 +634,28 @@ check(workspace:FindFirstChild("Gator") ~= nil and workspace:GetAttribute("SimWi
 control:FireServer("instant", "calm")
 step(0.5)
 check(workspace:GetAttribute("SimFloodMm") == 0 and (workspace:GetAttribute("SimGustMph") or 0) < 28, "Reset to calm drains the water and drops the wind")
+
+print("== a new scenario resets the hazards (Viet's test)")
+local tag = beacon.Light.LevelTag
+control:FireServer("load", "storm_west")
+step(26, 0.25) -- the 8 mile strike at 1500 s, 60x
+check(workspace:GetAttribute("SimStopWork") == true and tag.Level.Text:find("STOP WORK") ~= nil, "Storm W runs to STOP WORK")
+local resetsBefore = #fired.reset
+control:FireServer("load", "flash_flood")
+step(0.5)
+task.wait(0.4)
+check(#fired.reset == resetsBefore + 1, "clicking Flash flood fires SimEvents.Reset once (the Bridge posts /sim/reset)")
+check(workspace:GetAttribute("SimStopWork") == false and tag.Level.Text:find("STOP WORK") == nil,
+	"the lightning warning drops at once (" .. tag.Level.Text .. ")")
+check(beacon:GetAttribute("LiveRisk") == beacon:GetAttribute("Index"), "the meter drops back to the model's index")
+local dotsLeft = 0
+for _, d in ipairs(LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true):GetChildren()) do if d.Name == "Strike" then dotsLeft += 1 end end
+check(dotsLeft == 0, "the radar is cleared (" .. dotsLeft .. " strikes left)")
+step(27, 0.25) -- the water first rises at 1500 s (0 mm at 900 s), 60x
+check(tag.Level.Text == "FLOOD", "then only the flood hazard shows as it comes (" .. tag.Level.Text .. ")")
+control:FireServer("instant", "calm")
+step(0.5)
+check(#fired.reset == resetsBefore + 2 and workspace:GetAttribute("SimFloodMm") == 0, "Reset to calm fires Reset and drains the water")
 
 print("== free play bearing")
 local o = workspace.Beacon:GetPivot().Position

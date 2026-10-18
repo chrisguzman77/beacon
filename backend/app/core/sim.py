@@ -141,7 +141,7 @@ async def sim_reset(body: ResetIn):
                                                body.site_id)]
     cleared = await rules.clear_alerts(body.site_id, "Roblox scenario reset", types=tuple(types)) if types else []
     if "stopwork" in types and SITES[body.site_id]["beacon"]:
-        await gateway.send(body.site_id, {"cmd": "CLEAR", "by": "Roblox scenario reset"})
+        await gateway.send(body.site_id, {"cmd": "CLEAR", "by": "SIM RESET"})  # the beacon LCD shows 10 chars
     await db.execute("INSERT INTO events VALUES (now(),$1,'sim','reset',$2)", body.site_id,
                      {"cleared": [a["type"] for a in cleared]})
     return {"cleared": [a["type"] for a in cleared], "alerts": []}

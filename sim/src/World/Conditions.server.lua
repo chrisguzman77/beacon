@@ -251,6 +251,16 @@ local function render()
 	end
 end
 
+-- Reset: back to calm on the same clock. The picture empties at once, so the beacon and the meter drop back
+-- to the model's index without waiting for the next scenario event.
+events:WaitForChild("Reset").Event:Connect(function()
+	local key, t = S.key, S.t
+	reset(key)
+	S.t, S.lastT = t, t
+	if key then logEvent("Reset: hazards cleared, starting from calm") end
+	render()
+end)
+
 events.Weather.Event:Connect(function(w)
 	S.temp_c, S.rh, S.gust, S.rate = w.temp_c, w.humidity, w.gust or 0, w.precip_mm or 0
 	render()
