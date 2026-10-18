@@ -52,7 +52,8 @@ local function resetHazards()
 end
 
 local DEMO_SCENARIO, DEMO_SPEED, DEMO_PAUSE = "everglades_day", 600, 6
--- the demo runs the quiet hours fast and slows for the moments that matter: about 75 seconds for the whole day
+-- the demo runs the quiet hours fast and slows for the moments that matter. The storm sets its own pace on top
+-- (the engine plays a storm's approach and passage over 5 real minutes), so the day takes about 6 minutes.
 local DEMO_PACE = {
 	{ upTo = 2600,  speed = 900 }, -- dawn
 	{ upTo = 3000,  speed = 150 }, -- the gator report
@@ -86,9 +87,11 @@ end
 -- Instant buttons: each fires its events once, now, through the engine, so the Bridge posts them like any scenario
 local CALM = { type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 }
 local INSTANT = {
-	strike8 = { { type = "strike", bearing = 270, miles = 8 } },
-	strike6 = { { type = "strike", bearing = 255, miles = 6 } },
-	strike15 = { { type = "strike", bearing = 270, miles = 15 } },
+	-- the lightning buttons each start a whole simulated storm (StormModel.presets): it builds 20 mi out, walks in,
+	-- and the label is where its first strike inside 10 mi lands (for 15, its very first strike)
+	strike8 = { { type = "storm", preset = "strike8" } },
+	strike6 = { { type = "storm", preset = "strike6" } },
+	strike15 = { { type = "storm", preset = "strike15" } },
 	heat = { { type = "weather", clouds = 0.2, rain = 0, temp_c = 36, humidity = 62, gust = 10 } },
 	flood = { { type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 30 }, { type = "water", depth_mm = 60 } },
 	wind = { { type = "weather", clouds = 0.8, rain = 10, temp_c = 30, humidity = 80, gust = 45 } },
@@ -125,7 +128,7 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		local events = INSTANT[arg]
 		if not events then return end
 		-- make sure a clock is running so a stop work can count down to its all clear
-		if arg == "calm" then resetHazards() end
+		if arg == "calm" then Engine.stopStorms() resetHazards() end
 		if not Engine.loadedKey() then
 			workspace:SetAttribute("DemoMode", false)
 			Engine.load("instant")
@@ -150,10 +153,17 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	end
 end)
 
+-- Strike here starts a storm too: the clicked spot sets the direction it comes from
 strikeHere.OnServerEvent:Connect(function(p, pos)
 	if not isOperator(p) or typeof(pos) ~= "Vector3" then return end
-	local bearing, miles = Lightning.fromPosition(pos)
-	Lightning.strike(bearing, miles)
+	local bearing = Lightning.fromPosition(pos)
+	if not Engine.loadedKey() then
+		workspace:SetAttribute("DemoMode", false)
+		Engine.load("instant")
+	end
+	if not Engine.isPlaying() then Engine.play() end
+	Engine.fire({ type = "storm", preset = "here", from_bearing = bearing })
+	print(("[StrikeHere] storm from %.0f deg by %s"):format(bearing, p.Name))
 end)
 
 local looping = false

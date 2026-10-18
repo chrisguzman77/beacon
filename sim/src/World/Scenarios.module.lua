@@ -14,34 +14,27 @@ Scenarios.instant = {
 -- beacon warns from 8 mm, so water stays 0 until the flood is the story, rises past 10 mm, and ends back at 0.
 Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
 
--- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead
--- with strikes down to 3 miles, and moves off east. Every strike inside 10 miles restarts the 30 minute all
--- clear; the last one inside 10 is the 8 mile strike at 15:00, so the site is clear to work again at 15:30.
+-- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes nearly
+-- overhead (1 mi to the side), and moves off east. Every strike inside 10 miles restarts the 30 minute all clear.
+-- The storm (seed 271) starts 20 mi out at 14:05: first strike 14:07 at 19.5 mi, first inside 10 mi at 14:11,
+-- last inside 10 at 15:07, so the site is clear to work again at 15:37.
+-- A storm event { t, type = "storm", seed, from_bearing, start_mi, speed_mph, cross_track_mi, peak_per_min,
+-- life_min } runs StormModel: the cell starts start_mi out on from_bearing and walks in at speed_mph, passing
+-- cross_track_mi to the side; life_min = 2 * start_mi / speed_mph puts its peak over the site. Every scenario storm
+-- here is 20 mi out at 30 mph over 80 minutes at a peak of 2 strikes a minute, played over 5 real minutes; the
+-- seed and cross track were picked so the first strike is beyond 10 mi and dozens land inside it.
 Scenarios.lightning_cell = {
 	name = "Lightning cell passes over", clockStart = "14:00", speed = 120,
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
 		{ t = 1,    type = "note",    text = "14:00 a thunderstorm cell builds west of the site. Watch the radar: the red ring is 10 miles." },
 		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 30, humidity = 66, gust = 30 }, -- 93 F
-		{ t = 600,  type = "strike",  bearing = 270, miles = 18 },
-		{ t = 900,  type = "strike",  bearing = 268, miles = 15 },
-		{ t = 1200, type = "strike",  bearing = 265, miles = 13 },
-		{ t = 1500, type = "strike",  bearing = 262, miles = 11 },
-		{ t = 1800, type = "strike",  bearing = 260, miles = 9 },
-		{ t = 1810, type = "note",    text = "14:30 strike 9 miles out, inside the ring. STOP WORK, the 30 minute all clear starts." },
-		{ t = 2100, type = "strike",  bearing = 255, miles = 7 },
-		{ t = 2400, type = "strike",  bearing = 250, miles = 5 },
+		{ t = 300,  type = "storm",   seed = 271, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 1, peak_per_min = 2, life_min = 80 },
+		{ t = 700,  type = "note",    text = "14:11 first strike inside the 10 mile ring. STOP WORK, the 30 minute all clear starts." },
 		{ t = 2600, type = "weather", clouds = 0.95, rain = 45, temp_c = 27, humidity = 94, gust = 42 },
-		{ t = 2700, type = "strike",  bearing = 240, miles = 3 },
-		{ t = 3000, type = "strike",  bearing = 120, miles = 4 },
-		{ t = 3300, type = "strike",  bearing = 100, miles = 6 },
-		{ t = 3600, type = "strike",  bearing = 90,  miles = 8 },
-		{ t = 3610, type = "note",    text = "15:00 strike 8 miles east, still inside 10. Every close strike restarts the 30 minutes." },
-		{ t = 4200, type = "strike",  bearing = 85,  miles = 12 },
+		{ t = 3000, type = "note",    text = "14:50 the cell is overhead and moving off east. Every strike inside 10 miles restarts the 30 minutes." },
 		{ t = 4200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 29, humidity = 85, gust = 15 },
-		{ t = 4800, type = "strike",  bearing = 80,  miles = 15 },
-		{ t = 5400, type = "strike",  bearing = 78,  miles = 19 },
-		{ t = 5460, type = "note",    text = "15:31 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
+		{ t = 5850, type = "note",    text = "15:37 ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume." },
 	},
 }
 
@@ -56,7 +49,7 @@ Scenarios.mississippi_flood = {
 		{ t = 1,    type = "note",    text = "05:00 after a night of heavy rain upstream. River sites get a flood risk warning before the crew mobilizes." },
 		{ t = 600,  type = "water",   depth_mm = 20,  pad_mm = 0 },
 		{ t = 1800, type = "water",   depth_mm = 50,  pad_mm = 0 },
-		{ t = 2400, type = "strike",  bearing = 200, miles = 12 },
+		{ t = 1200, type = "storm",   seed = 1686, from_bearing = 200, start_mi = 20, speed_mph = 30, cross_track_mi = 3, peak_per_min = 2, life_min = 80 },
 		{ t = 3000, type = "water",   depth_mm = 80,  pad_mm = 0 },
 		{ t = 3600, type = "note",    text = "06:00 the river is near the top of the levee. Equipment off the floodplain, the crossing work is postponed." },
 		{ t = 4200, type = "water",   depth_mm = 110, pad_mm = 15 }, -- past the levee top (100 mm): water reaches the pad
@@ -72,7 +65,7 @@ Scenarios.mississippi_flood = {
 -- The challenge brief, start to finish. 6:45 AM in August on a remote Everglades site where the crew is laying a
 -- temporary mat road for the equipment that will build a new transmission line. A week of rain has the ground at
 -- 82% saturation, so boots sink and trucks bog down. The heat index passes 110 F by noon. Thunderstorms build to
--- the west after 1 PM and walk in to 6 miles. Someone saw a gator by the jobsite yesterday, today it is on the road.
+-- the west after 1 PM and walk in across the site. Someone saw a gator by the jobsite yesterday, today it is on the road.
 -- At 6 PM site time the next-day briefing goes out. t is simulated seconds after 06:45; 300x plays the day in
 -- under three minutes. soil is the starting saturation the Conditions board carries forward.
 Scenarios.everglades_day = {
@@ -89,15 +82,12 @@ Scenarios.everglades_day = {
 		{ t = 18960, type = "note",    text = "12:00 heat index 121 F, past the 115 F danger line. Rest break in the cooling tent, water every 15 minutes." },
 		{ t = 22500, type = "weather", clouds = 0.55, rain = 0,  temp_c = 35, humidity = 60, gust = 20 },
 		{ t = 24300, type = "weather", clouds = 0.75, rain = 0,  temp_c = 33, humidity = 66, gust = 30 },
-		{ t = 26100, type = "strike",  bearing = 270, miles = 15 },
-		{ t = 27000, type = "strike",  bearing = 265, miles = 11 },
-		{ t = 27900, type = "strike",  bearing = 260, miles = 8 },
-		{ t = 27960, type = "note",    text = "14:30 strike 8 miles west. STOP WORK, 30 minute all clear, crew to the trucks." },
-		{ t = 28800, type = "strike",  bearing = 255, miles = 6 },
+		-- seed 923, 2.5 mi to the side: first strike 13:34 at 19.2 mi, first inside 10 mi 13:47, last 14:32, all clear 15:02
+		{ t = 24300, type = "storm",   seed = 923, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 2.5, peak_per_min = 2, life_min = 80 },
+		{ t = 25340, type = "note",    text = "13:47 lightning inside 10 miles. STOP WORK, 30 minute all clear, crew to the trucks." },
 		{ t = 29400, type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 45 },
 		{ t = 30600, type = "water",   depth_mm = 30 },
 		{ t = 32400, type = "water",   depth_mm = 60 },
-		{ t = 33300, type = "strike",  bearing = 250, miles = 4 },
 		{ t = 37800, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 28, humidity = 90, gust = 12 },
 		{ t = 39600, type = "water",   depth_mm = 0 },
 		{ t = 40500, type = "note",    text = "18:00 site time: next-day safety briefing sent to the crew, English and Spanish. Tomorrow: same heat, mats need re-leveling where the trucks sank." },
@@ -109,10 +99,8 @@ Scenarios.storm_west = {
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.2, rain = 0, temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
 		{ t = 600,  type = "weather", clouds = 0.7, rain = 0, temp_c = 30, humidity = 68, gust = 35 }, -- 94 F
-		{ t = 900,  type = "strike",  bearing = 270, miles = 15 },
-		{ t = 1200, type = "strike",  bearing = 265, miles = 11 },
-		{ t = 1500, type = "strike",  bearing = 260, miles = 8 },
-		{ t = 1800, type = "strike",  bearing = 250, miles = 6 },
+		-- seed 279, 2 mi to the side: first strike 13:14 at 16.1 mi, first inside 10 mi 13:18 at 8.1, last 14:10, all clear 14:40
+		{ t = 600,  type = "storm",   seed = 279, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 2, peak_per_min = 2, life_min = 80 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
 		{ t = 2400, type = "water",   depth_mm = 10 },
 		{ t = 3600, type = "water",   depth_mm = 0 },
@@ -126,12 +114,10 @@ Scenarios.hurricane = {
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.5,  rain = 2,  temp_c = 29, humidity = 85, gust = 30 },
 		{ t = 1200, type = "weather", clouds = 0.8,  rain = 20, temp_c = 28, humidity = 92, gust = 50 },
-		{ t = 1800, type = "strike",  bearing = 200, miles = 12 },
-		{ t = 2400, type = "strike",  bearing = 190, miles = 9 },
+		-- the outer bands from the south, seed 29, 1.5 mi to the side: first strike 14.0 mi, first inside 10 mi at 8.1
+		{ t = 1200, type = "storm",   seed = 29, from_bearing = 180, start_mi = 20, speed_mph = 30, cross_track_mi = 1.5, peak_per_min = 2, life_min = 80 },
 		{ t = 3000, type = "weather", clouds = 0.95, rain = 60, temp_c = 27, humidity = 97, gust = 75 },
-		{ t = 3300, type = "strike",  bearing = 180, miles = 6 },
 		{ t = 3600, type = "water",   depth_mm = 20 },
-		{ t = 3900, type = "strike",  bearing = 170, miles = 4 },
 		{ t = 4800, type = "water",   depth_mm = 60 },
 		{ t = 5400, type = "note",    text = "Surge and rain push the swamp over the pad. The beacon's water sensor trips, the crew moves to high ground by the trucks." },
 		{ t = 6000, type = "water",   depth_mm = 100 },
@@ -161,7 +147,7 @@ Scenarios.flash_flood = {
 		{ t = 900,  type = "water",   depth_mm = 0 },
 		{ t = 1200, type = "weather", clouds = 0.9, rain = 60, temp_c = 25, humidity = 97, gust = 30 },
 		{ t = 1500, type = "water",   depth_mm = 20 },
-		{ t = 1800, type = "strike",  bearing = 120, miles = 7 },
+		{ t = 600,  type = "storm",   seed = 971, from_bearing = 120, start_mi = 20, speed_mph = 30, cross_track_mi = 3, peak_per_min = 2, life_min = 80 },
 		{ t = 2100, type = "water",   depth_mm = 60 },
 		{ t = 2700, type = "water",   depth_mm = 90 },
 		{ t = 3300, type = "weather", clouds = 0.6, rain = 5, temp_c = 26, humidity = 90, gust = 10 },

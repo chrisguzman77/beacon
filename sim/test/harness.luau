@@ -270,6 +270,18 @@ local function step(seconds, dt)
 		task.wait()
 	end
 end
+-- a storm plays over minutes of real time, so wait on what happens instead of counting seconds;
+-- returns the real seconds it took, or nil if it never happened within maxSeconds
+local function stepUntil(cond, maxSeconds, dt)
+	dt = dt or 0.5
+	local waited = 0
+	while waited < maxSeconds do
+		if cond() then return waited end
+		step(dt, dt)
+		waited += dt
+	end
+	return cond() and waited or nil
+end
 
 ---------------------------------------------------------------- run
 
@@ -355,6 +367,126 @@ local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
 check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 27, "client panel with 27 buttons (collapse, demo, 2 sites, 8 instant, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
 
+---------------------------------------------------------------- the storm model (Part 1 of Chris's simulator spec)
+-- StormModel and Scenarios are plain Luau tables, so they load here straight from their source files
+local StormModel = load(fs.readFile("sim/src/World/StormModel.module.lua"), "StormModel")()
+local ScenarioDefs = load(fs.readFile("sim/src/World/Scenarios.module.lua"), "Scenarios")()
+local STORM_FIELDS = { "seed", "from_bearing", "start_mi", "speed_mph", "cross_track_mi", "peak_per_min", "life_min" }
+local function stormOf(e)
+	local p = e.preset and table.clone(StormModel.presets[e.preset]) or {}
+	for _, k in ipairs(STORM_FIELDS) do if e[k] ~= nil then p[k] = e[k] end end
+	return p
+end
+local function angleDiff(a, b) return math.abs((a - b + 180) % 360 - 180) end
+
+local function stormChecks()
+	print("== storm model")
+	-- the same seed gives the identical strike list
+	local p = StormModel.presets.strike8
+	local a, b = StormModel.generate(p), StormModel.generate(table.clone(p))
+	local same = #a == #b and #a > 0
+	for i = 1, #a do
+		local x, y = a[i], b[i]
+		if x.t ~= y.t or x.bearing ~= y.bearing or x.miles ~= y.miles then same = false end
+	end
+	check(same, ("same seed, identical strike list (%d strikes, twice)"):format(#a))
+	local other = StormModel.generate(stormOf({ preset = "strike8", seed = p.seed + 1 }))
+	check(#other ~= #a or other[1].miles ~= a[1].miles, "a different seed is a different storm")
+
+	-- every strike's miles is the geometric distance (hypot) and its bearing the atan2 bearing, never rounded
+	local worstMi, worstDeg, whole = 0, 0, 0
+	for _, s in ipairs(a) do
+		worstMi = math.max(worstMi, math.abs(math.sqrt(s.x * s.x + s.y * s.y) - s.miles))
+		worstDeg = math.max(worstDeg, angleDiff((p.from_bearing + 180 - math.deg(math.atan2(s.y, s.x))) % 360, s.bearing))
+		if s.miles == math.floor(s.miles) then whole += 1 end
+	end
+	check(worstMi < 0.01 and worstDeg < 0.5 and whole == 0,
+		("strike miles = hypot within 0.01 mi (worst %.2g), bearing = atan2 within 0.5 deg (worst %.2g), none rounded"):format(worstMi, worstDeg))
+	local turned = StormModel.generate(stormOf({ preset = "here", from_bearing = 37 }))
+	local base = StormModel.generate(StormModel.presets.here)
+	check(#turned == #base and math.abs(turned[1].miles - base[1].miles) < 1e-9 and angleDiff(turned[1].bearing, base[1].bearing + 37 - 270) < 1e-6,
+		"Strike here turns the storm to the clicked bearing without changing a distance")
+
+	-- every lightning button and every scenario storm: first strike beyond 10 mi, at least 2 inside 10 mi,
+	-- the inside strikes on average at least 3 real seconds apart at the storm's pace
+	local storms = {}
+	for _, key in ipairs({ "strike8", "strike6", "strike15", "here" }) do
+		table.insert(storms, { name = "button " .. key, p = StormModel.presets[key] })
+	end
+	local handTyped = {}
+	for key, sc in pairs(ScenarioDefs) do
+		if type(sc) == "table" and sc.events then
+			for _, e in ipairs(sc.events) do
+				if e.type == "strike" then table.insert(handTyped, key) end
+				if e.type == "storm" then table.insert(storms, { name = key, p = stormOf(e) }) end
+			end
+		end
+	end
+	check(#handTyped == 0, "no scenario has a hand typed strike (" .. (#handTyped > 0 and table.concat(handTyped, ", ") or "none") .. ")")
+	for _, st in ipairs(storms) do
+		local list = StormModel.generate(st.p)
+		local sum = StormModel.summary(list, StormModel.pace(st.p))
+		local realS = StormModel.lifeSeconds(st.p) / StormModel.pace(st.p)
+		check(sum.first and sum.first.miles > 10 and sum.inside >= 2 and sum.realGap and sum.realGap >= 3 and realS >= 180 and realS <= 300,
+			("%s: first strike %.2f mi, %d of %d inside 10 mi (first inside %.2f mi), %.2f real s apart, %d real s"):format(st.name,
+				sum.first and sum.first.miles or -1, sum.inside, sum.count, sum.firstInside and sum.firstInside.miles or -1, sum.realGap or -1, realS))
+		check(sum.allClearT == sum.lastInside.t + 30 * 60 and sum.allClearT > sum.lastInside.t,
+			("%s: all clear at %d s, 30 sim minutes after the last strike inside 10 mi"):format(st.name, math.floor(sum.allClearT)))
+	end
+	local scenarioStorms = #storms - 4
+	check(scenarioStorms == 6, ("6 scenario storms (storm_west, lightning_cell, everglades_day, mississippi, hurricane, flash_flood): %d"):format(scenarioStorms))
+
+	-- light and sound on the client: thunder after d / c(T), silent past 15 mi, flash 1/d^2 with a 0.15 floor
+	local fe = rs.FlashEvent
+	for _, case in ipairs({ { 1, 30 }, { 8, 30 }, { 8, 0 }, { 12.5, 22 } }) do
+		workspace:SetAttribute("AirTempC", case[2])
+		fe:FireAllClients(case[1])
+		local want = case[1] * 1609.344 / (331.3 + 0.606 * case[2])
+		local got = LOCAL_PLAYER:GetAttribute("LastThunderDelay")
+		check(got and math.abs(got - want) / want < 0.01, ("thunder at %.1f mi, %d C: %.2f s after the flash (d/c(T) = %.2f s)"):format(case[1], case[2], got or -1, want))
+	end
+	local volumes = {}
+	for _, mi in ipairs({ 0.5, 1, 2, 8, 12.5, 15, 20 }) do
+		fe:FireAllClients(mi)
+		volumes[mi] = LOCAL_PLAYER:GetAttribute("LastThunderVolume")
+	end
+	check(volumes[0.5] == volumes[1] and math.abs(volumes[2] - volumes[1] / 2) < 1e-9 and math.abs(volumes[8] - volumes[1] / 8) < 1e-9,
+		("thunder amplitude 1/d, full at 1 mi (1: %.2f, 2: %.2f, 8: %.3f)"):format(volumes[1], volumes[2], volumes[8]))
+	check(math.abs(volumes[12.5] - volumes[1] / 12.5 * 0.5) < 1e-9 and volumes[15] == 0 and volumes[20] == 0,
+		("thunder fades out between 10 and 15 mi and is silent beyond (12.5: %.3f, 15: %s, 20: %s)"):format(volumes[12.5], volumes[15], volumes[20]))
+	fe:FireAllClients(2)
+	local near = LOCAL_PLAYER:GetAttribute("LastFlashBrightness")
+	fe:FireAllClients(6)
+	local mid = LOCAL_PLAYER:GetAttribute("LastFlashBrightness")
+	fe:FireAllClients(20)
+	check(near == 1 and math.abs(mid - 0.25) < 1e-9 and LOCAL_PLAYER:GetAttribute("LastFlashBrightness") == 0.15,
+		("flash brightness 1/d^2: full at 2 mi, 0.25 at 6 mi, floor 0.15 at 20 mi (%s, %s, %s)"):format(near, mid, LOCAL_PLAYER:GetAttribute("LastFlashBrightness")))
+	workspace:SetAttribute("AirTempC", nil)
+	-- leave the flash list as it was for the scenario checks below
+	for _ = 1, 4 + 7 + 3 do table.remove(fired.flash) end
+end
+
+-- the strikes the World actually fires, with the sim clock they fired at
+local strikeLog = {}
+rs.SimEvents.Strike.Event:Connect(function(bearing, miles)
+	table.insert(strikeLog, { bearing = bearing, miles = miles, simT = workspace:GetAttribute("SimTime") })
+end)
+-- compare the strikes fired since index `from` with the model's list for params p, in order
+local function matchesModel(from, p, n)
+	local model = StormModel.generate(p)
+	local worstMi, worstDeg, count = 0, 0, 0
+	for i = 1, math.min(n or math.huge, #strikeLog - from) do
+		local got, want = strikeLog[from + i], model[i]
+		if not want then return false, "more strikes than the model" end
+		worstMi = math.max(worstMi, math.abs(got.miles - want.miles))
+		worstDeg = math.max(worstDeg, angleDiff(got.bearing, want.bearing))
+		count += 1
+	end
+	return count > 0 and worstMi < 0.01 and worstDeg < 0.5, ("%d strikes, worst %.2g mi, %.2g deg"):format(count, worstMi, worstDeg)
+end
+
+stormChecks()
+
 print("== Play opens calm and idle, the demo starts from its button")
 task.wait(5.2)
 step(0.5)
@@ -373,14 +505,18 @@ control:FireServer("load", "storm_west")
 check(workspace:GetAttribute("DemoMode") == false, "picking a scenario takes over from the demo")
 step(1)
 check(workspace:GetAttribute("SimTime") ~= nil and workspace:GetAttribute("SimTime") > 0, "one click on a scenario loads and plays it")
-step(45, 0.25)
-local miles = {}
-for _, s in ipairs(fired.strike) do table.insert(miles, s[2]) end
-check(#fired.flash == 4 and #fired.strike == 4, ("4 flashes and 4 Strike events (%d, %d)"):format(#fired.flash, #fired.strike))
-check(table.concat(miles, ",") == "15,11,8,6", "strike miles 15,11,8,6 (" .. table.concat(miles, ",") .. ")")
+local westFrom, westWater = #strikeLog, #fired.water
+local westStorm
+for _, e in ipairs(ScenarioDefs.storm_west.events) do if e.type == "storm" then westStorm = stormOf(e) end end
+local tookStop = stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 120)
+check(tookStop ~= nil, ("the storm walks in to stop work after %s real s"):format(tostring(tookStop)))
+check(#fired.flash == #fired.strike and #fired.strike > 0, ("a flash for every Strike event (%d, %d)"):format(#fired.flash, #fired.strike))
+local okModel, detail = matchesModel(westFrom, westStorm)
+check(okModel, "every Strike event is the storm model's strike, in order: " .. detail)
+check(strikeLog[westFrom + 1].miles > 10, ("the first strike is beyond 10 mi (%.2f)"):format(strikeLog[westFrom + 1].miles))
+stepUntil(function() return #fired.water > westWater end, 400, 1)
 check(#fired.weather >= 3, "weather events posted (" .. #fired.weather .. ")")
 check(workspace:GetAttribute("Storm") and workspace:GetAttribute("Storm") > 0.6, "sky went to storm")
-local Lightning = nil
 check(#fired.water >= 1 and fired.water[#fired.water][1] == 10, "water pools at the end (10 mm)")
 
 if LIVE and bridgeScript then
@@ -403,12 +539,13 @@ if LIVE and bridgeScript then
 	for route, codes in pairs(posts) do
 		print(("  POST %s x%d -> %s"):format(route, #codes, table.concat(codes, ",")))
 	end
-	check(posts["/sim/strike"] and #posts["/sim/strike"] >= 4, "every strike posted to /sim/strike")
+	check(posts["/sim/strike"] and #posts["/sim/strike"] >= #strikeLog - westFrom, "every strike posted to /sim/strike")
 	check(posts["/sim/weather"] and posts["/sim/water"], "weather and water posted")
 	local sample
 	for _, h in ipairs(httpLog) do if h.url:find("/sim/strike") then sample = h break end end
 	local body = sample and serde.decode("json", sample.body)
-	check(body and body.site_id == 12 and body.bearing == 270 and body.miles == 15 and sample.token ~= "",
+	check(body and body.site_id == 12 and math.abs(body.bearing - strikeLog[westFrom + 1].bearing) < 1e-6
+		and math.abs(body.miles - strikeLog[westFrom + 1].miles) < 1e-6 and sample.token ~= "",
 		"strike body matches the contract {site_id, bearing, miles} with X-Token (" .. tostring(sample and sample.body) .. ")")
 	if not process.env.SIM_TOKEN then
 		print("  (no SIM_TOKEN given, so 401 or 403 on posts is expected; set SIM_TOKEN to send real events)")
@@ -468,15 +605,21 @@ local boatY0 = boat.PrimaryPart.CFrame.Position.Y
 local strikes0 = #fired.strike
 control:FireServer("load", "hurricane")
 control:FireServer("play")
-step(60, 0.25)
+step(2, 0.25)
+local hurricaneAerial = shiftLogHas("aerial lifts and bucket trucks grounded") -- before the storm's lines scroll it off
+stepUntil(function() return fired.water[#fired.water][1] == 100 end, 400, 1)
+step(10, 0.25)
 local flood = workspace.FloodWater
 local top = flood.CFrame.Position.Y + flood.Size.Y / 2
-check(#fired.strike - strikes0 == 4, "4 hurricane strikes (" .. (#fired.strike - strikes0) .. ")")
+local hurricaneInside = 0
+for i = strikes0 + 1, #fired.strike do if fired.strike[i][2] < 10 then hurricaneInside += 1 end end
+check(#fired.strike - strikes0 >= 2 and hurricaneInside >= 2 and fired.strike[strikes0 + 1][2] > 10,
+	("the hurricane's storm walks in from the south (%d strikes, %d inside 10 mi)"):format(#fired.strike - strikes0, hurricaneInside))
 check(fired.water[#fired.water][1] == 100, "flood reaches 100 mm")
 check(top > 4 and flood.Transparency < 0.5, ("flood water over the pad, top at %.1f studs, transparency %.2f"):format(top, flood.Transparency))
 check(boat.PrimaryPart.CFrame.Position.Y > boatY0 + 3, ("boat floated up %.1f studs"):format(boat.PrimaryPart.CFrame.Position.Y - boatY0))
 check(workspace.GlobalWind.Magnitude > 30, ("hurricane wind %.0f"):format(workspace.GlobalWind.Magnitude))
-check(shiftLogHas("aerial lifts and bucket trucks grounded"), "hurricane gusts ground the aerial lifts, logged")
+check(hurricaneAerial, "hurricane gusts ground the aerial lifts, logged")
 check(workspace:GetAttribute("GoNoGo") == "NO-GO", "hurricane call is NO-GO (" .. tostring(workspace:GetAttribute("GoReasons")) .. ")")
 
 print("== flash flood and reset")
@@ -484,8 +627,7 @@ control:FireServer("load", "flash_flood")
 step(0.5)
 check(workspace.FloodWater.Transparency == 1, "loading a scenario drains the flood")
 control:FireServer("play")
-step(40, 0.25)
-check(workspace.FloodWater.CFrame.Position.Y > 1, "flash flood rises")
+check(stepUntil(function() return workspace.FloodWater.CFrame.Position.Y > 1 end, 400, 1) ~= nil, "flash flood rises")
 
 print("== everglades day (the challenge brief)")
 local crewFolder = workspace.Site:FindFirstChild("Crew")
@@ -534,13 +676,20 @@ if crewFolder and hiNoon >= 115 then
 	spent += 2
 	check(most == 3, ("heat index %d F: work/rest 15/45, 3 of 4 on break in the tent at a time (%d)"):format(hiNoon, most))
 end
-step(28 - spent, 0.25) -- past the 8 mile strike at 14:30 (93 s at 300x), before the 6 mile one (96 s)
-check(workspace:GetAttribute("SimStopWork") == true and rowText(4):find("STOP WORK") ~= nil, "8 mile strike opens stop work (" .. rowText(4) .. ")")
+local glades = #strikeLog
+stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 300, 0.25) -- the storm walks in from the west
+local firstIn
+for i = glades + 1, #strikeLog do if strikeLog[i].miles < 10 then firstIn = strikeLog[i] break end end
+check(workspace:GetAttribute("SimStopWork") == true and rowText(4):find("STOP WORK") ~= nil and firstIn ~= nil,
+	("the first strike inside 10 mi (%.2f mi) opens stop work (%s)"):format(firstIn and firstIn.miles or -1, rowText(4)))
+check(strikeLog[glades + 1].miles > 10, ("the storm's first strike is beyond 10 mi (%.2f)"):format(strikeLog[glades + 1].miles))
 check(workspace:GetAttribute("GoNoGo") == "NO-GO", "call goes to NO-GO on the strike")
 local before = workspace:GetAttribute("SimCountdown")
-step(2.5, 0.25) -- the 6 mile strike at 14:45
-check(workspace:GetAttribute("SimCountdown") > before, ("6 mile strike restarts the 30 minute countdown (%s -> %s)"):format(before, workspace:GetAttribute("SimCountdown")))
-check(shiftLogHas("STOP WORK: strike 8 mi") and shiftLogHas("COUNTDOWN RESET: strike 6 mi"), "shift log records the stop work and the reset")
+stepUntil(function() return workspace:GetAttribute("SimCountdown") < before end, 30, 0.25) -- the countdown starts running
+before = workspace:GetAttribute("SimCountdown")
+stepUntil(function() return workspace:GetAttribute("SimCountdown") > before end, 60, 0.25) -- the next strike inside 10 mi
+check(workspace:GetAttribute("SimCountdown") > before, ("the next strike inside 10 mi restarts the 30 minute countdown (%s -> %s)"):format(before, workspace:GetAttribute("SimCountdown")))
+check(shiftLogHas("STOP WORK: strike") and shiftLogHas("COUNTDOWN RESET: strike"), "shift log records the stop work and the reset")
 if crewFolder then
 	step(4, 0.25) -- still inside the 30 minutes the 6 mile strike restarted
 	local hidden = 0
@@ -549,18 +698,20 @@ if crewFolder then
 	step(0.5, 0.25)
 	check(rowText(4):find("CREW 4/4 SHELTERED", 1, true) ~= nil and shiftLogHas("Headcount: crew 4/4 accounted for"), "headcount on the board and in the log (" .. rowText(4) .. ")")
 end
-step(42, 0.25) -- through the downpour past 18:00 (135 s)
+local function briefingShown()
+	for _, d in ipairs(LOCAL_PLAYER.PlayerGui:GetDescendants()) do
+		if d:IsA("TextLabel") and d.Text:find("18:00") and d.Text:find("briefing") then return true end
+	end
+	return false
+end
+stepUntil(briefingShown, 600, 1) -- the rest of the storm, the downpour, to 18:00
 check(workspace:GetAttribute("Soil") >= 0.85, ("downpour saturates the soil (%d%%)"):format(workspace:GetAttribute("Soil") * 100))
 if matTruck then
 	step(8, 0.25)
 	local sunk = truckY0 - matTruck.PrimaryPart.CFrame.Position.Y
 	check(sunk > 0.5, ("mat truck bogged in the muck, down %.2f studs"):format(sunk))
 end
-local briefing = false
-for _, d in ipairs(LOCAL_PLAYER.PlayerGui:GetDescendants()) do
-	if d:IsA("TextLabel") and d.Text:find("18:00") and d.Text:find("briefing") then briefing = true end
-end
-check(briefing, "6 PM next-day briefing note shown")
+check(briefingShown(), "6 PM next-day briefing note shown")
 local panelLog = LOCAL_PLAYER.PlayerGui.ScenarioUI:FindFirstChild("Frame"):GetDescendants()
 local logShown = false
 for _, d in ipairs(panelLog) do if d:IsA("TextLabel") and d.Font == roblox.Enum.Font.RobotoMono and d.Text:find("  ") and d.Text:find(":") and d.Text ~= "No entries yet" then logShown = true end end
@@ -569,41 +720,66 @@ check(logShown, "shift log shown in the operator panel")
 print("== lightning cell, first strike to all clear")
 local radarScope = LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true)
 local strikesBefore = #fired.strike
+local cellFrom = #strikeLog
+local cellStorm
+for _, e in ipairs(ScenarioDefs.lightning_cell.events) do if e.type == "storm" then cellStorm = stormOf(e) end end
+local cellModel = StormModel.generate(cellStorm)
+local cellSum = StormModel.summary(cellModel)
 control:FireServer("load", "lightning_cell")
 control:FireServer("play")
-step(16, 0.25) -- 14:32 at 120x: the 9 mile strike landed
-check(workspace:GetAttribute("SimStopWork") == true, "9 mile strike opens stop work")
+stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 120, 0.25)
+check(workspace:GetAttribute("SimStopWork") == true, ("the first strike inside 10 mi (%.2f mi) opens stop work"):format(cellSum.firstInside.miles))
 local radarCard = LOCAL_PLAYER.PlayerGui.LightningRadar
 local function radarDots()
 	local n = 0
 	for _, d in ipairs(radarScope:GetChildren()) do if d.Name == "Strike" then n += 1 end end
 	return n
 end
-step(0.5, 0.25)
+step(30, 0.25) -- the cell keeps walking in
 task.wait(0.4) -- the radar redraws every quarter of a real second
-check(radarDots() == 5 and radarCard:FindFirstChild("TrendLine", true).Text:find("APPROACHING") ~= nil,
-	("radar: 5 strikes plotted, storm approaching (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
+check(radarDots() >= 5 and radarCard:FindFirstChild("TrendLine", true).Text:find("APPROACHING") ~= nil,
+	("radar: the storm's strikes plotted, storm approaching (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
 check(radarCard:FindFirstChild("StopLine", true).Text:find("STOP WORK") ~= nil, "radar shows the stop work countdown")
-step(15, 0.25) -- 15:03: the 8 mile strike east restarted it
-local left = workspace:GetAttribute("SimCountdown")
-check(left > 1450, ("8 mile strike east restarts the all clear (%d s left)"):format(left))
-step(16, 0.25) -- 15:35: 30 minutes after the last close strike
-check(workspace:GetAttribute("SimStopWork") == false, "all clear 30 minutes after the last strike inside 10 mi")
-check(#fired.strike - strikesBefore == 14, ("14 strikes in the cell (%d)"):format(#fired.strike - strikesBefore))
+-- run to the all clear, watching the clock: the countdown restarts on every strike inside 10 mi and ends
+-- exactly 30 sim minutes after the last one
+local stopEndedAt, sawReceding
+stepUntil(function()
+	local trend = radarCard:FindFirstChild("TrendLine", true).Text
+	if trend:find("RECEDING") then sawReceding = trend end
+	if workspace:GetAttribute("SimStopWork") == false then
+		stopEndedAt = workspace:GetAttribute("SimTime")
+		return true
+	end
+	return false
+end, 420, 0.25)
+local lastInsideT
+for i = cellFrom + 1, #strikeLog do if strikeLog[i].miles < 10 then lastInsideT = strikeLog[i].simT end end
+local tick = 0.5 * 120 -- the sim clock the Conditions board reads moves in half second snapshots at 120x
+check(stopEndedAt and lastInsideT and stopEndedAt - lastInsideT >= 1800 and stopEndedAt - lastInsideT <= 1800 + tick,
+	("all clear %s sim s after the last strike inside 10 mi (30 min = 1800, within one %d s clock tick)"):format(
+		stopEndedAt and lastInsideT and tostring(math.floor(stopEndedAt - lastInsideT)) or "never", tick))
+local okCell, cellDetail = matchesModel(cellFrom, cellStorm)
+check(okCell and #strikeLog - cellFrom == #cellModel,
+	("the whole cell is the model's storm: %d of %d strikes, %s"):format(#strikeLog - cellFrom, #cellModel, cellDetail))
+local inside10 = 0
+for i = cellFrom + 1, #strikeLog do if strikeLog[i].miles < 10 then inside10 += 1 end end
+check(strikeLog[cellFrom + 1].miles > 10 and inside10 >= 2, ("first strike %.2f mi, %d inside 10 mi"):format(strikeLog[cellFrom + 1].miles, inside10))
 step(0.5, 0.25)
 task.wait(0.4)
-check(radarDots() == 3 and radarCard:FindFirstChild("TrendLine", true).Text:find("RECEDING") ~= nil,
-	("radar: strikes older than 30 min age off, storm receding (%d, %s)"):format(radarDots(), radarCard:FindFirstChild("TrendLine", true).Text))
+check(sawReceding ~= nil, "radar: the storm reads receding as it moves off east (" .. tostring(sawReceding) .. ")")
+check(radarDots() < #cellModel, ("radar: strikes older than 30 min age off (%d of %d left)"):format(radarDots(), #cellModel))
 
 print("== the Mississippi crossing, river flood")
 control:FireServer("load", "mississippi_flood")
 check(workspace:GetAttribute("ActiveSite") == "river", "river scenario switches to the river crossing")
 control:FireServer("play")
-step(11, 0.25) -- 05:44 at 240x: the 12 mile strike at 05:40
+local riverFrom = #fired.strike
+stepUntil(function() return #fired.strike > riverFrom end, 120, 0.25) -- the storm's first strike
 local o = workspace.RiverBeacon:GetPivot().Position
-check(#fired.strike > 0, "strike fired at the river setting")
+check(#fired.strike > riverFrom, "strike fired at the river setting")
 local riverTop = function() local w = workspace.RiverFloodWater return w.CFrame.Position.Y + w.Size.Y / 2 end
-step(13, 0.25) -- past 06:10, the levee overtops
+stepUntil(function() return workspace:GetAttribute("RiverOvertop") == true end, 420, 1) -- the levee overtops
+step(5, 0.25)
 check(riverTop() > 4 and workspace:GetAttribute("RiverOvertop") == true, ("river over the levee top (river at %.1f)"):format(riverTop()))
 check(workspace.LandFloodWater.Transparency < 0.5, "land side floods once the levee is overtopped")
 check(workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text:find("LEVEE") ~= nil, "river board reports the levee (" .. workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text .. ")")
@@ -614,11 +790,19 @@ check(workspace:GetAttribute("ActiveSite") == "everglades", "site switch back to
 print("== instant hazard buttons")
 control:FireServer("load", "tipped")
 step(0.5)
-local strikesNow = #fired.strike
+local strikesNow = #strikeLog
 control:FireServer("instant", "strike8")
 step(0.5)
-check(#fired.strike == strikesNow + 1 and fired.strike[#fired.strike][2] == 8 and workspace:GetAttribute("SimStopWork") == true,
-	"Strike 8 mi W fires one strike and opens stop work")
+check(#strikeLog == strikesNow, "Strike 8 mi W starts a storm 20 mi out, no single hand picked strike")
+stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 120, 0.25)
+local b8 = StormModel.summary(StormModel.generate(StormModel.presets.strike8))
+local okB8, b8Detail = matchesModel(strikesNow, StormModel.presets.strike8)
+local firstB8In
+for i = strikesNow + 1, #strikeLog do if strikeLog[i].miles < 10 then firstB8In = strikeLog[i] break end end
+check(okB8 and strikeLog[strikesNow + 1].miles > 10 and firstB8In and math.abs(firstB8In.miles - b8.firstInside.miles) < 0.01
+	and math.abs(firstB8In.miles - 8) < 0.5 and workspace:GetAttribute("SimStopWork") == true,
+	("Strike 8 mi W: storm walks in (first %.2f mi), first strike inside 10 mi at %.2f mi opens stop work (%s)"):format(
+		strikeLog[strikesNow + 1].miles, firstB8In and firstB8In.miles or -1, b8Detail))
 check(beacon:GetAttribute("LiveRisk") == 10, "Strike 8 mi W swings the meter to 10 (" .. tostring(beacon:GetAttribute("LiveRisk")) .. ")")
 control:FireServer("instant", "heat")
 step(0.5)
@@ -639,7 +823,8 @@ check(workspace:GetAttribute("SimFloodMm") == 0 and (workspace:GetAttribute("Sim
 print("== a new scenario resets the hazards (Viet's test)")
 local tag = beacon.Light.LevelTag
 control:FireServer("load", "storm_west")
-step(26, 0.25) -- the 8 mile strike at 1500 s, 60x
+stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 120, 0.25)
+step(0.5, 0.25)
 check(workspace:GetAttribute("SimStopWork") == true and tag.Level.Text:find("STOP WORK") ~= nil, "Storm W runs to STOP WORK")
 local resetsBefore = #fired.reset
 control:FireServer("load", "flash_flood")
@@ -652,30 +837,48 @@ check(beacon:GetAttribute("LiveRisk") == beacon:GetAttribute("Index"), "the mete
 local dotsLeft = 0
 for _, d in ipairs(LOCAL_PLAYER.PlayerGui.LightningRadar:FindFirstChild("Scope", true):GetChildren()) do if d.Name == "Strike" then dotsLeft += 1 end end
 check(dotsLeft == 0, "the radar is cleared (" .. dotsLeft .. " strikes left)")
-step(27, 0.25) -- the water first rises at 1500 s (0 mm at 900 s), 60x
-check(tag.Level.Text == "FLOOD", "then only the flood hazard shows as it comes (" .. tag.Level.Text .. ")")
+-- Flash flood brings its own storm (from the east southeast) and its water; what shows next is its own
+local floodFrom = #strikeLog
+stepUntil(function() return tag.Level.Text ~= "ALL CLEAR" end, 400, 0.5)
+local ownStrikes = #strikeLog > floodFrom
+check(tag.Level.Text ~= "ALL CLEAR" and (tag.Level.Text:find("STOP WORK") == nil or ownStrikes),
+	("then only Flash flood's own hazards show as they come (%s, %d new strikes)"):format(tag.Level.Text, #strikeLog - floodFrom))
 control:FireServer("instant", "calm")
 step(0.5)
 check(#fired.reset == resetsBefore + 2 and workspace:GetAttribute("SimFloodMm") == 0, "Reset to calm fires Reset and drains the water")
 
 print("== free play bearing")
+-- Strike here starts a storm coming from the clicked direction; Reset to calm stopped the others above
 local o = workspace.Beacon:GetPivot().Position
+local hereFrom = #strikeLog
 rs.StrikeHere.OnServerEvent:Fire(LOCAL_PLAYER, Vector3.new(o.X - 240, 0, o.Z))
-local last = fired.strike[#fired.strike]
-check(math.abs(last[1] - 270) < 0.5 and math.abs(last[2] - 2) < 0.01, ("click 240 studs west -> bearing %.0f, %.1f mi"):format(last[1], last[2]))
+stepUntil(function() return #strikeLog >= hereFrom + 3 end, 120, 0.25)
+local hereP = stormOf({ preset = "here", from_bearing = 270 })
+local okHere, hereDetail = matchesModel(hereFrom, hereP, 3)
+check(okHere and #strikeLog >= hereFrom + 3 and angleDiff(strikeLog[hereFrom + 1].bearing, 270) < 20 and strikeLog[hereFrom + 1].miles > 10,
+	("click 240 studs west -> a storm from 270: first strike %.0f deg, %.2f mi (%s)"):format(
+		strikeLog[hereFrom + 1] and strikeLog[hereFrom + 1].bearing or -1, strikeLog[hereFrom + 1] and strikeLog[hereFrom + 1].miles or -1, hereDetail))
+control:FireServer("instant", "calm")
 
 print("== the guided demo, start to finish")
 control:FireServer("demo")
 local capText = function() return LOCAL_PLAYER.PlayerGui.DemoCaption:FindFirstChild("Caption", true).Text end
-local seenStop, t0 = false, os.clock()
-for _ = 1, 400 do -- 0.25 s steps, up to 100 s of play
-	step(0.25, 0.25)
-	if capText():find("STOP WORK") then seenStop = true end
-	if capText():find("18:00") then break end
+local seenStop, seenReset, seenClear, realPlayed = nil, nil, nil, 0
+for _ = 1, 1600 do -- 0.5 s steps, up to 800 s of play: the storm alone plays over 5 real minutes
+	step(0.5, 0.5)
+	realPlayed += 0.5
+	local c = capText()
+	-- the strike captions carry the distance the storm model produced, to a tenth of a mile
+	if c:find("STOP WORK") and c:find("%d+%.%d miles") then seenStop = seenStop or c end
+	if c:find("restarts the 30 minute countdown") and c:find("%d+%.%d miles") then seenReset = seenReset or c end
+	if c:find("ALL CLEAR") then seenClear = seenClear or c end
+	if c:find("18:00") then break end
 end
-local played = 0
-for _ = 1, 1 do played = (workspace:GetAttribute("SimSpeed") or 0) end
-check(seenStop and capText():find("18:00") ~= nil, "demo reaches stop work and the 6 PM briefing")
+check(seenStop ~= nil and seenReset ~= nil and seenClear ~= nil and capText():find("18:00") ~= nil,
+	("demo reaches stop work, a reset, the all clear and the 6 PM briefing in %d real s"):format(realPlayed))
+print("  caption: " .. tostring(seenStop))
+print("  caption: " .. tostring(seenReset))
+print("  caption: " .. tostring(seenClear))
 
 ---------------------------------------------------------------- scenario checks (heat, water, wildlife)
 

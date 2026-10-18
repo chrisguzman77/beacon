@@ -18,10 +18,8 @@ local TIMELINE = {
 	{ t = 15300, shot = "Board", text = "11:00 the heat index climbs. The board combines heat, wind, rain, soil, lightning, flood, and wildlife into one picture." },
 	{ t = 18900, shot = "Tent", text = "12:00 heat index past 110 F. The beacon sounds the heat alarm and the crew rotates through the cooling tent." },
 	{ t = 24300, shot = "Storm", text = "13:30 thunderstorms building to the west. Watch the screen flash: the real beacon's light sensor is aimed at it." },
-	{ t = 27900, shot = "Beacon", text = "14:30 strike 8 miles out. STOP WORK: the beacon strobes, the fan on the table stops, a 30 minute all clear starts." },
-	{ t = 28800, shot = "Beacon", text = "14:45 a new strike at 6 miles restarts the 30 minute countdown. The crew stays in the trucks." },
+	-- the strikes caption themselves below, with the distances the storm model actually produced
 	{ t = 29400, shot = "Flood", text = "14:55 the downpour. Water rises over the pad, the beacon switches to the flood alarm, the trucks sink to their axles." },
-	{ t = 37800, shot = "Board", text = "17:15 the storm moves off. The all clear runs out 30 minutes after the last strike inside 10 miles." },
 	{ t = 40500, shot = "Wide", text = "18:00 site time: the next-day safety briefing goes out in English and Spanish. Tomorrow's plan starts tonight." },
 }
 local CUT = TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -99,11 +97,45 @@ local function clockText(st)
 	return ("%02d:%02d"):format(math.floor(minutes / 60) % 24, math.floor(minutes % 60))
 end
 
+-- Lightning captions from the strikes themselves: the first strike inside 10 mi with its real distance, each
+-- reset, and the all clear 30 sim minutes after the last one. Kept on this client from the radar feed and SimTime.
+local STOP_MI, ALL_CLEAR_S = 10, 30 * 60
+local COMPASS = { "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest" }
+local lastSnap, lastInside, clearedShown = nil, nil, true
+local function demoOn() return workspace:GetAttribute("DemoMode") == true and lastSnap and lastSnap.key == "everglades_day" end
+local function liveCaption(text, shot)
+	bar.Visible = true
+	caption.Text = text
+	if shot then cutTo(shot) end
+end
+ReplicatedStorage:WaitForChild("StrikeRadar").OnClientEvent:Connect(function(bearing, miles)
+	if not demoOn() or miles >= STOP_MI then return end
+	local now = workspace:GetAttribute("SimTime") or lastSnap.simTime
+	local dir = COMPASS[math.floor(((bearing % 360) + 22.5) / 45) % 8 + 1]
+	local snap = { clockStart = lastSnap.clockStart, simTime = now }
+	if lastInside and now - lastInside < ALL_CLEAR_S then
+		liveCaption(("%s a new strike %.1f miles %s restarts the 30 minute countdown. The crew stays in the trucks.")
+			:format(clockText(snap), miles, dir))
+	else
+		liveCaption(("%s strike %.1f miles %s, inside the 10 mile ring. STOP WORK: the beacon strobes, the fan on the table stops, a 30 minute all clear starts.")
+			:format(clockText(snap), miles, dir), "Beacon")
+	end
+	lastInside, clearedShown = now, false
+end)
+
 stateEvent.OnClientEvent:Connect(function(st)
+	lastSnap = st
 	if not workspace:GetAttribute("DemoMode") or st.key ~= "everglades_day" then
 		if currentStep then stop() end
+		lastInside, clearedShown = nil, true
 		return
 	end
+	if lastInside and not clearedShown and st.simTime - lastInside >= ALL_CLEAR_S then
+		clearedShown = true
+		liveCaption(("%s ALL CLEAR: 30 minutes with no strike inside 10 miles. Work may resume."):format(clockText(st)), "Board")
+		return
+	end
+	if lastInside and st.simTime < lastInside then lastInside, clearedShown = nil, true end -- the day looped
 	local step = 1
 	for i, s in ipairs(TIMELINE) do
 		if st.simTime >= s.t then step = i end
