@@ -22,9 +22,10 @@ def pod_opened():
 
 
 def on_pod_line(line: str):
+    if time.monotonic() - _pod_opened_at <= 2:   # the pod holds lines while nothing reads its port: those are stale
+        return
     if line.startswith('FLASH:'):
-        if time.monotonic() - _pod_opened_at > 2:   # the pod holds lines while nothing reads its port: those are stale
-            rules.on_flash()
+        rules.on_flash()
     elif line.startswith('IR:'):
         remote.on_ir(line[3:].strip().upper())
     else:
