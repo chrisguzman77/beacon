@@ -70,6 +70,19 @@ local function setVisible(m, visible)
 	end
 end
 
+-- a scenario starts from calm: the crew is back at the work face at once, not still walking from the truck
+local resetEvent = game:GetService("ReplicatedStorage"):WaitForChild("SimEvents"):FindFirstChild("Reset")
+if resetEvent then
+	resetEvent.Event:Connect(function()
+		for _, w in ipairs(workers) do
+			w.m:PivotTo(w.home)
+			w.hidden = false
+			setVisible(w.m, true)
+			setWalking(w, false)
+		end
+	end)
+end
+
 local t = 0
 RunService.Heartbeat:Connect(function(dt)
 	t += dt
