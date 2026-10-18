@@ -62,7 +62,9 @@ class Voice:
             return
         if self.engine == 'say':
             return await self._play('say', text)
-        dev = ['-D', config.AUDIO_DEVICE] if config.AUDIO_DEVICE else []
+        # straight to the USB speaker (ALSA names it Device): the default device is HDMI on a Pi 5, silent with no screen
+        speaker = config.AUDIO_DEVICE or ('plughw:Device,0' if os.path.exists('/proc/asound/Device') else '')
+        dev = ['-D', speaker] if speaker else []
         with tempfile.NamedTemporaryFile(suffix='.wav') as f:
             if self.engine == 'piper':
                 voice = self.voices.get(lang) or self.voices['en']
