@@ -57,7 +57,7 @@ async def main():
     uno = Uno(Port('uno', loop, on_uno_line, on_open=uno_opened))
     lcd = Lcd(uno)
     say = Voice()
-    cloud = Cloud(rules.on_cmd, on_online_change=lambda: rules.changed())
+    cloud = Cloud(rules.on_cmd, on_online_change=rules.on_online_change)
     interlock = Interlock(loop, rules.on_estop)
     rules.setup(uno, lcd, say, cloud, interlock)
     rules.changed()                               # motor on only if nothing is locked

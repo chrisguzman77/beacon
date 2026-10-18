@@ -1,5 +1,5 @@
 """The local rules, the ones the Pi runs with no internet (hardware guide Appendix C.1), and the backend's commands."""
-import json, logging, time
+import asyncio, json, logging, time, urllib.request
 
 import config, mic, voice
 from cloud import now_iso
@@ -17,6 +17,7 @@ _last_presence_at = 0.0
 _stopwork_since = 0.0
 _water_said_at = -1e9
 _last_pod_up = 0.0
+_from_backend = False         # the running stop work came from the backend's STOPWORK, not the Pi's own sensors
 
 
 def setup(_uno, _lcd, _voice, _cloud, _interlock):
@@ -41,7 +42,7 @@ _saved_lock = None
 
 def save_lock():
     global _saved_lock
-    lock = {'locked': S.locked, 'estop': S.estop, 'reason': S.reason}
+    lock = {'locked': S.locked, 'estop': S.estop, 'reason': S.reason, 'backend': _from_backend}
     if lock != _saved_lock:
         _saved_lock = lock
         config.LOCK_FILE.write_text(json.dumps(lock))
@@ -49,6 +50,7 @@ def save_lock():
 
 def restore_lock():
     """At boot: a stop work or e-stop that was running when the Pi went down comes back as locked, needing a PIN."""
+    global _from_backend
     try:
         lock = json.loads(config.LOCK_FILE.read_text())
     except (OSError, ValueError):
@@ -57,7 +59,29 @@ def restore_lock():
         S.estop = bool(lock.get('estop'))
         S.awaiting_clear = not S.estop
         S.reason = lock.get('reason', '')
+        _from_backend = bool(lock.get('backend'))
         log.warning('restarted while locked (%s), needs a supervisor PIN', S.reason or 'e-stop')
+
+
+def on_online_change():
+    changed()
+    if S.online and _from_backend and S.locked and not S.estop:
+        asyncio.get_running_loop().create_task(_released_while_offline())
+
+
+async def _released_while_offline():
+    """A dashboard release while the Pi was offline never reached it. For its own stop works the backend is the record:
+    none open there means a supervisor released it. Local stop works and the e-stop still need the PIN."""
+    base = config.BACKEND_URL.replace('wss://', 'https://').replace('ws://', 'http://').split('/ws/')[0]
+    try:
+        raw = await asyncio.to_thread(lambda: urllib.request.urlopen(f'{base}/sites/{config.SITE_ID}', timeout=10).read())
+        open_types = {a.get('type') for a in json.loads(raw).get('alerts') or []}
+    except Exception as e:
+        log.warning('could not ask the backend whether the stop work was released (%s), staying locked', e)
+        return
+    if 'stopwork' not in open_types and _from_backend and S.locked and not S.estop:
+        log.info('the backend has no open stop work: it was released while the Pi was offline')
+        release('DASHBOARD')
 
 
 def publish():
@@ -75,9 +99,10 @@ def heat_index_f(t_c: float, rh: float) -> float:
 
 # --- stop work ----------------------------------------------------------------------------------------------------
 
-def start_stopwork(distance_m, strike_at: float, seconds: int = config.STOPWORK_SECONDS, report: dict | None = None):
+def start_stopwork(distance_m, strike_at: float, seconds: int = config.STOPWORK_SECONDS, report: dict | None = None,
+                   from_backend: bool = False):
     """Rule 1 and 2: a local flash to bang pairing and the backend's STOPWORK end here, so both paths act the same."""
-    global _stopwork_since
+    global _stopwork_since, _from_backend
     if (S.stopwork or S.awaiting_clear) and abs(strike_at - S.strike_at) <= SAME_STRIKE_S:
         log.info('same strike as the running stop work, no reset')
         if report:
@@ -89,7 +114,7 @@ def start_stopwork(distance_m, strike_at: float, seconds: int = config.STOPWORK_
     S.stopwork, S.awaiting_clear, S.zone_clear = True, False, False
     S.strike_at, S.countdown, S.countdown_kind = strike_at, secs, 'stopwork'
     S.reason = f'LIGHTNING {miles} MI' if miles else 'LIGHTNING NEARBY'
-    _stopwork_since = time.monotonic()
+    _stopwork_since, _from_backend = time.monotonic(), from_backend
     interlock.apply(True)                         # the motor first, then everything else
     uno.send(f'STOPWORK:{secs}')
     say.say(voice.RESET if resetting else voice.lightning(miles), urgent=True)
@@ -261,7 +286,8 @@ def on_cmd(m: dict):
     cmd = m.get('cmd')
     log.info('<- %s', cmd)
     if cmd == 'STOPWORK':
-        start_stopwork(m.get('distance_m'), time.monotonic(), int(m.get('seconds') or config.STOPWORK_SECONDS))
+        start_stopwork(m.get('distance_m'), time.monotonic(), int(m.get('seconds') or config.STOPWORK_SECONDS),
+                       from_backend=True)
     elif cmd == 'BANG':
         on_bang('backend')
     elif cmd == 'CLEAR':
