@@ -505,7 +505,7 @@ control:FireServer("load", "storm_west")
 check(workspace:GetAttribute("DemoMode") == false, "picking a scenario takes over from the demo")
 step(1)
 check(workspace:GetAttribute("SimTime") ~= nil and workspace:GetAttribute("SimTime") > 0, "one click on a scenario loads and plays it")
-local westFrom, westWater = #strikeLog, #fired.water
+local westFrom, westWater, westWeather = #strikeLog, #fired.water, #fired.weather
 local westStorm
 for _, e in ipairs(ScenarioDefs.storm_west.events) do if e.type == "storm" then westStorm = stormOf(e) end end
 local tookStop = stepUntil(function() return workspace:GetAttribute("SimStopWork") == true end, 120)
@@ -514,10 +514,10 @@ check(#fired.flash == #fired.strike and #fired.strike > 0, ("a flash for every S
 local okModel, detail = matchesModel(westFrom, westStorm)
 check(okModel, "every Strike event is the storm model's strike, in order: " .. detail)
 check(strikeLog[westFrom + 1].miles > 10, ("the first strike is beyond 10 mi (%.2f)"):format(strikeLog[westFrom + 1].miles))
-stepUntil(function() return #fired.water > westWater end, 400, 1)
+stepUntil(function() return #fired.weather >= westWeather + 3 end, 400, 1)
 check(#fired.weather >= 3, "weather events posted (" .. #fired.weather .. ")")
 check(workspace:GetAttribute("Storm") and workspace:GetAttribute("Storm") > 0.6, "sky went to storm")
-check(#fired.water >= 1 and fired.water[#fired.water][1] == 10, "water pools at the end (10 mm)")
+check(#fired.water == westWater, "lightning only: Storm W posts no water")
 
 if LIVE and bridgeScript then
 	print("== backend link (live)")

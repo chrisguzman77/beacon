@@ -102,8 +102,6 @@ Scenarios.storm_west = {
 		-- seed 279, 2 mi to the side: first strike 13:14 at 16.1 mi, first inside 10 mi 13:18 at 8.1, last 14:10, all clear 14:40
 		{ t = 600,  type = "storm",   seed = 279, from_bearing = 270, start_mi = 20, speed_mph = 30, cross_track_mi = 2, peak_per_min = 2, life_min = 80 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
-		{ t = 2400, type = "water",   depth_mm = 10 },
-		{ t = 3600, type = "water",   depth_mm = 0 },
 	},
 }
 
