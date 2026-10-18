@@ -37,13 +37,14 @@ byte slot = 0;
 
 void color(bool r, bool g, bool b) { stripWant = strip.Color(r * 255, g * 160, b * 255); }   // r + g reads as yellow
 
-void showStrip() {           // Slavik's layout, LEDs numbered 1 to 29 from the DIN end
+void showStrip() {           // Slavik's layout, LEDs numbered 1 to 29 from the input end (nearest the wires)
   uint32_t white = strip.Color(255, 255, 255);
   strip.clear();             // LED11 to LED21 stay dark
-  for (int k = 1; k <= 10; k++) if (hazardIndex >= 11 - k) strip.setPixelColor(k - 1, white);   // the index bar: LED10 first, LED1 at 10
-  if (hazardIndex >= 9) strip.setPixelColor(21, white);    // LED22 follows LED2
-  if (hazardIndex >= 10) strip.setPixelColor(22, white);   // LED23 follows LED1
-  for (int i = 23; i < STRIP_LEDS; i++) strip.setPixelColor(i, stripWant);   // LED24 to LED29: the status color
+  for (int i = 0; i <= 9 && i <= hazardIndex; i++) strip.setPixelColor(9 - i, white);   // index 0 is LED10 ... 9 is LED1
+  if (hazardIndex >= 8) strip.setPixelColor(21, white);    // LED22 lights with LED2 at index 8
+  if (hazardIndex >= 9) strip.setPixelColor(22, white);    // LED23 lights with LED1 at index 9
+  if (hazardIndex >= 10) strip.setPixelColor(23, white);   // LED24 is index 10
+  for (int i = 24; i < STRIP_LEDS; i++) strip.setPixelColor(i, stripWant);   // LED25 to LED29: the status color
   strip.show();
 }
 
