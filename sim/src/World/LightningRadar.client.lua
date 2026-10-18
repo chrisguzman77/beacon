@@ -5,6 +5,7 @@
 -- nearest strike and how long ago, strikes in the last 10 minutes, the storm's trend (approaching or receding), and
 -- the stop work countdown. Fed by ReplicatedStorage.StrikeRadar (bearing, miles) and the sim's SimTime.
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -21,6 +22,7 @@ local THEME = {
 
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.DisplayOrder = "LightningRadar", false, 14 -- under FlashGui so the white flash covers it
+gui.IgnoreGuiInset = true -- screen pixels, the same space the chat window reports its position in
 gui.Parent = player:WaitForChild("PlayerGui")
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
@@ -47,7 +49,8 @@ local function label(parent, text, size, font, color, order)
 end
 
 local card = Instance.new("Frame")
-card.Position, card.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(244, 0)
+card.AnchorPoint, card.Size = Vector2.new(1, 1), UDim2.fromOffset(244, 0)
+card.Position = UDim2.new(1, -16, 1, -16)
 card.AutomaticSize = Enum.AutomaticSize.Y
 card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = THEME.panel, 0.1, 0
 card.Parent = gui
@@ -171,6 +174,42 @@ local function ago(s)
 	if s < 60 then return "just now" end
 	return ("%d min ago"):format(math.floor(s / 60))
 end
+
+-- bottom right, sitting on top of the chat window with the same right edge. Reads where the chat actually is,
+-- follows it if it resizes, and falls back to the corner when chat is off or not reporting.
+local GAP = 10
+local function chatBox()
+	local ok, top, right = pcall(function()
+		local window = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
+		local bar = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration")
+		if not window or not window.Enabled or window.AbsoluteSize.Y <= 0 then return nil, nil end
+		local t = window.AbsolutePosition.Y
+		local r = window.AbsolutePosition.X + window.AbsoluteSize.X
+		if bar and bar.Enabled and bar.AbsoluteSize.Y > 0 then
+			t = math.min(t, bar.AbsolutePosition.Y)
+			r = math.max(r, bar.AbsolutePosition.X + bar.AbsoluteSize.X)
+		end
+		return t, r
+	end)
+	if ok then return top, right end
+	return nil, nil
+end
+local function placeCard()
+	local top, right = chatBox()
+	local s = uiScale.Scale
+	if top and right then
+		-- positions inside a scaled ScreenGui are in scaled units: divide screen pixels by the scale
+		card.Position = UDim2.fromOffset(right / s, (top - GAP) / s)
+	else
+		card.Position = UDim2.new(1, -16, 1, -16)
+	end
+end
+task.spawn(function()
+	while true do
+		placeCard()
+		task.wait(0.5)
+	end
+end)
 
 local spin = 0
 RunService.RenderStepped:Connect(function(dt)
