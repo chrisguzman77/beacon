@@ -23,6 +23,17 @@ events.Water.Event:Connect(function(depth_mm)
 	Http.post("/sim/water", { depth_mm = depth_mm })
 end)
 
+-- a new scenario starts from calm; Reset may be added to SimEvents after the Bridge starts
+local function hookReset(ev)
+	ev.Event:Connect(function()
+		if Http.post("/sim/reset", {}) then beacon:SetAttribute("Alerts", "[]") end
+	end)
+end
+if events:FindFirstChild("Reset") then hookReset(events.Reset) end
+events.ChildAdded:Connect(function(c)
+	if c.Name == "Reset" and c:IsA("BindableEvent") then hookReset(c) end
+end)
+
 local lastUsers = {}
 local function postPresence()
 	Http.post("/sim/presence", { count = #lastUsers, users = lastUsers })

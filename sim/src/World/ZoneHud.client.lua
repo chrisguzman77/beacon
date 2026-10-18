@@ -5,6 +5,19 @@
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
+
+-- Start each spawn in first person, free to scroll out: clamp the zoom to first person for a moment, then give the
+-- normal range back. Not locked. Skipped while the guided demo is cutting the camera.
+local NORMAL_MAX_ZOOM = 40
+local function firstPerson()
+	if workspace:GetAttribute("DemoMode") == true then return end
+	player.CameraMaxZoomDistance = 0.5
+	task.wait()
+	task.wait()
+	player.CameraMaxZoomDistance = NORMAL_MAX_ZOOM
+end
+player.CharacterAdded:Connect(function() task.defer(firstPerson) end)
+if player.Character then task.defer(firstPerson) end
 local zone = workspace:WaitForChild("ZonePart")
 local beacon = workspace:WaitForChild("Beacon")
 

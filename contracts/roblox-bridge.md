@@ -7,6 +7,7 @@ POST /sim/strike      {site_id, bearing, miles}       on every scenario or free 
 POST /sim/weather     {site_id, temp_c, humidity, precip_mm, gust}   on scenario weather events
 POST /sim/water       {site_id, depth_mm}
 POST /sim/presence    {site_id, count, users}         whenever the set of players inside the ZonePart changes, and every 5 s while nonzero
+POST /sim/reset       {site_id}                       when SimEvents.Reset fires (a scenario starts, or Reset to calm)
 
 Backend to Roblox (polled)
 GET /sites/{site_id}/device   once per second. Returns the last gateway state:
@@ -36,6 +37,7 @@ ReplicatedStorage.SimEvents, a Folder of BindableEvents. The World fires, the Br
   Weather(t: {temp_c, humidity, precip_mm, gust})
   Water(depth_mm: number)
   PresenceChanged(count: number, users: {string})
+  Reset()   fired when a scenario starts or on Reset to calm; the World also clears its own sim hazard state
 
 workspace.Beacon attributes. The Bridge writes, the World reads with GetAttributeChangedSignal.
   Led: "green" | "yellow" | "red" | "strobe"

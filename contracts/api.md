@@ -19,6 +19,7 @@ POST /sim/weather                              SIM_TOKEN   {site_id, temp_c, hum
 POST /sim/water                                SIM_TOKEN   {site_id, depth_mm}
 POST /sim/presence                             SIM_TOKEN   {site_id, count, users: ["name"]}
 POST /sim/bang                                 SIM_TOKEN   {site_id, ts_us}      from the mic listener page
+POST /sim/reset                                SIM_TOKEN   {site_id} -> {cleared}   a new Roblox scenario: clears the site's open alerts (cleared_by "Roblox scenario reset"), sends CLEAR to the beacon, drops the last 24 h of sim weather and water
 GET  /sim/scenario/{site_id}                   SIM_TOKEN   optional: the backend can hold the "current scenario" so the dashboard shows what Roblox is playing
 WS   /ws/site/{id}?token=                      any         pushes alerts, conditions, muster, reports, count, device state
 WS   /ws/gateway/{site_id}?token=              gateway     see gateway-ws.md
