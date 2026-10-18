@@ -2871,6 +2871,7 @@ end)
 -- the stop work countdown. Fed by ReplicatedStorage.StrikeRadar (bearing, miles) and the sim's SimTime.
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -3065,14 +3066,37 @@ local function chatBox()
 	if ok then return top, right end
 	return nil, nil
 end
+local SCOPE_MAX, SCOPE_MIN = 220, 110
+-- the bottom edge of the zone card (top right), in screen pixels
+local function zoneCardBottom()
+	local ok, bottom = pcall(function()
+		local hud = player.PlayerGui:FindFirstChild("ZoneHud")
+		local zc = hud and hud:FindFirstChild("ZoneCard", true)
+		if not zc or zc.AbsoluteSize.Y <= 0 then return nil end
+		return GuiService:GetGuiInset().Y + zc.AbsolutePosition.Y + zc.AbsoluteSize.Y -- that card keeps the top bar inset
+	end)
+	return ok and bottom or nil
+end
 local function placeCard()
 	local top, right = chatBox()
 	local s = uiScale.Scale
+	local okView, view = pcall(function() return workspace.CurrentCamera.ViewportSize end)
+	-- trust the chat's position only if it looks like a chat window in the lower right
+	if top and right and okView and (top < view.Y * 0.35 or right < view.X * 0.5) then top, right = nil, nil end
+	local bottomEdge = top and (top - GAP) or (okView and view.Y - 16) or nil
 	if top and right then
 		-- positions inside a scaled ScreenGui are in scaled units: divide screen pixels by the scale
-		card.Position = UDim2.fromOffset(right / s, (top - GAP) / s)
+		card.Position = UDim2.fromOffset(right / s, bottomEdge / s)
 	else
 		card.Position = UDim2.new(1, -16, 1, -16)
+	end
+	-- fit between the zone card and the chat: shrink the scope when there is not room, grow it back when there is
+	local ceiling = (zoneCardBottom() or 0) + GAP
+	if bottomEdge and card.AbsoluteSize.Y > 0 then
+		local spare = (bottomEdge - ceiling) - card.AbsoluteSize.Y -- screen pixels
+		local scopeNow = scope.Size.X.Offset
+		local want = math.clamp(scopeNow + spare / s, SCOPE_MIN, SCOPE_MAX)
+		if math.abs(want - scopeNow) >= 2 then scope.Size = UDim2.fromOffset(want, want) end
 	end
 end
 task.spawn(function()
@@ -3838,7 +3862,9 @@ end
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
 rescale()
 local card = Instance.new("Frame")
-card.AnchorPoint, card.Position, card.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 16), UDim2.fromOffset(300, 0)
+-- top right, just below Roblox's top bar (this ScreenGui keeps the top bar inset); the radar fits itself below it
+card.Name = "ZoneCard"
+card.AnchorPoint, card.Position, card.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 12), UDim2.fromOffset(300, 0)
 card.AutomaticSize = Enum.AutomaticSize.Y
 card.BackgroundColor3, card.BackgroundTransparency, card.BorderSizePixel = Color3.fromRGB(14, 16, 22), 0.15, 0
 card.Parent = gui
@@ -3914,7 +3940,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1018-0040, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1018-0138, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
