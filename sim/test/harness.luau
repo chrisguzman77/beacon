@@ -430,19 +430,24 @@ local function hazard(attrName, value, label, alarmName)
 	check(tag.Level.Text == label and light:GetAttribute("LastAlarm") == alarmName,
 		("%s -> %s with the %s alarm (%s, %s)"):format(attrName, label, alarmName, tag.Level.Text, tostring(light:GetAttribute("LastAlarm"))))
 end
+check(beacon:GetAttribute("LiveRisk") == beacon:GetAttribute("Index"), ("no hazard: the meter shows the model's index (%s)"):format(tostring(beacon:GetAttribute("LiveRisk"))))
 hazard("SimWildlife", true, "GATOR ON SITE", "wildlife")
+check(beacon:GetAttribute("LiveRisk") == 5, "gator on site: meter floor 5 (" .. tostring(beacon:GetAttribute("LiveRisk")) .. ")")
 hazard("HeatIndexF", 108, "HEAT WARNING", "heat_warning")
 hazard("HeatIndexF", 117, "HEAT DANGER", "heat_danger")
+check(beacon:GetAttribute("LiveRisk") == 9 and tag.Sub.Text:find("LIVE RISK 9", 1, true) ~= nil, "heat danger: meter 9, LIVE RISK 9 on the tag (" .. tag.Sub.Text .. ")")
 hazard("SimFloodMm", 40, "FLOOD", "flood")
 check(tag.Sub.Text:find("+2 MORE") ~= nil, "the tag counts the other active hazards (" .. tag.Sub.Text .. ")")
 workspace:SetAttribute("SimCountdown", 1500)
 hazard("SimStopWork", true, "STOP WORK  25:00", "stopwork")
+check(beacon:GetAttribute("LiveRisk") == 10, "stop work: meter swings to 10")
 check(tag.Level.TextColor3.R > 0.8 and tag.Level.TextColor3.G < 0.3, "stop work shows in red")
 for _, a in ipairs({ "SimStopWork", "SimFloodMm", "HeatIndexF", "SimWildlife", "SimCountdown" }) do
 	workspace:SetAttribute(a, a == "SimStopWork" and false or a == "SimWildlife" and false or 0)
 end
 step(0.3)
 check(tag.Level.Text == "ALL CLEAR" and light:GetAttribute("LastAlarm") == "all_clear", "everything clears -> all clear chime (" .. tostring(light:GetAttribute("LastAlarm")) .. ")")
+check(beacon:GetAttribute("LiveRisk") == beacon:GetAttribute("Index"), "cleared: the meter eases back to the model's index")
 
 end
 print("== hurricane")
@@ -602,6 +607,7 @@ control:FireServer("instant", "strike8")
 step(0.5)
 check(#fired.strike == strikesNow + 1 and fired.strike[#fired.strike][2] == 8 and workspace:GetAttribute("SimStopWork") == true,
 	"Strike 8 mi W fires one strike and opens stop work")
+check(beacon:GetAttribute("LiveRisk") == 10, "Strike 8 mi W swings the meter to 10 (" .. tostring(beacon:GetAttribute("LiveRisk")) .. ")")
 control:FireServer("instant", "heat")
 step(0.5)
 check((workspace:GetAttribute("HeatIndexF") or 0) >= 115, ("Heat button: heat index %d F"):format(workspace:GetAttribute("HeatIndexF") or 0))

@@ -2042,6 +2042,31 @@ task.spawn(function()
 	end
 end)
 
+-- Live risk for the 0 to 10 meter: the model's next day Index, raised to the floor of the worst hazard active now,
+-- so a stop work reads 10 instead of the 1 the model forecast. The text keeps the model's Index for the dashboard.
+local RISK_FLOOR = { estop = 10, stopwork = 10, beacon_unsafe = 9, heat_danger = 9, heat_warning = 7, wind = 7, wildlife = 5 }
+local function floodFloor()
+	-- confirmed (backend flood_confirmed, the river over its levee, or 30 mm on the pad) is 9; a warning or watch is 6
+	local ok, alerts = pcall(HttpService.JSONDecode, HttpService, attr("Alerts", "[]"))
+	local warned = false
+	if ok and typeof(alerts) == "table" then
+		for _, a in ipairs(alerts) do
+			if a == "flood_confirmed" then return 9 end
+			if a == "flood_warning" then warned = true end
+		end
+	end
+	if workspace:GetAttribute("RiverOvertop") == true or (workspace:GetAttribute("SimFloodMm") or 0) >= 30 then return 9 end
+	if warned or (workspace:GetAttribute("SimFloodMm") or 0) > 0 then return 6 end
+	return 0
+end
+local function liveRisk()
+	local risk = 0
+	for key in pairs(active) do
+		risk = math.max(risk, key == "flood" and floodFloor() or RISK_FLOOR[key] or 0)
+	end
+	return math.max(math.clamp(attr("Index", 0), 0, 10), risk)
+end
+
 local function applyTag()
 	if not tag then return end
 	local lk = look()
@@ -2052,7 +2077,9 @@ local function applyTag()
 	for key in pairs(active) do
 		if key ~= top then others += 1 end
 	end
+	local risk = liveRisk()
 	local sub = (top and (HAZARDS[top].sub .. "  ·  ") or "") .. "HAZARD INDEX " .. fmtIndex(attr("Index", 0))
+		.. (risk > attr("Index", 0) and ("  ·  LIVE RISK " .. fmtIndex(risk)) or "")
 	tag.Sub.Text = others > 0 and ("%s  ·  +%d MORE"):format(sub, others) or sub
 	if mirrorTag then
 		mirrorTag.Level.Text, mirrorTag.Level.TextColor3, mirrorTag.Sub.Text = tag.Level.Text, tag.Level.TextColor3, tag.Sub.Text
@@ -2074,10 +2101,11 @@ end
 -- index 0 points left, 5 straight up, 10 right, swinging about the hub
 local pivot = hub and hub.CFrame or needle.CFrame
 local function applyIndex()
-	local idx = math.clamp(attr("Index", 0), 0, 10)
+	local idx = liveRisk() -- the needle shows live risk; it eases back to the model's Index when hazards clear
+	if beacon:GetAttribute("LiveRisk") ~= idx then beacon:SetAttribute("LiveRisk", idx) end
 	local turn = CFrame.Angles(0, 0, math.rad(90 - idx * 18))
 	local goal = hub and pivot * turn * CFrame.new(0, needle.Size.Y / 2, 0) or pivot * turn
-	TweenService:Create(needle, TweenInfo.new(0.6, Enum.EasingStyle.Back), { CFrame = goal }):Play()
+	TweenService:Create(needle, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { CFrame = goal }):Play()
 end
 
 -- The equipment LCD mirrors the real beacon's lines while the Bridge is online. Offline, it shows the sim's own
@@ -2191,7 +2219,7 @@ end
 
 ---------------------------------------------------------------- wiring
 
-local function refresh() update() applyTag() applyLcd() end
+local function refresh() update() applyTag() applyLcd() applyIndex() end
 local handlers = {
 	Led = { refresh, applyBillboard },
 	Countdown = { refresh, applyCountdown },
@@ -3836,7 +3864,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-2348, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1018-0000, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
