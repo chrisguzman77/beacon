@@ -3,7 +3,7 @@
 Auth: Bearer Auth0 JWT for humans (role claim https://planit-beacon/role = supervisor | crew). Static tokens for machines: X-Token: GATEWAY_TOKEN or SIM_TOKEN.
 
 GET  /health                                   any         fetcher health, last success per feed
-GET  /sites                                    any         all sites with index, alert summary, last conditions, crew_on_site
+GET  /sites                                    any         all sites with index, alert summary, last conditions, crew_on_site, sfha, flood_zone (FEMA zone: X, AE, VE...)
 GET  /sites/{id}                               any         detail: conditions 48h, alerts, reports, briefing, index with top_features
 GET  /sites/{id}/conditions?hours=48           any         from site_hourly, both sources
 GET  /sites/{id}/index/explain                 any         latest index: {site_id, for_date, index, probability, top_features: [{feature, shap, value, label}], sentence, source}  (intel router)
@@ -12,6 +12,7 @@ GET  /sites/{id}/muster                        any         crew in, out, zone_cl
 POST /checkin                                  crew/sup    {site_id, action, lat, lon, via}
 POST /reports                                  crew/sup    multipart: photo, site_id, lat, lon, note  -> {report_id, tag, description, confidence}
 POST /alerts/{id}/clear                        supervisor  {pin}
+POST /supervisor/pin                           crew/sup    {pin} -> {ok}   checks a typed supervisor PIN (crew phone Change site); a wrong PIN answers after 1 s
 POST /briefings/{site_id}/run                  supervisor  generate now
 POST /sim/strike                               SIM_TOKEN   {site_id, bearing, miles} or {site_id, lat, lon}
 POST /sim/weather                              SIM_TOKEN   {site_id, temp_c, humidity, precip_mm, gust}

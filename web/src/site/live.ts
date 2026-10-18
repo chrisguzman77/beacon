@@ -15,6 +15,7 @@ type Detail = {
   beacon: boolean
   lat: number
   lon: number
+  flood_zone?: string | null // FEMA zone from the backend's site list (X, AE, VE...)
   alerts: Alert[]
   alert_history?: Alert[]
   index: { index: number; top_features?: { label: string }[] } | null
@@ -86,6 +87,7 @@ export function startLiveSite(siteId: number, onSnapshot: (s: Snapshot) => void,
       report_url: '',
       demo_scale: 1,
       lcd: device.lcd,
+      ...(detail.flood_zone && { flood_zone: detail.flood_zone }),
       sim: [...sim].sort((a, b) => b.ts.localeCompare(a.ts)),
       // Open alerts (kept current by the websocket) over the history from GET /sites/{id}, newest first.
       alert_log: [...new Map([...(detail.alert_history ?? []), ...detail.alerts].map((a) => [a.alert_id, a])).values()].sort((a, b) => b.started.localeCompare(a.started)),

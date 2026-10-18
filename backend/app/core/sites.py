@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from .config import settings
 
 log = logging.getLogger("core.sites")
 CSV = Path(__file__).parent / "data" / "sites.csv"
+# FEMA flood zone per site (sfha, fld_zone), fetched once by ml/ and shipped with the model.
+STATIC = Path(__file__).parents[1] / "intel" / "model" / "site_static.json"
 
 # site_id -> dict, loaded once at startup. Rules and sim read this, not the database.
 SITES: dict[int, dict] = {}
@@ -38,3 +41,8 @@ async def load():
     SITES.clear()
     for r in await db.fetch("SELECT * FROM sites ORDER BY site_id"):
         SITES[r["site_id"]] = dict(r)
+    # Kept in memory, not written to the table: GET /sites and /sites/{id} carry sfha and flood_zone.
+    static = json.loads(STATIC.read_text())
+    for sid, s in SITES.items():
+        z = static.get(str(sid), {})
+        s["sfha"], s["flood_zone"] = z.get("sfha", s["sfha"]), z.get("fld_zone")
