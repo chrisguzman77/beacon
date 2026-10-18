@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     await db.close()
 
 
-app = FastAPI(title="PlanIT Beacon", lifespan=lifespan)
+app = FastAPI(title="OmniRisk", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(api.router)
 app.include_router(sim.router)
