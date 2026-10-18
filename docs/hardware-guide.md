@@ -4,7 +4,7 @@
 
 *Site safety beacon for the PlanIT Control challenge, SwampHacks XII*
 
-Version 5, October 2026. Markdown edition for the repo. The 7 inch touchscreen and the kiosk are gone: the beacon head is the 4 digit countdown, the RGB light, the servo gauge, the LCD1602 as the beacon's text display, and the 1 digit crew count, the Pi runs headless, and the IR remote is the beacon's input. The simulator is the Roblox experience in docs/simulator-guide.md, and Appendix C maps the gateway program.
+Version 5, October 2026. Markdown edition for the repo. The 7 inch touchscreen and the kiosk are gone: the beacon head is the 4 digit countdown, the WS2812B LED strip status light, the servo gauge, and the LCD1602 as the beacon's text display (the crew count is on the LCD status line and the dashboard), the Pi runs headless, and the IR remote is the beacon's input. The simulator is the Roblox experience in docs/simulator-guide.md, and Appendix C maps the gateway program.
 
 **Where the code lives.** This guide is for Slavik, who owns firmware/. firmware/pod is the MicroPython on the RP2040-Zero. firmware/controlbox is the Arduino sketch on the UNO. firmware/gateway is the Python on the Pi. The serial protocols in Appendix B are also in contracts/serial.md, and the Pi to backend messages are in contracts/gateway-ws.md. Where this guide and a contract disagree, the contract wins. Claude Code cannot run any of these tests, so for every step it tells you what to flash, wire, and run, and what you should see.
 
@@ -16,7 +16,7 @@ The beacon is four physical pieces, and three of them have a computer in them th
 
 - **The sensor pod.** A Waveshare RP2040-Zero microcontroller with the radar, the lightning flash sensor, the water sensor, the temperature and humidity sensor, the tilt switch, and the infrared receiver for the remote. It senses, it does not decide.
 
-- **The beacon head.** The face of the beacon, driven by an Arduino UNO R3 behind the panel. The four digit countdown display, the color status light, the servo gauge needle for the hazard index, the kit's LCD1602 as the beacon's text display (status, STOP WORK with the reason and time, ENTER PIN, who released it), and the kit's 1 digit display showing how many crew are checked in. Crew check in on the phone crew page, or press their number on the IR remote as the backup. The supervisor releases a stop work with the remote: OK, the four digit PIN, OK.
+- **The beacon head.** The face of the beacon, driven by an Arduino UNO R3 behind the panel. The four digit countdown display, the LED strip status light, the servo gauge needle for the hazard index, and the kit's LCD1602 as the beacon's text display (status with the crew count, STOP WORK with the reason and time, ENTER PIN, who released it). Crew check in on the phone crew page, or press their number on the IR remote as the backup. The supervisor releases a stop work with the remote: OK, the four digit PIN, OK.
 
 - **The equipment unit.** A DC motor with a fan blade standing in for a drill rig or winch, and an emergency stop button. It has no display. Lockout shows as the fan stopping and STOP WORK on the beacon LCD.
 
@@ -26,7 +26,7 @@ The equipment interlock works like this. The motor is driven by the L293D motor 
 
 ## 1.1 Conventions used in this guide
 
-- Pin names like GP9 are RP2040-Zero pins, printed on the board. Pin names like D12 or A1 are UNO pins. Pin names like GPIO 18 are Raspberry Pi pins, and the physical header pin number is given in parentheses the first time.
+- Pin names like GP1 are RP2040-Zero pins, printed on the board. Pin names like D12 or A1 are UNO pins. Pin names like GPIO 18 are Raspberry Pi pins, and the physical header pin number is given in parentheses the first time.
 
 - Every wire is described as FROM a part TO a pin. Color suggestions follow the common convention, red for 5V, orange or yellow for 3.3V, black for ground, anything else for signals.
 
@@ -61,9 +61,10 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 | 9V battery and barrel jack snap | 1 | Feeds the power supply module |  |
 | LCD1602 text display, 16 pin header | 1 | Beacon text display (status, stop work, PIN entry) |  |
 | 4 digit 7 segment display | 1 | Countdown |  |
-| 1 digit 7 segment display | 1 | Crew count, shares the 74HC595 segment lines |  |
+| 1 digit 7 segment display | 1 | Not used, the crew count is on the LCD and the dashboard |  |
 | 74HC595 shift register | 1 | Drives the display segments with 3 pins |  |
-| RGB LED | 1 | Status light |  |
+| RGB LED | 1 | Not used, the LED strip replaces it |  |
+| LED strip, WS2812B type, with 5V, DIN, and GND wires | 1 | Status light on the beacon face |  |
 | SG90 servo | 1 | Gauge needle |  |
 | DC motor and fan blade | 1 | The equipment the interlock controls |  |
 | L293D motor driver chip | 1 | Switches motor power under the Pi's control |  |
@@ -74,7 +75,7 @@ Lay everything out on the table and tick each line. Everything in section 2.1 co
 | IR receiver and remote | 1 each | Crew check in backup, supervisor PIN, briefing playback |  |
 | Push button | 1 of 5 | Emergency stop on the equipment unit |  |
 | 10K potentiometer | 1 | LCD contrast |  |
-| Resistors 220 ohm | 4 | RGB LED legs and the LCD backlight |  |
+| Resistors 220 ohm | 2 | LCD backlight and the LED strip data line |  |
 | Resistors 1K ohm | 8 | 7 segment display segments |  |
 | Resistor 10K ohm | 1 | Photoresistor voltage divider |  |
 | Male to male jumper wires | about 40 | Breadboard wiring |  |
@@ -117,7 +118,7 @@ Before touching a wire, understand what plugs into what.
 | **Device** | **Powered by** | **Connected to** | **Carries** |
 |---|---|---|---|
 | RP2040-Zero pod | USB-C from the Pi | Pi USB port | Sensor lines up, nothing down |
-| UNO control electronics | USB A-B from the Pi | Pi USB port | Countdown, status light, gauge, LCD, and crew count commands down, countdown echo up |
+| UNO control electronics | USB A-B from the Pi | Pi USB port | Countdown, LED strip, gauge, and LCD commands down, countdown echo up |
 | Raspberry Pi | Its own 3 amp 5V supply | Phone hotspot, speaker, L293D enable, e-stop button | Everything |
 | Power supply module | 9V battery | Breadboard rails | 5V for servo and motor only |
 | L293D chip | 5V logic from the rail, 5V motor from the rail | Pi GPIO 18, motor | Interlock |
@@ -129,8 +130,8 @@ The signal path for a lightning strike, which is the demo that matters most, is 
 
 | **Part and its pin** | **RP2040-Zero pin** | **Notes** |
 |---|---|---|
-| Radar TX | GP9 (UART1 RX) | 256000 baud, 3.3V, no divider |
-| Radar RX | GP8 (UART1 TX) | Only needed to send config commands |
+| Radar TX | GP1 (UART0 RX) | 256000 baud, 3.3V, no divider |
+| Radar RX | GP0 (UART0 TX) | Only needed to send config commands |
 | Radar OUT | GP5 | Simple presence high or low, fallback if parsing fails |
 | Radar VCC | 5V pin | The radar needs 5V power even though its signals are 3.3V |
 | Radar GND | GND |  |
@@ -160,11 +161,10 @@ The signal path for a lightning strike, which is the demo that matters most, is 
 | 74HC595 MR (pin 10) | 5V | Never reset |
 | 74HC595 VCC (16), GND (8) | 5V, GND |  |
 | Display digit pins D1 to D4 | A1, A2, A3, A4 | Analog pins used as digital outputs |
-| 1 digit display common | A0 | Crew count, its segments share the 4 digit display lines, see Step 3.7 |
 | Display segments a to g and dp | 74HC595 Q0 to Q7 through 1K each | See Step 3.3 for the chip's output pin numbers |
-| RGB LED R, G, B | D6, D7, D13 through 220 ohm each | Common leg to GND (common cathode) or 5V (common anode) |
+| LED strip DIN | D6 through 220 ohm | Strip 5V and GND come from the module rails |
 | Servo signal (orange) | A5 | Servo red and brown to the power module rail, not the UNO |
-| Spare | none | Every UNO pin is used, a bare speaker goes on the Pi (Step 4.7) |
+| Spare | A0, D7, D13 | No crew digit and no RGB LED on this build |
 
 ## 3.3 Pin map, Raspberry Pi
 
@@ -253,9 +253,9 @@ The module has a five pin header. The labels are printed on the board next to th
 
 2. Radar GND to the ground rail.
 
-3. Radar TX to GP9. This is the line that carries presence data.
+3. Radar TX to GP1 (UART0 RX). This is the line that carries presence data.
 
-4. Radar RX to GP8. Only used if you send configuration commands. Wire it anyway.
+4. Radar RX to GP0 (UART0 TX). Only used if you send configuration commands. Wire it anyway.
 
 5. Radar OUT to GP5. This pin goes high when the radar sees someone. It is the fallback if frame parsing is not working by the deadline.
 
@@ -266,7 +266,7 @@ The module has a five pin header. The labels are printed on the board next to th
 ```
 from machine import UART, Pin
 import time
-u = UART(1, baudrate=256000, tx=Pin(8), rx=Pin(9))
+u = UART(0, baudrate=256000, tx=Pin(0), rx=Pin(1))
 out = Pin(5, Pin.IN)
 buf = b''
 while True:
@@ -285,7 +285,7 @@ while True:
     time.sleep(0.05)
 ```
 
-> **Note.** If you only see garbage, the baud rate is wrong or TX and RX are swapped. Swap GP8 and GP9 first, that fixes it nine times out of ten. The radar also has a Bluetooth app, HLKRadarTool, that shows live readings on a phone, but Bluetooth and the wired UART cannot run at the same time on most firmware, so close the app before the wired test.
+> **Note.** If you only see garbage, the baud rate is wrong or TX and RX are swapped. Swap the GP0 and GP1 wires first, that fixes it nine times out of ten. The radar also has a Bluetooth app, HLKRadarTool, that shows live readings on a phone, but Bluetooth and the wired UART cannot run at the same time on most firmware, so close the app before the wired test.
 
 ### 2.3 Photoresistor, the lightning flash sensor
 
@@ -390,7 +390,7 @@ while True:
 
 ## Step 3. Wire the UNO control electronics
 
-Use the big breadboard. The UNO's 5V and GND feed the breadboard's rails for the shift register, both 7 segment displays, the RGB LED, and the LCD. The servo and motor get their power from the power module in Step 4, not from these rails. Everything in this step ends up on the beacon head panel.
+Use the big breadboard. The UNO's 5V and GND feed the breadboard's rails for the shift register, the 4 digit display, and the LCD. The servo, the motor, and the LED strip get their power from the power module in Step 4, not from these rails. Everything in this step ends up on the beacon head panel.
 
 ### 3.1 Rails
 
@@ -462,17 +462,32 @@ void loop() { int n[4]={1,2,3,4}; for (int i=0;i<4;i++) showDigit(i, n[i]); }
 
 > **Note.** For a common cathode display the digit pin is pulled LOW to light that digit and HIGH to turn it off, which is what the sketch does when COMMON_ANODE is false.
 
-### 3.4 RGB LED
+### 3.4 LED strip, the status light
 
-The RGB LED has four legs. The longest leg is the common. In the Elegoo kit it is common cathode, so the long leg goes to ground and each color leg is driven high to light it. If the long leg is marked as common anode in your kit PDF, wire the long leg to 5V and the code drives each color low to light it.
+The status light is an addressable LED strip (WS2812B type) with three wires: 5V, DIN (data in), and GND. The kit's RGB LED is not used. Data must go into the input end of the strip. Look for DIN or DI printed at the end you wire, and for small arrows on the strip: they point away from the input end. The far end is marked DO (data out), do not wire that end. The strip draws more current than the UNO's 5V pin should give, so it takes its power from the module rails. Do Step 4.1 (power module) before the test below.
 
-1. Push the LED into four breadboard rows.
+1. Stand a 220 ohm resistor across the center gap of the big breadboard. UNO D6 to one end of it.
 
-2. Long leg to the GND rail.
+2. Strip DIN wire to the other end of the resistor. The resistor protects the strip's first LED.
 
-3. Red leg to UNO D6 through 220 ohm. Green leg to D7 through 220 ohm. Blue leg to D13 through 220 ohm. The leg order around the long leg is usually R, common, G, B. Confirm with the kit PDF.
+3. Strip GND wire to the module's blue rail. Strip 5V wire to the module's red rail (module 5V, not the UNO's). If the strip's wires end in a plug or bare tips, use male to male or female to male jumpers to reach the rails.
 
-4. TEST. A sketch that sets D6, D7, D13 as outputs and writes HIGH to each in turn should show red, green, blue. Mix red and green for yellow.
+4. Optional but recommended: a 100 to 1000 uF capacitor across the module's red and blue rails near the strip's wires, long leg to red. It smooths the strip's power.
+
+5. TEST. Install the Adafruit NeoPixel library (Arduino IDE: Sketch, Include Library, Manage Libraries; arduino-cli: `arduino-cli lib install "Adafruit NeoPixel"`). Set N in the sketch below to the number of LEDs on your strip, switch the power module on, and upload. The whole strip cycles red, green, blue. If nothing lights, check that the data wire is on the DIN end (not DO), that the module is on, and that the module's ground is joined to the UNO's ground.
+
+```
+#include <Adafruit_NeoPixel.h>
+const int N = 8;  // number of LEDs on your strip
+Adafruit_NeoPixel strip(N, 6, NEO_GRB + NEO_KHZ800);
+void setup() { strip.begin(); strip.setBrightness(40); }
+void loop() {
+  uint32_t c[3] = { strip.Color(255,0,0), strip.Color(0,255,0), strip.Color(0,0,255) };
+  for (int k = 0; k < 3; k++) { strip.fill(c[k]); strip.show(); delay(700); }
+}
+```
+
+> **Note.** Keep brightness at 40 of 255 or lower. A 9V battery cannot run the motor, the servo, and a bright strip at the same time.
 
 ### 3.5 Servo signal
 
@@ -488,27 +503,29 @@ The RGB LED has four legs. The longest leg is the common. In the Elegoo kit it i
 
 ### 3.6 Upload the command test sketch
 
-Before the final firmware exists, this sketch lets the Pi drive the LCD, the countdown, the crew digit, the LED, and the needle with text commands over USB. It is also the shape of the final control box firmware. Wire Step 3.7 first if you want the crew digit to light.
+Before the final firmware exists, this sketch lets the Pi drive the LCD, the countdown, the LED strip, and the needle with text commands over USB. It is also the shape of the final control box firmware. It needs the Adafruit NeoPixel library from Step 3.4.
 
 ```
 #include <LiquidCrystal.h>
 #include <Servo.h>
+#include <Adafruit_NeoPixel.h>
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 Servo needle;
-const int DS=8, STCP=9, SHCP=10; const int digitPins[5]={A1,A2,A3,A4,A0};   // A0 is the 1 digit crew count
+Adafruit_NeoPixel strip(8, 6, NEO_GRB + NEO_KHZ800);  // set 8 to your LED count
+const int DS=8, STCP=9, SHCP=10; const int digitPins[4]={A1,A2,A3,A4};
 const bool COMMON_ANODE=false;
 const byte seg[10]={0x3F,0x06,0x5B,0x4F,0x66,0x6D,0x7D,0x07,0x7F,0x6F};
-long countdown=-1; int muster=0; unsigned long lastTick=0, lastStrobe=0; bool strobe=false, strobeOn=false;
+long countdown=-1; unsigned long lastTick=0, lastStrobe=0; bool strobe=false, strobeOn=false;
 void showDigit(int d,int v){ byte p=seg[v]; if(COMMON_ANODE)p=~p;
-  for(int i=0;i<5;i++)digitalWrite(digitPins[i],COMMON_ANODE?LOW:HIGH);
+  for(int i=0;i<4;i++)digitalWrite(digitPins[i],COMMON_ANODE?LOW:HIGH);
   digitalWrite(STCP,LOW); shiftOut(DS,SHCP,MSBFIRST,p); digitalWrite(STCP,HIGH);
   digitalWrite(digitPins[d],COMMON_ANODE?HIGH:LOW); delay(2); }
-void color(int r,int g,int b){ digitalWrite(6,r); digitalWrite(7,g); digitalWrite(13,b); }
+void color(int r,int g,int b){ strip.fill(strip.Color(r*255,g*160,b*255)); strip.show(); }
 void lines(String a,String b){ lcd.clear(); lcd.print(a.substring(0,16)); lcd.setCursor(0,1); lcd.print(b.substring(0,16)); }
 void setup(){ Serial.begin(115200); lcd.begin(16,2); needle.attach(A5);
   pinMode(DS,OUTPUT);pinMode(STCP,OUTPUT);pinMode(SHCP,OUTPUT);
-  for(int i=0;i<5;i++)pinMode(digitPins[i],OUTPUT);
-  pinMode(6,OUTPUT);pinMode(7,OUTPUT);pinMode(13,OUTPUT); color(0,1,0); lines("ALL CLEAR  IDX 0","CREW 0"); }
+  for(int i=0;i<4;i++)pinMode(digitPins[i],OUTPUT);
+  strip.begin(); strip.setBrightness(40); color(0,1,0); lines("ALL CLEAR  IDX 0","CREW 0"); }
 void loop(){
   if(Serial.available()){ String s=Serial.readStringUntil('\n'); s.trim();
     if(s.startsWith("STOPWORK:")){ countdown=s.substring(9).toInt(); strobe=true; lastTick=millis(); }
@@ -516,32 +533,22 @@ void loop(){
     else if(s.startsWith("INDEX:")){ int ix=s.substring(6).toInt(); needle.write(map(ix,0,10,10,170));
       if(!strobe){ if(ix<4)color(0,1,0); else if(ix<7)color(1,1,0); else color(1,0,0); } }
     else if(s.startsWith("LCD:")){ int bar=s.indexOf('|'); lines(s.substring(4,bar), s.substring(bar+1)); }
-    else if(s.startsWith("MUSTER:")){ muster=constrain(s.substring(7).toInt(),0,9); }
     Serial.println("OK"); }
   if(countdown>=0 && millis()-lastTick>=1000){ lastTick+=1000; countdown--;
     if(countdown>=0){ Serial.print("COUNT:"); Serial.println(countdown); } else { strobe=false; color(1,0,0); } }
   if(strobe && millis()-lastStrobe>250){ lastStrobe=millis(); strobeOn=!strobeOn; color(strobeOn,0,0); }
   if(countdown>=0){ int m=countdown/60, sc=countdown%60; int n[4]={m/10,m%10,sc/10,sc%10}; for(int i=0;i<4;i++)showDigit(i,n[i]);
     lcd.setCursor(11,0); if(m<10)lcd.print('0'); lcd.print(m); lcd.print(':'); if(sc<10)lcd.print('0'); lcd.print(sc); }
-  showDigit(4,muster);
 }
 ```
 
 1. Upload it, open the Serial Monitor at 115200 baud with newline line endings.
 
-2. TEST. Type `LCD:STOP WORK  01:30|LIGHTNING 8 MI`, then `STOPWORK:90`. The display counts down from 01:30, the LED strobes red, the last five characters of the LCD's first line count down with the display, and the monitor prints OK and then COUNT lines. Type `MUSTER:3` and the crew digit shows 3. Type `INDEX:7` and the needle swings. Type `LCD:RELEASED BY|SMITH 14:32` and the LCD shows both lines. Type `CLEAR` and the LED goes green and the countdown blanks.
+2. TEST. Type `LCD:STOP WORK  01:30|LIGHTNING 8 MI`, then `STOPWORK:90`. The display counts down from 01:30, the LED strip strobes red, the last five characters of the LCD's first line count down with the display, and the monitor prints OK and then COUNT lines. Type `INDEX:7` and the needle swings. Type `LCD:RELEASED BY|SMITH 14:32` and the LCD shows both lines. Type `CLEAR` and the strip goes green and the countdown blanks.
 
-### 3.7 The 1 digit crew count display
+### 3.7 The 1 digit crew count display, not used
 
-The kit's single digit display (5161AS is common cathode, 5161BS common anode; it must be the same type as the 4 digit display, since one COMMON_ANODE flag drives both) shows how many crew are checked in. It reuses the eight segment lines from the 74HC595, so it needs only one more UNO pin, A0, for its common. The UNO lights it as a fifth digit in the same multiplex loop.
-
-1. Push it into the breadboard straddling the channel next to the 4 digit display, decimal point at the bottom right. Pins 1 to 5 run along the bottom left to right, pins 10 to 6 along the top left to right.
-
-2. Wire each segment pin to the same row as the matching 4 digit display segment, on the display side of the 1K resistors, so both displays share each resistor. Pin 7 a, pin 6 b, pin 4 c, pin 2 d, pin 1 e, pin 9 f, pin 10 g, pin 5 dp.
-
-3. Pin 3 (or pin 8, they are the same common) to UNO A0.
-
-4. TEST. With the Step 3.6 sketch, type `MUSTER:0` through `MUSTER:9`. The digit shows each number. If one segment is wrong, that segment wire is on the wrong row. A slight dimming of the 4 digit display is the fifth multiplex slot and is normal.
+This build has no crew digit. The crew count is on the LCD status line (`CREW 2  HI 92F`) and on the dashboard's muster list, and A0 is spare. The UNO still answers `OK` to `MUSTER:<n>` and shows nothing.
 
 ### 3.8 The IR remote, how the beacon uses it
 
@@ -594,7 +601,7 @@ The L293D is a 16 pin chip. Notch to the left, pin 1 at bottom left, pins counte
 
 5. Pin 1 EN1 is the interlock. Run a female to male jumper from pin 1 to Raspberry Pi GPIO 18, physical pin 12. The L293D treats 3.3V as a valid high, so the Pi can drive it directly.
 
-6. Run a jumper from the common ground rail to a Raspberry Pi GND pin, physical pin 6. Now the Pi, the UNO, the pod, and the module all share ground.
+6. Run a jumper from the common ground rail to a Raspberry Pi GND pin, physical pin 9. Now the Pi, the UNO, the pod, and the module all share ground.
 
 7. Push the fan blade onto the motor shaft. Mount the motor so the blade spins free. A loop of tape around the motor and the box edge is enough for now.
 
@@ -697,7 +704,7 @@ for cmd in sys.stdin:
 
 3. **Zone clear.** With a stop-work active, stand in front of the radar, then step away. The Pi should report the zone occupied, then clear after ten seconds of no presence.
 
-4. **Check in.** Check in on the phone crew page, then press 3 on the remote. The speaker confirms, the LCD shows CREW 3 IN, the crew digit goes up, and the dashboard's muster list changes. Press 3 again to check out.
+4. **Check in.** Check in on the phone crew page, then press 3 on the remote. The speaker confirms, the LCD shows CREW 3 IN, the LCD status line's crew count goes up, and the dashboard's muster list changes. Press 3 again to check out.
 
 5. **PIN release.** After the countdown ends the LCD says NEEDS SUPERVISOR. Press OK, a wrong PIN, OK on the remote, and the LCD shows WRONG PIN. Press OK, the right PIN, OK. The fan restarts, the LED goes green, and the LCD shows who released it and the time.
 
@@ -771,7 +778,7 @@ for cmd in sys.stdin:
 
 1. Take the shoebox. Stand it on its long side so the lid faces forward. The lid is the beacon face.
 
-2. Cut a window in the lid for the LCD (about 72 by 25 mm) near the top, a window for the four digit display under it, a window for the 1 digit crew display beside that, a hole for the RGB LED, and a hole the size of the servo shaft. Angle the whole box back by propping the bottom rear edge on a folded piece of cardboard so a standing person can read it.
+2. Cut a window in the lid for the LCD (about 72 by 25 mm) near the top, a window for the four digit display under it, a slot for the LED strip, and a hole the size of the servo shaft. Angle the whole box back by propping the bottom rear edge on a folded piece of cardboard so a standing person can read it.
 
 3. Move the LCD from the breadboard to the lid on a bundle of female to male jumpers, keeping the same UNO pins. Keep the potentiometer on the breadboard, only its wiper wire travels. Tape the LCD behind its window.
 
@@ -783,7 +790,7 @@ for cmd in sys.stdin:
 
 7. Put the speaker on top of the box.
 
-8. Label the lid, SITE SAFETY BEACON above the LCD, STOP WORK COUNTDOWN under the display, CREW ON SITE under the crew digit, HAZARD INDEX under the gauge, SITE STATUS under the LED. Put a card beside the remote: CHECK IN, PRESS YOUR NUMBER. SUPERVISOR, OK PIN OK. BRIEFING, UP ENGLISH, DOWN SPANISH.
+8. Label the lid, SITE SAFETY BEACON above the LCD, STOP WORK COUNTDOWN under the display, HAZARD INDEX under the gauge, SITE STATUS under the LED strip. Put a card beside the remote: CHECK IN, PRESS YOUR NUMBER. SUPERVISOR, OK PIN OK. BRIEFING, UP ENGLISH, DOWN SPANISH.
 
 ### 8.3 The equipment unit
 
@@ -827,7 +834,7 @@ From the judge's view, left to right. The laptop showing the twin, with the pod 
 |---|---|---|
 | RPI-RP2 drive never appears | Charge only cable, or BOOT not held | Use a data cable, hold BOOT before plugging in |
 | Thonny cannot find the board | Another program has the port open | Close the Arduino Serial Monitor and any miniterm |
-| Radar prints garbage | Baud wrong or TX and RX swapped | Set 256000, swap GP8 and GP9 |
+| Radar prints garbage | Baud wrong or TX and RX swapped | Set 256000, swap GP0 and GP1 |
 | Radar prints nothing | Not powered at 5V, or Bluetooth app open | VCC to the 5V pin, close HLKRadarTool |
 | Photoresistor never fires | Threshold too high or hood too dark | Lower the multiplier, aim at the screen |
 | Photoresistor fires randomly | Room light flicker, loose wire | Raise the multiplier, require two samples, re-seat the 10K |
@@ -836,7 +843,6 @@ From the judge's view, left to right. The laptop showing the twin, with the pod 
 | LCD blank | No power or backlight | Pins 1, 2, 15, 16 |
 | Display digits wrong | Segment wire on the wrong Q output | Follow the Q0 to a, Q1 to b order |
 | Display inverted | Common anode | Flip COMMON_ANODE |
-| Crew digit shows a stray segment | Shared segment wire on the wrong row | Match the pin list in Step 3.7 |
 | Only one digit lights | Digit pins not toggling | Check A1 to A4 wires |
 | Servo twitches, UNO resets | Servo on the UNO 5V | Move red to the module rail |
 | Fan never spins | GPIO 18 not high, EN1 wire loose, module off | Run the interlock test, check pin 1, switch on |
@@ -863,7 +869,7 @@ A plank build looks like a product instead of a prototype, survives being carrie
 | Small pan head screws for the UNO | #4 by 1/2 inch, 3 | UNO mounting holes | included above or $3 |
 | Adhesive cable clips or zip tie mounts | Pack of 20, with zip ties | Cable routing | $5 |
 | Double sided foam tape | One roll | Breadboard, power module, speaker | $4 |
-| Thin front panel | A sheet of 1/8 inch hardboard or stiff cardboard, 10 by 8 inches | The LCD, the countdown display, the crew digit, the LED, and the gauge mount in it | $3 or free |
+| Thin front panel | A sheet of 1/8 inch hardboard or stiff cardboard, 10 by 8 inches | The LCD, the countdown display, the LED strip, and the gauge mount in it | $3 or free |
 | Second small block or two more L brackets | 2 by 4 offcut or 1 inch brackets | Holds the front panel at a 30 degree lean | free or $3 |
 | Scrap block | 2 by 4 offcut, 4 inches long | Motor mount at the side | free |
 | Rubber feet | 4 adhesive | Stops the plank sliding | $3 |
@@ -879,7 +885,7 @@ Looking down at the board, long side toward you.
 | **Zone** | **Position** | **Contents** |
 |---|---|---|
 | Back left | Rear edge, left 5 inches | Mast with the pod box on top |
-| Back center | Rear edge, center | Front panel leaning back 30 degrees with the LCD, countdown, crew digit, LED, and gauge facing forward |
+| Back center | Rear edge, center | Front panel leaning back 30 degrees with the LCD, countdown, LED strip, and gauge facing forward |
 | Back right | Rear edge, right 4 inches | Equipment unit block with the fan facing outward and the e-stop on its front |
 | Front left | Front half, left | Breadboard and the UNO |
 | Front center | Front half, center | Power module and the 9V battery |
@@ -902,7 +908,7 @@ Looking down at the board, long side toward you.
 
 7. Build the mast. Screw the two L brackets to the bottom end of the dowel, then screw the brackets to the board at the back left. Check it stands straight. The pod box goes on top, held with a wrap of tape or two small screws through the box into the dowel. Run the pod's USB-C cable and the water sensor lead down the mast, held with two zip ties.
 
-8. Build the front panel. Cut the hardboard to about 10 by 8 inches. Cut the LCD window (about 72 by 25 mm) at the top, the countdown display window and the crew digit window below it, the RGB LED hole, and the servo shaft hole. Glue the printed gauge face on. Hot glue the LCD and both displays from behind, push the RGB LED through its hole, and screw or glue the servo to the back of the panel so its shaft comes through the gauge center. Fit the horn as the needle. Screw a block to the board at the back center and screw the panel to it so it leans back about 30 degrees.
+8. Build the front panel. Cut the hardboard to about 10 by 8 inches. Cut the LCD window (about 72 by 25 mm) at the top, the countdown display window below it, the LED strip slot, and the servo shaft hole. Glue the printed gauge face on. Hot glue the LCD and the display from behind, tape the LED strip behind its slot, and screw or glue the servo to the back of the panel so its shaft comes through the gauge center. Fit the horn as the needle. Screw a block to the board at the back center and screw the panel to it so it leans back about 30 degrees.
 
 9. Build the equipment unit. Screw the 2 by 4 block to the back right corner. Zip tie or hot glue the motor to the outer face of the block so the fan blade spins outward over the edge of the board with nothing in its path. Glue the e-stop button to the front of the block. Write RIG 1 on the block.
 
@@ -943,10 +949,10 @@ IR:7                       remote key pressed
 
 ```
 STOPWORK:1800     start or restart the countdown in seconds, strobe red
-CLEAR             end stop work, green
+CLEAR             end stop work, LED strip back to the index color
 INDEX:7           needle to 7 of 10, color by band
 LCD:line one|line two
-MUSTER:3          crew count on the 1 digit display
+MUSTER:3          crew count; no crew digit on this build, the UNO answers OK
 REST:900          rest break countdown
 ```
 

@@ -55,7 +55,7 @@ the laptop screen. The mean then follows slow light changes (a darkening Roblox 
 | Part | Do | Line shows |
 |---|---|---|
 | Board | power up | onboard LED dim green (red means the board's LED has R and G swapped, harmless), INFO line |
-| Radar (GP8, GP9, GP5) | stand in front, step away | P 1 with D in cm that changes as you move, P 0 within about 3 s of leaving |
+| Radar (GP0, GP1, GP5) | stand in front, step away | P 1 with D in cm that changes as you move, P 0 within about 3 s of leaving |
 | Photoresistor (GP26) | flick a phone flashlight at it | one FLASH per flick, LED blinks blue |
 | Water (GP27) | dip the probe | W climbs from 0 |
 | DHT11 (GP2) | breathe on it | H climbs (T and H missing means no reading yet, check the wire) |
@@ -63,4 +63,4 @@ the laptop screen. The mean then follows slow light changes (a darkening Roblox 
 | IR receiver (GP4) | press 1, OK, ▲ | IR:1, IR:OK, IR:UP |
 
 If the radar shows D, S, and M stuck at 0 while P still follows people, frames are not parsing and P comes from the
-OUT pin fallback: swap GP8 and GP9 (hardware guide 2.2).
+OUT pin fallback: swap the GP0 and GP1 wires (hardware guide 2.2).
