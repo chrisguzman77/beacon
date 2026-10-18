@@ -1,5 +1,6 @@
 """Simulation ingest from Roblox and the mic listener. contracts/roblox-bridge.md and contracts/api.md."""
 import secrets
+import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from .config import settings
 from .sites import SITES
 
 MILE_M = 1609.344
+MPH_KMH = 1.609
+WATER_FULL_MM = 40  # the beacon's probe reads 100% at 40 mm, so it warns above 8 mm (20%) and clears at 6 mm (15%)
 
 
 def require_sim(x_token: str = Header("")):
@@ -71,7 +74,7 @@ class WeatherIn(BaseModel):
     temp_c: float | None = None
     humidity: float | None = None
     precip_mm: float | None = None
-    gust: float | None = None  # km/h
+    gust: float | None = None  # mph, the site twin's unit; stored as km/h like the weather feed
 
 
 def _site(site_id):
@@ -83,13 +86,15 @@ def _site(site_id):
 async def sim_weather(body: WeatherIn):
     _site(body.site_id)
     hi = rules.heat_index_f(body.temp_c, body.humidity)
+    gust_kmh = round(body.gust * MPH_KMH, 1) if body.gust is not None else None
     c = {"temp_c": body.temp_c, "humidity": body.humidity, "heat_index_f": hi, "precip_mm": body.precip_mm,
-         "wind_gust_kmh": body.gust}
+         "wind_gust_kmh": gust_kmh}
     await db.execute(
         "INSERT INTO conditions (ts,site_id,source,temp_c,humidity,heat_index_f,precip_mm,wind_gust_kmh)"
         " VALUES (now(),$1,'sim',$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING", body.site_id, *c.values())
     await hub.publish(body.site_id, {"type": "conditions", "source": "sim", **c})
     await rules.evaluate_heat(body.site_id, hi)
+    await rules.evaluate_wind(body.site_id, body.gust)
     await rules.evaluate_flood(body.site_id)
     return {"heat_index_f": hi}
 
@@ -107,7 +112,14 @@ async def sim_water(body: WaterIn):
     await db.execute("INSERT INTO events VALUES (now(),$1,'sim','water',$2)", body.site_id, {"depth_mm": body.depth_mm})
     await hub.publish(body.site_id, {"type": "conditions", "source": "sim", "water_depth_mm": body.depth_mm})
     await rules.evaluate_flood(body.site_id)
-    return {"ok": True}
+    pct = water_pct(body.depth_mm)
+    if SITES[body.site_id]["beacon"]:   # the twin's flood reaches the beacon as if its own probe were wet
+        await gateway.send(body.site_id, {"cmd": "WATER", "pct": pct})
+    return {"ok": True, "pct": pct}
+
+
+def water_pct(depth_mm):
+    return max(0, min(100, round(depth_mm * 100 / WATER_FULL_MM)))
 
 
 class PresenceIn(BaseModel):
@@ -140,8 +152,35 @@ async def sim_reset(body: ResetIn):
     types = [r["type"] for r in await db.fetch("SELECT DISTINCT type FROM alerts WHERE site_id=$1 AND cleared IS NULL",
                                                body.site_id)]
     cleared = await rules.clear_alerts(body.site_id, "Roblox scenario reset", types=tuple(types)) if types else []
-    if "stopwork" in types and SITES[body.site_id]["beacon"]:
-        await gateway.send(body.site_id, {"cmd": "CLEAR", "by": "SIM RESET"})  # the beacon LCD shows 10 chars
+    if SITES[body.site_id]["beacon"]:
+        if "stopwork" in types or "heat_danger" in types:   # CLEAR also ends the beacon's heat rest break
+            await gateway.send(body.site_id, {"cmd": "CLEAR", "by": "SIM RESET"})  # the beacon LCD shows 10 chars
+        await gateway.send(body.site_id, {"cmd": "WATER", "pct": 0})
     await db.execute("INSERT INTO events VALUES (now(),$1,'sim','reset',$2)", body.site_id,
                      {"cleared": [a["type"] for a in cleared]})
     return {"cleared": [a["type"] for a in cleared], "alerts": []}
+
+
+class WildlifeIn(BaseModel):
+    site_id: int
+    species: str = "American alligator"
+
+
+@router.post("/wildlife")
+async def sim_wildlife(body: WildlifeIn):
+    """A twin wildlife sighting. Kept as a wildlife event like the iNaturalist feed's, and filed as a hazard report
+    (no photo) because that is what the dashboard's wildlife factor and site plot read."""
+    _site(body.site_id)
+    site = SITES[body.site_id]
+    lat, lon = rules.destination(site["lat"], site["lon"], 90, 60)  # at the work zone's edge, 60 m east
+    tag = "alligator" if "alligator" in body.species.lower() else "wildlife"
+    await db.execute("INSERT INTO events VALUES (now(),$1,'sim','wildlife',$2)", body.site_id,
+                     {"id": f"sim-{uuid.uuid4().hex[:8]}", "species": body.species,
+                      "observed_on": rules.now().date().isoformat(), "lat": lat, "lon": lon})
+    r = await db.fetchrow(
+        "INSERT INTO reports (site_id,ts,crew_id,lat,lon,photo_path,tag,description,confidence,note)"
+        " VALUES ($1,now(),NULL,$2,$3,NULL,$4,$5,1.0,'') RETURNING *",
+        body.site_id, lat, lon, tag, f"Site twin: {body.species} near the work zone")
+    payload = {"report_id": r["report_id"], "tag": tag, "description": r["description"], "lat": lat, "lon": lon}
+    await hub.publish(body.site_id, {"type": "report", **payload, "photo_path": None, "ts": r["ts"].isoformat()})
+    return payload

@@ -4,10 +4,11 @@ The Roblox experience is a client of the backend. It uses HttpService from serve
 
 Roblox to backend
 POST /sim/strike      {site_id, bearing, miles}       on every scenario or free play strike, after the in world bolt and flash have fired
-POST /sim/weather     {site_id, temp_c, humidity, precip_mm, gust}   on scenario weather events
+POST /sim/weather     {site_id, temp_c, humidity, precip_mm, gust}   on scenario weather events; gust in mph (the backend stores km/h)
 POST /sim/water       {site_id, depth_mm}
 POST /sim/presence    {site_id, count, users}         whenever the set of players inside the ZonePart changes, and every 5 s while nonzero
 POST /sim/reset       {site_id}                       when SimEvents.Reset fires (a scenario starts, or Reset to calm)
+POST /sim/wildlife    {site_id, species}              when SimEvents.Wildlife fires (a gator in the scenario or the gator button)
 
 Backend to Roblox (polled)
 GET /sites/{site_id}/device   once per second. Returns the last gateway state:
@@ -38,6 +39,7 @@ ReplicatedStorage.SimEvents, a Folder of BindableEvents. The World fires, the Br
   Water(depth_mm: number)
   PresenceChanged(count: number, users: {string})
   Reset()   fired when a scenario starts or on Reset to calm; the World also clears its own sim hazard state
+  Wildlife(species: string)   e.g. "American alligator", when the World spawns wildlife at the site
 
 workspace.Beacon attributes. The Bridge writes, the World reads with GetAttributeChangedSignal.
   Led: "green" | "yellow" | "red" | "strobe"

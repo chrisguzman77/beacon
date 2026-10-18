@@ -20,12 +20,13 @@ Payloads by type
 - hazard_report: { report_id, tag, description, lat, lon }
 - estop: {}
 - nws_alert: { event, severity, headline }
-- wildlife: { species, observed_on, lat, lon }
+- wildlife: { species, observed_on, lat, lon }   source feed (iNaturalist) or sim (POST /sim/wildlife, which also files a no photo hazard report so the dashboard shows it)
 - local_stopwork: { distance_m, flash_ts_us, bang_ts_us }
 
 Rules (same on backend and Pi)
 - stopwork: strike.distance_m < 16093 opens or extends a stopwork alert, expires = now + 1800 s. After expiry the alert is awaiting_clear until a supervisor clears it.
-- flood_warning: site.river and (precip_24h > 50 mm or discharge > 2.5 x 90 day mean). flood_confirmed when beacon water_depth_mm > 0.
-- heat_warning: heat_index_f >= 103. heat_danger: >= 115, sends REST 900 to the beacon.
+- flood_warning: site.river and (precip_24h > 50 mm or discharge > 2.5 x 90 day mean). flood_confirmed while the latest beacon or sim water_depth_mm in the last 10 min is > 0; cleared when it reads 0 again.
+- heat_warning: heat_index_f >= 103. heat_danger: >= 115, sends REST 900 (with heat_index_f) to the beacon.
+- wind_warning: site twin gust >= 28 mph (aerial lifts and bucket trucks grounded). wind_danger: >= 40 mph (the job stops). Dashboard only, nothing to the beacon.
 - beacon_unsafe: tilt 1 until tilt 0.
 - zone_clear: during stopwork, presence count 0 for 10 s.

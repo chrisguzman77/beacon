@@ -15,11 +15,12 @@ POST /alerts/{id}/clear                        supervisor  {pin}
 POST /supervisor/pin                           crew/sup    {pin} -> {ok}   checks a typed supervisor PIN (crew phone Change site); a wrong PIN answers after 1 s
 POST /briefings/{site_id}/run                  supervisor  generate now
 POST /sim/strike                               SIM_TOKEN   {site_id, bearing, miles} or {site_id, lat, lon}
-POST /sim/weather                              SIM_TOKEN   {site_id, temp_c, humidity, precip_mm, gust}
-POST /sim/water                                SIM_TOKEN   {site_id, depth_mm}
+POST /sim/weather                              SIM_TOKEN   {site_id, temp_c, humidity, precip_mm, gust}   gust in mph
+POST /sim/water                                SIM_TOKEN   {site_id, depth_mm} -> {ok, pct}   also sends WATER pct to the beacon
 POST /sim/presence                             SIM_TOKEN   {site_id, count, users: ["name"]}
 POST /sim/bang                                 SIM_TOKEN   {site_id, ts_us}      from the mic listener page
-POST /sim/reset                                SIM_TOKEN   {site_id} -> {cleared}   a new Roblox scenario: clears the site's open alerts (cleared_by "Roblox scenario reset"), sends CLEAR to the beacon, drops the last 24 h of sim weather and water
+POST /sim/reset                                SIM_TOKEN   {site_id} -> {cleared}   a new Roblox scenario: clears the site's open alerts (cleared_by "Roblox scenario reset"), sends CLEAR to the beacon when a stopwork or heat_danger was open and always WATER 0, drops the last 24 h of sim weather and water
+POST /sim/wildlife                             SIM_TOKEN   {site_id, species} -> {report_id, tag, description, lat, lon}   a wildlife event (source sim) and a no photo hazard report 60 m east of the site, pushed on WS /ws/site/{id} as "report"
 GET  /sim/scenario/{site_id}                   SIM_TOKEN   optional: the backend can hold the "current scenario" so the dashboard shows what Roblox is playing
 WS   /ws/site/{id}?token=                      any         pushes alerts, conditions, muster, reports, count, device state
 WS   /ws/gateway/{site_id}?token=              gateway     see gateway-ws.md

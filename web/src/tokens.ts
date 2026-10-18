@@ -30,6 +30,7 @@ export const hazard = {
   flood: '#1F7FA8',
   wildlife: '#B23C8E',
   unsafe: '#7A4FC2', // beacon tilt, e-stop
+  wind: '#C98A12', // the heat amber, as the wind gust factor already tints with
 }
 
 // Full screen takeover backgrounds: saturated but deep enough that white text holds contrast.
@@ -54,6 +55,8 @@ export const alertHazard: Record<string, HazardKey> = {
   flood_confirmed: 'flood',
   flood_warning: 'flood',
   wildlife: 'wildlife',
+  wind_danger: 'wind',
+  wind_warning: 'wind',
   beacon_unsafe: 'unsafe',
   estop: 'unsafe',
 }
@@ -64,6 +67,7 @@ export const hazardLabel: Record<HazardKey, string> = {
   flood: 'Flood',
   wildlife: 'Wildlife',
   unsafe: 'Beacon unsafe',
+  wind: 'Wind',
 }
 
 // Hazard index 0 to 10, green through yellow to red. The only gradient in the app.

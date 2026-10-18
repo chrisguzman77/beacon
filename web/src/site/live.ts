@@ -25,7 +25,7 @@ type Detail = {
 }
 
 // Highest priority open alert decides the alarm reason and color.
-const ORDER = ['stopwork', 'estop', 'beacon_unsafe', 'flood_confirmed', 'heat_danger', 'flood_warning', 'heat_warning']
+const ORDER = ['stopwork', 'estop', 'beacon_unsafe', 'flood_confirmed', 'heat_danger', 'wind_danger', 'flood_warning', 'heat_warning', 'wind_warning']
 
 function reasonOf(a?: Alert) {
   if (!a) return ''
@@ -36,6 +36,7 @@ function reasonOf(a?: Alert) {
   if (a.type === 'flood_warning') return 'FLOOD WARNING'
   if (a.type === 'heat_warning') return p.heat_index_f ? `HEAT INDEX ${Math.round(p.heat_index_f)}` : 'HEAT WARNING'
   if (a.type === 'estop') return 'E-STOP PRESSED'
+  if (a.type === 'wind_danger' || a.type === 'wind_warning') return p.gust_mph ? `GUSTS ${Math.round(p.gust_mph)} MPH` : 'HIGH WIND'
   return a.type.replace(/_/g, ' ').toUpperCase()
 }
 
