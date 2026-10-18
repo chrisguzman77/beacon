@@ -23,6 +23,7 @@ long remaining = 0;          // seconds left on the running countdown
 bool locked = false;         // the stop work clock ran out: solid red until CLEAR or a new STOPWORK
 int hazardIndex = -1;        // -1 until the Pi sends INDEX
 uint32_t stripWant = 0, stripShown = 1;   // the strip's color, sent only when it changes and the serial line is quiet
+int stripIndexShown = -2;
 unsigned long lastByteAt = 0, lastStripAt = 0;
 char line1[17] = "";         // LCD line 1 as shown, padded to 16, for the MM:SS rewrite
 char line2[17] = "";         // and line 2, both kept for the LCD's self repair
@@ -35,6 +36,16 @@ int needleAt = -1, needleTo = 0;   // degrees; -1 until the first INDEX, which g
 byte slot = 0;
 
 void color(bool r, bool g, bool b) { stripWant = strip.Color(r * 255, g * 160, b * 255); }   // r + g reads as yellow
+
+void showStrip() {           // Slavik's layout, LEDs numbered 1 to 29 from the DIN end
+  uint32_t white = strip.Color(255, 255, 255);
+  strip.clear();             // LED11 to LED21 stay dark
+  for (int k = 1; k <= 10; k++) if (hazardIndex >= 11 - k) strip.setPixelColor(k - 1, white);   // the index bar: LED10 first, LED1 at 10
+  if (hazardIndex >= 9) strip.setPixelColor(21, white);    // LED22 follows LED2
+  if (hazardIndex >= 10) strip.setPixelColor(22, white);   // LED23 follows LED1
+  for (int i = 23; i < STRIP_LEDS; i++) strip.setPixelColor(i, stripWant);   // LED24 to LED29: the status color
+  strip.show();
+}
 
 void showColor() {           // the steady color; the stop work strobe runs in loop()
   if (kind == STOPWORK) return;
@@ -172,8 +183,9 @@ void loop() {
 
   // strip.show() pauses interrupts for about 30 us per LED, so it waits for 3 ms of serial quiet and never eats a command.
   // It is also resent once a second, so a strip that lost power (the module switched off and on) lights up again.
-  if ((stripWant != stripShown || now - lastStripAt >= 1000) && !Serial.available() && micros() - lastByteAt > 3000) {
-    strip.fill(stripWant); strip.show(); stripShown = stripWant; lastStripAt = now;
+  if ((stripWant != stripShown || hazardIndex != stripIndexShown || now - lastStripAt >= 1000) && !Serial.available()
+      && micros() - lastByteAt > 3000) {
+    showStrip(); stripShown = stripWant; stripIndexShown = hazardIndex; lastStripAt = now;
   }
   // the LCD's self repair, every 5 s while the serial line is quiet (about 6 ms, too short to see)
   if (now - lastHeal >= 5000 && !Serial.available() && micros() - lastByteAt > 20000) { lastHeal = now; healLcd(); }
