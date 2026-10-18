@@ -27,11 +27,14 @@ class Lcd:
     def __init__(self, uno: Uno):
         self.uno = uno
         self.held_until = 0.0
+        self._held = ('', '')
         self._timer = None
         self._last = None
 
     def refresh(self, force: bool = False):
         if time.monotonic() < self.held_until:
+            if force:                     # the UNO just reset mid hold: put the held screen back
+                self.uno.lcd(*self._held)
             return
         l1, l2 = S.screen()
         key = (l1[:-5] if (S.stopwork or S.rest) and l1[-3:-2] == ':' else l1, l2)
@@ -43,7 +46,7 @@ class Lcd:
 
     def hold(self, l1: str, l2: str, seconds: float):
         self.held_until = time.monotonic() + seconds
-        self._last = None
+        self._held, self._last = (l1, l2), None
         self.uno.lcd(l1, l2)
         if self._timer:
             self._timer.cancel()

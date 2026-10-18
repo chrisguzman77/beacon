@@ -23,7 +23,7 @@ long remaining = 0;          // seconds left on the running countdown
 bool locked = false;         // the stop work clock ran out: solid red until CLEAR or a new STOPWORK
 int hazardIndex = -1;        // -1 until the Pi sends INDEX
 uint32_t stripWant = 0, stripShown = 1;   // the strip's color, sent only when it changes and the serial line is quiet
-unsigned long lastByteAt = 0;
+unsigned long lastByteAt = 0, lastStripAt = 0;
 char line1[17] = "";         // LCD line 1 as shown, padded to 16, for the MM:SS rewrite
 char buf[64];
 byte len = 0;
@@ -155,9 +155,10 @@ void loop() {
     } else if ((long)(now - needleOffAt) >= 0) { needle.detach(); needleOn = false; }
   }
 
-  // strip.show() pauses interrupts for about 30 us per LED, so it waits for 3 ms of serial quiet and never eats a command
-  if (stripWant != stripShown && !Serial.available() && micros() - lastByteAt > 3000) {
-    strip.fill(stripWant); strip.show(); stripShown = stripWant;
+  // strip.show() pauses interrupts for about 30 us per LED, so it waits for 3 ms of serial quiet and never eats a command.
+  // It is also resent once a second, so a strip that lost power (the module switched off and on) lights up again.
+  if ((stripWant != stripShown || now - lastStripAt >= 1000) && !Serial.available() && micros() - lastByteAt > 3000) {
+    strip.fill(stripWant); strip.show(); stripShown = stripWant; lastStripAt = now;
   }
   if (micros() - lastDigit >= 2000) { lastDigit = micros(); slot = (slot + 1) % 4; showSlot(slot); }
 }
