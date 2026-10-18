@@ -90,13 +90,19 @@ export function useCrewDirectory(siteId?: number) {
   return [...seen.values()].sort((a, b) => a.localeCompare(b))
 }
 
-// A supervisor approves a site change on the crew's phone. ?fake=1 accepts 1234. Live, a supervisor
-// signed in on this phone is enough; checking a typed PIN needs a backend route (asked of Viet).
+// A supervisor approves a site change on the crew's phone. ?fake=1 accepts 1234. Live, the backend
+// checks the typed PIN (POST /supervisor/pin); if it cannot be reached, a supervisor signed in on
+// this phone is enough.
 export async function approveSiteChange(pin: string, token: string | null): Promise<{ ok: boolean; reason?: string }> {
   if (fake) return pin === '1234' ? { ok: true } : { ok: false, reason: 'wrong' }
-  const role = token ? roleOf(token) : ''
-  if (role === 'supervisor') return { ok: true }
-  return { ok: false, reason: 'backend' }
+  try {
+    const r = await post<{ ok: boolean }>('/supervisor/pin', { pin }, token)
+    return r.ok ? { ok: true } : { ok: false, reason: 'wrong' }
+  } catch {
+    const role = token ? roleOf(token) : ''
+    if (role === 'supervisor') return { ok: true }
+    return { ok: false, reason: 'backend' }
+  }
 }
 
 function roleOf(token: string) {
