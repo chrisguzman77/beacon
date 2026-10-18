@@ -3857,7 +3857,8 @@ local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
 local function rescale()
 	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
-	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+	-- 20% larger than the other screens: judges read this card from their phones
+	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1) * 1.2
 end
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
 rescale()
@@ -3940,7 +3941,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1018-0138, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1018-0149, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")
