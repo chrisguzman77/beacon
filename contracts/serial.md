@@ -13,7 +13,7 @@ STOPWORK:<seconds>                  start or restart countdown, strobe red, 4 di
 CLEAR                               end stop work, green, display blank (the gateway then sends the status LCD line)
 INDEX:<0..10>                       servo needle and color band
 LCD:<line1>|<line2>                 write the beacon LCD (16 chars per line, longer is cut)
-MUSTER:<n>                          crew count on the 1 digit display (0..9, 9 means 9 or more)
+MUSTER:<n>                          crew count (0..9, 9 means 9 or more); this build has no crew digit, the UNO answers OK and shows nothing, the count is on the dashboard and the LCD status line
 REST:<seconds>                      rest break countdown
 
 UNO to Pi:
