@@ -78,9 +78,12 @@ local function dispatch(e)
 		events.Weather:Fire({ temp_c = e.temp_c, humidity = e.humidity, precip_mm = e.rain or 0, gust = e.gust })
 	elseif e.type == "water" then
 		WeatherFx.setWater(e.depth_mm)
-		events.Water:Fire(e.depth_mm)
+		-- pad_mm, when given, is the water at the beacon (the river crossing's rise is scenery until the levee overtops)
+		events.Water:Fire(e.pad_mm or e.depth_mm)
 	elseif e.type == "wildlife" then
 		WeatherFx.spawnGator()
+		local wildlife = events:FindFirstChild("Wildlife")
+		if wildlife then wildlife:Fire(e.species or "American alligator") end
 	elseif e.type == "note" then
 		state.note = e.text
 		emit()

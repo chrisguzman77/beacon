@@ -30,8 +30,19 @@ local function hookReset(ev)
 	end)
 end
 if events:FindFirstChild("Reset") then hookReset(events.Reset) end
+
+-- a gator report from the World; older places have no Wildlife event, so hook it whenever it appears
+local function hookWildlife(ev)
+	ev.Event:Connect(function(species)
+		Http.post("/sim/wildlife", { species = species })
+	end)
+end
+if events:FindFirstChild("Wildlife") then hookWildlife(events.Wildlife) end
+
 events.ChildAdded:Connect(function(c)
-	if c.Name == "Reset" and c:IsA("BindableEvent") then hookReset(c) end
+	if not c:IsA("BindableEvent") then return end
+	if c.Name == "Reset" then hookReset(c) end
+	if c.Name == "Wildlife" then hookWildlife(c) end
 end)
 
 local lastUsers = {}

@@ -63,7 +63,7 @@ roblox.implementProperty("RunService", "Heartbeat", function() return heartbeat 
 roblox.implementProperty("RunService", "RenderStepped", function() return renderStepped end)
 roblox.implementMethod("RunService", "IsStudio", function() return true end)
 
-local fired = { strike = {}, weather = {}, water = {}, presence = {}, flash = {}, reset = {} }
+local fired = { strike = {}, weather = {}, water = {}, presence = {}, flash = {}, reset = {}, wildlife = {} }
 roblox.implementProperty("BindableEvent", "Event", function(self) return signalOf(self, "Event") end)
 roblox.implementMethod("BindableEvent", "Fire", function(self, ...)
 	local list = fired[string.lower(self.Name == "PresenceChanged" and "presence" or self.Name)]
@@ -347,8 +347,9 @@ if MERGED then
 	check(dress:FindFirstChild("ReelFlange") and dress:FindFirstChild("Generator") and dress:FindFirstChild("Drum"), "conductor reel, generator, road drums on site")
 end
 local rs = game:GetService("ReplicatedStorage")
-check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 5 and rs.SimEvents:FindFirstChild("Reset") and rs:FindFirstChild("FlashEvent"),
-	"SimEvents (Strike, Weather, Water, PresenceChanged, Reset) and FlashEvent for the Bridge contract")
+check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 6 and rs.SimEvents:FindFirstChild("Reset")
+	and rs.SimEvents:FindFirstChild("Wildlife") and rs:FindFirstChild("FlashEvent"),
+	"SimEvents (Strike, Weather, Water, PresenceChanged, Reset, Wildlife) and FlashEvent for the Bridge contract")
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
 local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
@@ -675,6 +676,72 @@ end
 local played = 0
 for _ = 1, 1 do played = (workspace:GetAttribute("SimSpeed") or 0) end
 check(seenStop and capText():find("18:00") ~= nil, "demo reaches stop work and the 6 PM briefing")
+
+---------------------------------------------------------------- scenario checks (heat, water, wildlife)
+
+local function scenarioChecks()
+	print("== scenario checks")
+	-- the backend's NWS Rothfusz heat index (backend/app/core/rules.py heat_index_f)
+	local function heatIndexF(tc, rh)
+		local T = tc * 9 / 5 + 32
+		if T < 80 then return T end
+		return -42.379 + 2.04901523 * T + 10.14333127 * rh - 0.22475541 * T * rh - 6.83783e-3 * T * T
+			- 5.481717e-2 * rh * rh + 1.22874e-3 * T * T * rh + 8.5282e-4 * T * rh * rh - 1.99e-6 * T * T * rh * rh
+	end
+	local Scenarios = luau.load(fs.readFile("sim/src/World/Scenarios.module.lua"), { debugName = "Scenarios" })()
+	local HEAT_STORY = { heat_day = true, everglades_day = true }
+	local FLOODS = { "flash_flood", "hurricane", "mississippi_flood" }
+	local peaks, ends, maxes = {}, {}, {}
+	for key, sc in pairs(Scenarios) do
+		if type(sc) == "table" and sc.events then
+			local peak, lastWater, maxWater, lastT = 0, nil, 0, -1
+			for _, e in ipairs(sc.events) do
+				if e.type == "weather" and e.temp_c and e.humidity then peak = math.max(peak, heatIndexF(e.temp_c, e.humidity)) end
+				if e.type == "water" and e.t >= lastT then
+					-- what the Bridge posts: pad_mm when given (the river crossing), else depth_mm
+					local posted = e.pad_mm or e.depth_mm
+					lastWater, lastT = posted, e.t
+					maxWater = math.max(maxWater, posted)
+				end
+			end
+			peaks[key], ends[key], maxes[key] = peak, lastWater, maxWater
+		end
+	end
+	for key, peak in pairs(peaks) do
+		if HEAT_STORY[key] then
+			check(peak >= 115, ("%s reaches heat danger: peak heat index %.1f F"):format(key, peak))
+		else
+			check(peak < 103, ("%s stays under heat warning: peak heat index %.1f F"):format(key, peak))
+		end
+		if ends[key] ~= nil then
+			check(ends[key] == 0, ("%s ends with water at 0 (last %s mm)"):format(key, tostring(ends[key])))
+		end
+	end
+	for _, key in ipairs(FLOODS) do
+		check(maxes[key] and maxes[key] > 10 and ends[key] == 0,
+			("%s floods past 10 mm (%s) and drains to 0"):format(key, tostring(maxes[key])))
+	end
+	local m = Scenarios.mississippi_flood
+	local dryUntilOvertop = true
+	for _, e in ipairs(m.events) do
+		if e.type == "water" and (e.pad_mm or e.depth_mm) > 0 and e.depth_mm <= 100 then dryUntilOvertop = false end
+	end
+	check(dryUntilOvertop, "mississippi_flood posts no water until the river passes the levee top (100 mm)")
+
+	-- the gator scenarios and the gator button fire SimEvents.Wildlife("American alligator")
+	local function firesWildlife(what, start, seconds)
+		local before = #fired.wildlife
+		start()
+		step(seconds, 0.25)
+		local last = fired.wildlife[#fired.wildlife]
+		check(#fired.wildlife > before and last and last[1] == "American alligator",
+			("%s fires SimEvents.Wildlife (%d)"):format(what, #fired.wildlife - before))
+	end
+	firesWildlife("gator scenario", function() control:FireServer("load", "gator") end, 12) -- t 300 at 30x
+	firesWildlife("everglades_day", function() control:FireServer("load", "everglades_day") end, 11) -- t 2700 at 300x
+	firesWildlife("gator button", function() control:FireServer("instant", "gator") end, 0.5)
+end
+scenarioChecks()
 
 print(failures == 0 and "ALL CHECKS PASSED" or (failures .. " CHECK(S) FAILED"))
 process.exit(failures == 0 and 0 or 1)
