@@ -1,4 +1,4 @@
-"""PlanIT Beacon gateway: one asyncio process (hardware guide Appendix C). Run with `uv run main.py`."""
+"""OmniRisk beacon gateway: one asyncio process (hardware guide Appendix C). Run with `uv run main.py`."""
 import asyncio, json, logging, signal
 
 import config, mic, remote, rules

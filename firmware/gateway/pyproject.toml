@@ -1,7 +1,7 @@
 [project]
 name = "beacon-gateway"
 version = "0.1.0"
-description = "PlanIT Beacon gateway on the Raspberry Pi (hardware guide Appendix C)"
+description = "OmniRisk beacon gateway on the Raspberry Pi (hardware guide Appendix C)"
 requires-python = ">=3.11"
 dependencies = [
     "pyserial>=3.5",

@@ -1,7 +1,7 @@
 # Starts the gateway on boot with no one logged in (hardware guide 5.1 and Appendix C).
 # Install: see README.md. Assumes the repo is cloned at /home/beacon/beacon and the Pi user is "beacon"; edit if not.
 [Unit]
-Description=PlanIT Beacon gateway
+Description=OmniRisk beacon gateway
 After=network.target sound.target
 Wants=network.target
 
