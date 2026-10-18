@@ -51,7 +51,7 @@ Merging to main. Only the human merges `dev` into `main`, when the demo script r
 
 - docs/platform-guide.md, backend core (Viet)
 - docs/ai-ml-guide.md, ml and backend intel (Chris)
-- docs/web-guide.md, dashboard, crew page, kiosk (Cam)
+- docs/web-guide.md, dashboard and crew page (Cam)
 - docs/hardware-guide.md, pod, control box, Pi gateway (Slavik)
 - docs/simulator-guide.md, Roblox World (Slavik) and Bridge (Viet)
 

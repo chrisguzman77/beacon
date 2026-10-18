@@ -12,7 +12,7 @@ This guide covers the backend core of PlanIT Beacon, the database, the fetchers,
 
 # 1. Read this first
 
-The platform is one backend, one database, and one web app with three faces (supervisor dashboard, crew phone page, beacon kiosk). Everything that happens, whether it came from a weather feed, the physical beacon, the simulator, or a crew member's phone, becomes the same kind of event in the same table, and one rules engine reads that table. That single rule is what makes the live beacon site, the 49 feed only sites, and the simulated scenarios all behave identically.
+The platform is one backend, one database, and one web app with two faces (supervisor dashboard and crew phone page). Everything that happens, whether it came from a weather feed, the physical beacon, the simulator, or a crew member's phone, becomes the same kind of event in the same table, and one rules engine reads that table. That single rule is what makes the live beacon site, the 49 feed only sites, and the simulated scenarios all behave identically.
 
 ## 1.1 The checklist the challenge judges hold
 
@@ -208,7 +208,7 @@ The full list is contracts/api.md. The ones core owns, in build order.
 | GET /sites/{id}/conditions?hours=48 | any | Chart data from the continuous aggregate, feed and beacon sources |
 | GET /sites/{id}/device | any | The last "state" message the gateway sent, as JSON. Roblox polls this once a second to mirror the real beacon, the dashboard shows it as the LIVE BEACON badge. Return {"online": false} if no gateway has connected |
 | GET /sites/{id}/muster | any | Crew in, crew out, zone_clear |
-| POST /checkin | crew or supervisor, or gateway relay | site_id, action in or out, lat, lon, via. Inserts into checkins, pushes muster. Check ins from the kiosk arrive on the gateway websocket instead (section 3.9) so they work offline |
+| POST /checkin | crew or supervisor, or gateway relay | site_id, action in or out, lat, lon, via. Inserts into checkins, pushes muster. Check ins from the beacon's IR remote arrive on the gateway websocket instead (section 3.9) so they work offline |
 | POST /reports | crew or supervisor | Multipart photo plus site_id, lat, lon, note. Saves the file under UPLOAD_DIR, calls `intel.tag_photo`, inserts, pushes a report event |
 | POST /alerts/{id}/clear | supervisor | Body pin. Verifies against SUPERVISOR_PIN, sets cleared and cleared_by, sends CLEAR to the beacon |
 | POST /sim/strike, /sim/weather, /sim/water, /sim/presence, /sim/bang | X-Token SIM_TOKEN | Simulation ingest, section 3.10 |
@@ -344,8 +344,8 @@ Everything done by 3 AM Sunday. No checkpoints, just this order.
 |---|---|---|
 | First | Schema, sites loader, rules with the lightning reset, /sim/strike, gateway websocket with device state, site websocket, Dockerfile | A curl to /sim/strike on the public address creates an alert and the fake gateway client receives STOPWORK |
 | Second | The Luau Bridge in sim/src/Bridge (simulator guide section 4) | The in world beacon turns red when the curl above runs |
-| Third | Open-Meteo forecast and flood fetchers, heat index, heat and flood rules, scheduler with the 6 PM job calling intel, /sim/weather /water /presence /bang, CREW and MUSTER to the gateway | The dashboard shows live conditions for every site and a Roblox player in the zone appears on the muster |
+| Third | Open-Meteo forecast and flood fetchers, heat index, heat and flood rules, scheduler with the 6 PM job calling intel, /sim/weather /water /presence /bang, MUSTER to the gateway | The dashboard shows live conditions for every site and a Roblox player in the zone appears on the muster |
 | Fourth | Auth0, POST /reports calling intel.tag_photo, POST /checkin, NWS alerts, iNaturalist, GET /health, seed.py | Every line of the judges' checklist in section 1.1 is demonstrable |
 | Fifth | Tides, FEMA flag, the test script, offline replay test, README section for the backend | Fresh clone boots with docker compose |
 
-Cut in this order if behind. Tides and FEMA. iNaturalist (seed two wildlife events instead). NWS alerts. Auth0 passwordless for crew (keep supervisor login, let crew check in from the kiosk). Never cut the lightning rule with reset, the flood rule, the 6 PM job, GET /sites/{id}/device, /sim/strike, /sim/presence, or the gateway endpoint.
+Cut in this order if behind. Tides and FEMA. iNaturalist (seed two wildlife events instead). NWS alerts. Auth0 passwordless for crew (keep supervisor login, let crew check in with the beacon's IR remote). Never cut the lightning rule with reset, the flood rule, the 6 PM job, GET /sites/{id}/device, /sim/strike, /sim/presence, or the gateway endpoint.
