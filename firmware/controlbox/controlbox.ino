@@ -12,7 +12,8 @@ LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 Servo needle;
 const int DS = 8, STCP = 9, SHCP = 10, RED = 6, GREEN = 7, BLUE = 13, SERVO_PIN = A5;
 const int digitPins[5] = {A1, A2, A3, A4, A0};   // the 4 digit countdown, then the 1 digit crew count
-const byte seg[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+// Segment bits Q0..Q7 = a b c d e g f dp: on our build the f and g wires are swapped, so the table swaps bits 5 and 6
+const byte seg[10] = {0x5F, 0x06, 0x3B, 0x2F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
 
 enum Kind { NONE, STOPWORK, REST };
 Kind kind = NONE;
