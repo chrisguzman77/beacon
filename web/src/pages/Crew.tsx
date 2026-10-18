@@ -1,5 +1,6 @@
+import { Logo, Wordmark } from '@/components/Logo'
 import { useEffect, useState } from 'react'
-import { LoaderCircle, Lock, LogIn, LogOut, MoreVertical, Repeat, Scan } from 'lucide-react'
+import { LoaderCircle, Lock, LogIn, LogOut, MoreVertical, Repeat } from 'lucide-react'
 import { useDash } from '@/dashboard/store'
 import { useAuth } from '@/lib/auth'
 import { useTitle } from '@/lib/useTitle'
@@ -65,8 +66,8 @@ export default function Crew() {
     <div className="min-h-dvh" style={{ background: color.bg, color: color.text }}>
       <header className="relative flex items-center justify-between gap-3 px-4 py-3" style={{ background: color.chrome, color: color.chromeText }}>
         <span className="flex shrink-0 items-center gap-2">
-          <Scan className="size-5" style={{ color: color.accent }} strokeWidth={2.25} />
-          <span className="text-[18px] font-bold tracking-tight">OmniRisk</span>
+          <Logo className="size-7" />
+          <Wordmark className="text-[16px]" />
         </span>
         <span className="flex min-w-0 items-center gap-2">
           {home && (
