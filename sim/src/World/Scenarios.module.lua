@@ -9,6 +9,9 @@ Scenarios.instant = {
 	},
 }
 
+-- Heat rule for every scenario: the heat index (the backend's NWS Rothfusz formula) stays under 103 F unless heat
+-- is the story (heat_day, everglades_day). Water rule: the backend confirms a flood at any depth above 0 and the
+-- beacon warns from 8 mm, so water stays 0 until the flood is the story, rises past 10 mm, and ends back at 0.
 Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
 
 -- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead
@@ -17,9 +20,9 @@ Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane
 Scenarios.lightning_cell = {
 	name = "Lightning cell passes over", clockStart = "14:00", speed = 120,
 	events = {
-		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 33, humidity = 70, gust = 15 },
+		{ t = 0,    type = "weather", clouds = 0.5,  rain = 0,  temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
 		{ t = 1,    type = "note",    text = "14:00 a thunderstorm cell builds west of the site. Watch the radar: the red ring is 10 miles." },
-		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 32, humidity = 74, gust = 30 },
+		{ t = 300,  type = "weather", clouds = 0.8,  rain = 0,  temp_c = 30, humidity = 66, gust = 30 }, -- 93 F
 		{ t = 600,  type = "strike",  bearing = 270, miles = 18 },
 		{ t = 900,  type = "strike",  bearing = 268, miles = 15 },
 		{ t = 1200, type = "strike",  bearing = 265, miles = 13 },
@@ -44,20 +47,25 @@ Scenarios.lightning_cell = {
 
 -- The brief's river example: a river site gets a flood risk warning after a night of heavy rain. The crossing sits
 -- behind a levee; the river climbs through the morning and overtops it. Plays at the Mississippi crossing setting.
+-- depth_mm is the river's rise (the scene); pad_mm is the water at the beacon, posted to the backend, and stays 0
+-- until the levee overtops, so the rain and the river carry the flood warning before that.
 Scenarios.mississippi_flood = {
 	name = "Mississippi crossing, river flood", site = "river", clockStart = "05:00", speed = 240, soil = 0.75,
 	events = {
 		{ t = 0,    type = "weather", clouds = 0.85, rain = 30, temp_c = 22, humidity = 96, gust = 18 },
 		{ t = 1,    type = "note",    text = "05:00 after a night of heavy rain upstream. River sites get a flood risk warning before the crew mobilizes." },
-		{ t = 600,  type = "water",   depth_mm = 20 },
-		{ t = 1800, type = "water",   depth_mm = 50 },
+		{ t = 600,  type = "water",   depth_mm = 20,  pad_mm = 0 },
+		{ t = 1800, type = "water",   depth_mm = 50,  pad_mm = 0 },
 		{ t = 2400, type = "strike",  bearing = 200, miles = 12 },
-		{ t = 3000, type = "water",   depth_mm = 80 },
+		{ t = 3000, type = "water",   depth_mm = 80,  pad_mm = 0 },
 		{ t = 3600, type = "note",    text = "06:00 the river is near the top of the levee. Equipment off the floodplain, the crossing work is postponed." },
-		{ t = 4200, type = "water",   depth_mm = 110 },
+		{ t = 4200, type = "water",   depth_mm = 110, pad_mm = 15 }, -- past the levee top (100 mm): water reaches the pad
 		{ t = 4260, type = "note",    text = "06:11 the levee is overtopping. Flood confirmed on site: stop work, everyone to high ground." },
-		{ t = 5400, type = "water",   depth_mm = 130 },
+		{ t = 5400, type = "water",   depth_mm = 130, pad_mm = 35 },
 		{ t = 7200, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 24, humidity = 90, gust = 10 },
+		{ t = 8400, type = "water",   depth_mm = 90,  pad_mm = 0 },
+		{ t = 8460, type = "note",    text = "The river drops back under the levee top and the pad drains. Standing water cleared." },
+		{ t = 9600, type = "water",   depth_mm = 0,   pad_mm = 0 },
 	},
 }
 
@@ -71,14 +79,14 @@ Scenarios.everglades_day = {
 	name = "Everglades mat road, August", clockStart = "06:45", speed = 300, soil = 0.82,
 	events = {
 		{ t = 0,     type = "weather", clouds = 0.25, rain = 0, temp_c = 27, humidity = 94, gust = 6 },
-		{ t = 0,     type = "water",   depth_mm = 5 },
+		{ t = 0,     type = "water",   depth_mm = 0 },
 		{ t = 1,     type = "note",    text = "06:45 go/no-go. A week of rain: soil 82% saturated, expect mud and stuck trucks. Heat index past 110 F by noon. Storms building west after 1 PM. Gator seen yesterday by the slough." },
 		{ t = 2700,  type = "wildlife", species = "American alligator" },
 		{ t = 2760,  type = "note",    text = "07:31 crew report: alligator on the mat road. Photo pinned to the site map and shared with every crew on this job." },
 		{ t = 8100,  type = "weather", clouds = 0.2,  rain = 0,  temp_c = 31, humidity = 78, gust = 8 },
 		{ t = 15300, type = "weather", clouds = 0.2,  rain = 0,  temp_c = 34, humidity = 64, gust = 10 },
-		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 35, humidity = 62, gust = 12 },
-		{ t = 18960, type = "note",    text = "12:00 heat index over 110 F. Rest breaks in the cooling tent, water every 15 minutes." },
+		{ t = 18900, type = "weather", clouds = 0.3,  rain = 0,  temp_c = 36, humidity = 62, gust = 12 }, -- heat index 121 F, past heat danger (115)
+		{ t = 18960, type = "note",    text = "12:00 heat index 121 F, past the 115 F danger line. Rest break in the cooling tent, water every 15 minutes." },
 		{ t = 22500, type = "weather", clouds = 0.55, rain = 0,  temp_c = 35, humidity = 60, gust = 20 },
 		{ t = 24300, type = "weather", clouds = 0.75, rain = 0,  temp_c = 33, humidity = 66, gust = 30 },
 		{ t = 26100, type = "strike",  bearing = 270, miles = 15 },
@@ -91,6 +99,7 @@ Scenarios.everglades_day = {
 		{ t = 32400, type = "water",   depth_mm = 60 },
 		{ t = 33300, type = "strike",  bearing = 250, miles = 4 },
 		{ t = 37800, type = "weather", clouds = 0.6,  rain = 5,  temp_c = 28, humidity = 90, gust = 12 },
+		{ t = 39600, type = "water",   depth_mm = 0 },
 		{ t = 40500, type = "note",    text = "18:00 site time: next-day safety briefing sent to the crew, English and Spanish. Tomorrow: same heat, mats need re-leveling where the trucks sank." },
 	},
 }
@@ -98,14 +107,15 @@ Scenarios.everglades_day = {
 Scenarios.storm_west = {
 	name = "Storm from the west", clockStart = "13:00", speed = 60,
 	events = {
-		{ t = 0,    type = "weather", clouds = 0.2, rain = 0, temp_c = 33, humidity = 70, gust = 15 },
-		{ t = 600,  type = "weather", clouds = 0.7, rain = 0, temp_c = 31, humidity = 78, gust = 35 },
+		{ t = 0,    type = "weather", clouds = 0.2, rain = 0, temp_c = 30, humidity = 60, gust = 15 }, -- heat index 91 F
+		{ t = 600,  type = "weather", clouds = 0.7, rain = 0, temp_c = 30, humidity = 68, gust = 35 }, -- 94 F
 		{ t = 900,  type = "strike",  bearing = 270, miles = 15 },
 		{ t = 1200, type = "strike",  bearing = 265, miles = 11 },
 		{ t = 1500, type = "strike",  bearing = 260, miles = 8 },
 		{ t = 1800, type = "strike",  bearing = 250, miles = 6 },
 		{ t = 2100, type = "weather", clouds = 0.8, rain = 12, temp_c = 28, humidity = 90, gust = 40 },
 		{ t = 2400, type = "water",   depth_mm = 10 },
+		{ t = 3600, type = "water",   depth_mm = 0 },
 	},
 }
 
@@ -126,11 +136,13 @@ Scenarios.hurricane = {
 		{ t = 5400, type = "note",    text = "Surge and rain push the swamp over the pad. The beacon's water sensor trips, the crew moves to high ground by the trucks." },
 		{ t = 6000, type = "water",   depth_mm = 100 },
 		{ t = 6600, type = "weather", clouds = 0.85, rain = 25, temp_c = 27, humidity = 95, gust = 45 },
+		{ t = 7800, type = "water",   depth_mm = 40 },
+		{ t = 9000, type = "water",   depth_mm = 0 },
 	},
 }
 
--- Heat index at 70 percent humidity. 33 C is about 104 F (heat_warning at 103),
--- 36 C is about 117 F (heat_danger at 115), 39 C is well past both.
+-- Heat index at 70 percent humidity (the backend's NWS formula). 31 C is about 100 F, 33 C about 110 F (heat_warning
+-- at 103), 36 C about 129.5 F (heat_danger at 115), 39 C about 153 F.
 Scenarios.heat_day = {
 	name = "Heat day", clockStart = "10:00", speed = 120,
 	events = {
@@ -154,11 +166,12 @@ Scenarios.flash_flood = {
 		{ t = 2700, type = "water",   depth_mm = 90 },
 		{ t = 3300, type = "weather", clouds = 0.6, rain = 5, temp_c = 26, humidity = 90, gust = 10 },
 		{ t = 3900, type = "water",   depth_mm = 40 },
+		{ t = 4500, type = "water",   depth_mm = 0 },
 	},
 }
 
--- Wildlife is visual only. The dashboard's wildlife layer comes from iNaturalist,
--- there is no /sim/wildlife route, so this scenario just spawns the gator by the slough.
+-- The gator spawns by the slough and SimEvents.Wildlife("American alligator") goes to the backend through the
+-- Bridge (POST /sim/wildlife).
 Scenarios.gator = {
 	name = "Gator sighting", clockStart = "08:00", speed = 30,
 	events = {

@@ -138,7 +138,7 @@ end
 
 local function plumbing()
 	local sim = ensure(ReplicatedStorage, "Folder", "SimEvents")
-	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged", "Reset" }) do -- Reset: contracts/roblox-bridge.md
+	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged", "Reset", "Wildlife" }) do -- Reset, Wildlife: contracts/roblox-bridge.md
 		ensure(sim, "BindableEvent", n)
 	end
 	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere", "StrikeRadar" }) do
