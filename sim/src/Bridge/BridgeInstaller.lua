@@ -118,7 +118,8 @@ end)
 local function applyDevice(d)
 	beacon:SetAttribute("Led", d.led or "green")
 	beacon:SetAttribute("Countdown", d.countdown or 0)
-	beacon:SetAttribute("Index", d.index or 0)
+	-- the Pi's own needle when it is up; otherwise the site loop below sets Index from the stored hazard index
+	if d.online then beacon:SetAttribute("Index", d.index or 0) end
 	beacon:SetAttribute("Interlock", d.interlock or "running")
 	beacon:SetAttribute("Presence", d.presence == true)
 	-- Online means the whole chain is up: Roblox can reach the backend and the backend can see the Pi
@@ -150,6 +151,8 @@ task.spawn(function()
 			end
 			beacon:SetAttribute("Alerts", HttpService:JSONEncode(types))
 			if s.name then beacon:SetAttribute("SiteName", s.name) end
+			local dev = s.device or {}
+			if not dev.online and s.index then beacon:SetAttribute("Index", s.index.index or 0) end
 		end
 		task.wait(10)
 	end
