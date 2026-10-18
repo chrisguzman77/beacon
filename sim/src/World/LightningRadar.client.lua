@@ -155,6 +155,12 @@ strikeRadar.OnClientEvent:Connect(function(bearing, miles)
 	table.insert(strikes, { t = now(), miles = miles, bearing = bearing, dot = dot })
 end)
 
+-- a reset (new scenario or Reset to calm) clears the plot
+workspace:GetAttributeChangedSignal("ResetSerial"):Connect(function()
+	for _, s in ipairs(strikes) do s.dot:Destroy() end
+	strikes = {}
+end)
+
 -- when a new scenario starts its clock restarts: clear the old strikes
 workspace:GetAttributeChangedSignal("SimTime"):Connect(function()
 	local t = workspace:GetAttribute("SimTime") or 0

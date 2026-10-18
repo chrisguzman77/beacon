@@ -567,7 +567,7 @@ end
 
 local function plumbing()
 	local sim = ensure(ReplicatedStorage, "Folder", "SimEvents")
-	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged" }) do
+	for _, n in ipairs({ "Strike", "Weather", "Water", "PresenceChanged", "Reset" }) do -- Reset: contracts/roblox-bridge.md
 		ensure(sim, "BindableEvent", n)
 	end
 	for _, n in ipairs({ "FlashEvent", "ScenarioControl", "ScenarioState", "StrikeHere", "StrikeRadar" }) do
@@ -2502,6 +2502,16 @@ local function render()
 	end
 end
 
+-- Reset: back to calm on the same clock. The picture empties at once, so the beacon and the meter drop back
+-- to the model's index without waiting for the next scenario event.
+events:WaitForChild("Reset").Event:Connect(function()
+	local key, t = S.key, S.t
+	reset(key)
+	S.t, S.lastT = t, t
+	if key then logEvent("Reset: hazards cleared, starting from calm") end
+	render()
+end)
+
 events.Weather.Event:Connect(function(w)
 	S.temp_c, S.rh, S.gust, S.rate = w.temp_c, w.humidity, w.gust or 0, w.precip_mm or 0
 	render()
@@ -3010,6 +3020,12 @@ strikeRadar.OnClientEvent:Connect(function(bearing, miles)
 	table.insert(strikes, { t = now(), miles = miles, bearing = bearing, dot = dot })
 end)
 
+-- a reset (new scenario or Reset to calm) clears the plot
+workspace:GetAttributeChangedSignal("ResetSerial"):Connect(function()
+	for _, s in ipairs(strikes) do s.dot:Destroy() end
+	strikes = {}
+end)
+
 -- when a new scenario starts its clock restarts: clear the old strikes
 workspace:GetAttributeChangedSignal("SimTime"):Connect(function()
 	local t = workspace:GetAttribute("SimTime") or 0
@@ -3167,6 +3183,16 @@ end
 
 -- Demo mode plays the challenge day as a guided timeline: the DemoDirector on operator screens cuts the camera to
 -- each moment and captions it, and the day loops a few seconds after the 6 PM briefing.
+-- Reset (contracts/roblox-bridge.md): a scenario starts from calm. The Bridge posts /sim/reset, which clears the
+-- site's open alerts and sends CLEAR to the real beacon; the World clears its own hazard picture at the same moment.
+local simEvents = ReplicatedStorage:WaitForChild("SimEvents")
+local function resetHazards()
+	WeatherFx.reset() -- the gator and its pin, the water, the sky
+	workspace:SetAttribute("ResetSerial", (workspace:GetAttribute("ResetSerial") or 0) + 1) -- clients clear the radar
+	local reset = simEvents:FindFirstChild("Reset")
+	if reset then reset:Fire() end -- Conditions clears its state, the Bridge posts /sim/reset
+end
+
 local DEMO_SCENARIO, DEMO_SPEED, DEMO_PAUSE = "everglades_day", 600, 6
 -- the demo runs the quiet hours fast and slows for the moments that matter: about 75 seconds for the whole day
 local DEMO_PACE = {
@@ -3192,6 +3218,7 @@ local function lastEventT(key)
 end
 local function startDemo()
 	setSite("everglades")
+	resetHazards()
 	Engine.load(DEMO_SCENARIO)
 	Engine.setSpeed(demoSpeed(0))
 	workspace:SetAttribute("DemoMode", true)
@@ -3240,6 +3267,7 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		local events = INSTANT[arg]
 		if not events then return end
 		-- make sure a clock is running so a stop work can count down to its all clear
+		if arg == "calm" then resetHazards() end
 		if not Engine.loadedKey() then
 			workspace:SetAttribute("DemoMode", false)
 			Engine.load("instant")
@@ -3252,7 +3280,10 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		return
 	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
-	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
+	if action == "load" and Scenarios[arg] then
+		setSite(Scenarios[arg].site or "everglades")
+		resetHazards() -- before the timeline starts
+	end
 	-- one click runs a scenario: load it and play its timeline from the start, replacing whatever was running
 	if action == "load" then Engine.load(arg) Engine.play()
 	elseif action == "play" then Engine.play()
@@ -3883,7 +3914,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1018-0018, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1018-0040, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

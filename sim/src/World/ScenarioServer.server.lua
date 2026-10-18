@@ -41,6 +41,16 @@ end
 
 -- Demo mode plays the challenge day as a guided timeline: the DemoDirector on operator screens cuts the camera to
 -- each moment and captions it, and the day loops a few seconds after the 6 PM briefing.
+-- Reset (contracts/roblox-bridge.md): a scenario starts from calm. The Bridge posts /sim/reset, which clears the
+-- site's open alerts and sends CLEAR to the real beacon; the World clears its own hazard picture at the same moment.
+local simEvents = ReplicatedStorage:WaitForChild("SimEvents")
+local function resetHazards()
+	WeatherFx.reset() -- the gator and its pin, the water, the sky
+	workspace:SetAttribute("ResetSerial", (workspace:GetAttribute("ResetSerial") or 0) + 1) -- clients clear the radar
+	local reset = simEvents:FindFirstChild("Reset")
+	if reset then reset:Fire() end -- Conditions clears its state, the Bridge posts /sim/reset
+end
+
 local DEMO_SCENARIO, DEMO_SPEED, DEMO_PAUSE = "everglades_day", 600, 6
 -- the demo runs the quiet hours fast and slows for the moments that matter: about 75 seconds for the whole day
 local DEMO_PACE = {
@@ -66,6 +76,7 @@ local function lastEventT(key)
 end
 local function startDemo()
 	setSite("everglades")
+	resetHazards()
 	Engine.load(DEMO_SCENARIO)
 	Engine.setSpeed(demoSpeed(0))
 	workspace:SetAttribute("DemoMode", true)
@@ -114,6 +125,7 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		local events = INSTANT[arg]
 		if not events then return end
 		-- make sure a clock is running so a stop work can count down to its all clear
+		if arg == "calm" then resetHazards() end
 		if not Engine.loadedKey() then
 			workspace:SetAttribute("DemoMode", false)
 			Engine.load("instant")
@@ -126,7 +138,10 @@ control.OnServerEvent:Connect(function(p, action, arg)
 		return
 	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
-	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
+	if action == "load" and Scenarios[arg] then
+		setSite(Scenarios[arg].site or "everglades")
+		resetHazards() -- before the timeline starts
+	end
 	-- one click runs a scenario: load it and play its timeline from the start, replacing whatever was running
 	if action == "load" then Engine.load(arg) Engine.play()
 	elseif action == "play" then Engine.play()
