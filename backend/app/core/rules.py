@@ -13,6 +13,7 @@ R_EARTH = 6371000.0
 STOPWORK_RADIUS_M = 16093
 STOPWORK_SECONDS = 1800
 HEAT_WARNING_F, HEAT_DANGER_F = 103, 115
+WIND_WARNING_MPH, WIND_DANGER_MPH = 28, 40
 REFRESH_SECONDS = 3600  # heat and flood alerts auto clear an hour after the last reading that triggered them
 # 90 day mean river discharge per site, filled by the flood fetcher
 discharge_mean: dict[int, float] = {}
@@ -100,17 +101,30 @@ async def evaluate_heat(site_id, hi):
     if hi >= HEAT_DANGER_F:
         a = await open_or_extend_alert(site_id, "heat_danger", REFRESH_SECONDS, {"heat_index_f": round(hi, 1)})
         if a["payload"]["resets"] == 0 and SITES[site_id]["beacon"]:
-            await gateway.send(site_id, {"cmd": "REST", "seconds": 900})
+            await gateway.send(site_id, {"cmd": "REST", "seconds": 900, "heat_index_f": round(hi, 1)})
     else:
         await open_or_extend_alert(site_id, "heat_warning", REFRESH_SECONDS, {"heat_index_f": round(hi, 1)})
 
 
+async def evaluate_wind(site_id, gust_mph):
+    """Site twin gusts, the same lines as its own panel: 28 mph grounds aerial lifts and bucket trucks, 40 stops the job."""
+    if gust_mph is None or gust_mph < WIND_WARNING_MPH:
+        return
+    type_ = "wind_danger" if gust_mph >= WIND_DANGER_MPH else "wind_warning"
+    await open_or_extend_alert(site_id, type_, REFRESH_SECONDS, {"gust_mph": round(gust_mph, 1)})
+
+
 async def evaluate_flood(site_id):
+    # The latest reading of each water source, so receding water clears the alert instead of the 10 minute max
+    # holding it open; a source with no reading in 10 minutes does not count.
     water = await db.fetchval(
-        "SELECT max(water_depth_mm) FROM conditions WHERE site_id=$1 AND source IN ('beacon','sim')"
-        " AND ts > now() - interval '10 minutes'", site_id)
+        "SELECT max(w) FROM (SELECT DISTINCT ON (source) water_depth_mm AS w FROM conditions WHERE site_id=$1"
+        " AND source IN ('beacon','sim') AND water_depth_mm IS NOT NULL AND ts > now() - interval '10 minutes'"
+        " ORDER BY source, ts DESC) latest", site_id)
     if water and water > 0:
         await open_or_extend_alert(site_id, "flood_confirmed", REFRESH_SECONDS, {"water_depth_mm": water})
+    elif water is not None:
+        await clear_alerts(site_id, "water receded", types=("flood_confirmed",))
     if not SITES[site_id]["river"]:
         return
     precip = await db.fetchval(
