@@ -31,7 +31,8 @@ local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
 local function rescale()
 	local ok, size = pcall(function() return workspace.CurrentCamera.ViewportSize end)
-	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1)
+	-- 20% larger than the other screens: judges read this card from their phones
+	uiScale.Scale = math.clamp((ok and size.Y or 900) / 900, 0.65, 1) * 1.2
 end
 if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(rescale) end
 rescale()
