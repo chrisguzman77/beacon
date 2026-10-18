@@ -229,10 +229,34 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
+-- instant hazards: fire one event now, through the same path as a scenario's timeline
+function Engine.fire(e)
+	local now = table.clone(e)
+	now.t = math.floor(state.simTime) -- stamped with the current sim time, as if it were on the timeline
+	dispatch(now)
+	emit()
+end
+
+function Engine.loadedKey()
+	return state.key
+end
+
+function Engine.isPlaying()
+	return state.playing
+end
+
 return Engine
 ]==] },
 	{ "Scenarios", "ModuleScript", [==[-- Scenarios (ModuleScript)
 local Scenarios = {}
+
+-- the clock the Instant buttons run on when no scenario is playing: no events, real time scaled 60x
+Scenarios.instant = {
+	name = "Instant hazards", clockStart = "13:00", speed = 60,
+	events = {
+		{ t = 0, type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 },
+	},
+}
 
 Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
 
@@ -3101,6 +3125,19 @@ local function startDemo()
 	Engine.play()
 end
 
+-- Instant buttons: each fires its events once, now, through the engine, so the Bridge posts them like any scenario
+local CALM = { type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 }
+local INSTANT = {
+	strike8 = { { type = "strike", bearing = 270, miles = 8 } },
+	strike6 = { { type = "strike", bearing = 255, miles = 6 } },
+	strike15 = { { type = "strike", bearing = 270, miles = 15 } },
+	heat = { { type = "weather", clouds = 0.2, rain = 0, temp_c = 36, humidity = 62, gust = 10 } },
+	flood = { { type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 30 }, { type = "water", depth_mm = 60 } },
+	wind = { { type = "weather", clouds = 0.8, rain = 10, temp_c = 30, humidity = 80, gust = 45 } },
+	gator = { { type = "wildlife", species = "American alligator" } },
+	calm = { CALM, { type = "water", depth_mm = 0 } },
+}
+
 local control = ReplicatedStorage:WaitForChild("ScenarioControl")
 local stateEvent = ReplicatedStorage:WaitForChild("ScenarioState")
 local strikeHere = ReplicatedStorage:WaitForChild("StrikeHere")
@@ -3126,9 +3163,25 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	if not isOperator(p) then return end
 	if action == "demo" then startDemo() return end
 	if action == "site" then setSite(arg, { p }) return end
+	if action == "instant" then
+		local events = INSTANT[arg]
+		if not events then return end
+		-- make sure a clock is running so a stop work can count down to its all clear
+		if not Engine.loadedKey() then
+			workspace:SetAttribute("DemoMode", false)
+			Engine.load("instant")
+		end
+		if not Engine.isPlaying() then Engine.play() end
+		for _, e in ipairs(events) do
+			Engine.fire(e)
+		end
+		print(("[Instant] %s by %s"):format(arg, p.Name))
+		return
+	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
 	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
-	if action == "load" then Engine.load(arg)
+	-- one click runs a scenario: load it and play its timeline from the start, replacing whatever was running
+	if action == "load" then Engine.load(arg) Engine.play()
 	elseif action == "play" then Engine.play()
 	elseif action == "pause" then Engine.pause()
 	elseif action == "speed" then Engine.setSpeed(tonumber(arg) or 60)
@@ -3162,6 +3215,7 @@ end)
 -- timeline with a tick for every strike, flood step, wildlife report, and note; the guided demo; the scenarios;
 -- playback speed; free play lightning. Scales with the screen and collapses to its header.
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -3403,6 +3457,19 @@ end
 workspace:GetAttributeChangedSignal("ActiveSite"):Connect(paintSites)
 paintSites()
 
+section("INSTANT")
+local INSTANT = {
+	{ "strike8", "Strike 8 mi W" }, { "strike6", "Strike 6 mi W" }, { "strike15", "Strike 15 mi W" },
+	{ "heat", "Heat 115°F" }, { "flood", "Downpour + flood" }, { "wind", "High wind 45" },
+	{ "gator", "Gator report" }, { "calm", "Reset to calm" },
+}
+local instantGrid = grid(2, 28)
+for i, b in ipairs(INSTANT) do
+	local key = b[1]
+	local btn = chip(instantGrid, b[2], i, function() control:FireServer("instant", key) end)
+	if key:sub(1, 6) == "strike" then btn.TextColor3 = THEME.red end
+end
+
 section("SCENARIOS")
 local scenarioGrid = grid(3, 30)
 local scenarioChips = {}
@@ -3483,6 +3550,18 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed or not freePlay then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		if mouse.Target then strikeHere:FireServer(mouse.Hit.Position) end
+	end
+end)
+
+-- chat bottom right (the input bar moves with the window): clear of this panel (bottom left), the radar (top left),
+-- and the zone card (top right). Also saved into the place by make_place.luau.
+task.spawn(function()
+	local window = TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+	if window then
+		pcall(function()
+			window.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			window.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end)
 	end
 end)
 
@@ -3718,7 +3797,7 @@ end
 }
 
 return function()
-	print("[WorldInstaller] version 1017-2108, swamp + gators + flood + hurricane")
+	print("[WorldInstaller] version 1017-2333, swamp + gators + flood + hurricane")
 	local sss = game:GetService("ServerScriptService")
 	local sps = game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts")
 	local old = sss:FindFirstChild("World")

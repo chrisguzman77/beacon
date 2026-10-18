@@ -67,6 +67,18 @@ game:GetService("HttpService").HttpEnabled = true
 local okTech, errTech = pcall(function() game:GetService("Lighting").Technology = roblox.Enum.Technology.Future end)
 local terrain = game:GetService("Workspace"):FindFirstChildOfClass("Terrain")
 local okDeco, errDeco = pcall(function() if terrain then terrain.Decoration = true end end)
+-- chat in the bottom right corner, clear of the operator panel, the radar, and the zone card
+local okChat, errChat = pcall(function()
+	local tcs = game:GetService("TextChatService")
+	local window = tcs:FindFirstChildOfClass("ChatWindowConfiguration")
+	if not window then
+		window = Instance.new("ChatWindowConfiguration")
+		window.Parent = tcs
+	end
+	window.HorizontalAlignment = roblox.Enum.HorizontalAlignment.Right
+	window.VerticalAlignment = roblox.Enum.VerticalAlignment.Bottom
+end)
+print("Chat window bottom right: " .. (okChat and "set" or tostring(errChat)))
 print(("Lighting.Technology Future: %s, Terrain.Decoration: %s"):format(okTech and "set" or tostring(errTech), okDeco and "set" or tostring(errDeco)))
 
 fs.writeFile("sim/place/PlanITSwamp.rbxl", roblox.serializePlace(game))

@@ -3,6 +3,7 @@
 -- timeline with a tick for every strike, flood step, wildlife report, and note; the guided demo; the scenarios;
 -- playback speed; free play lightning. Scales with the screen and collapses to its header.
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -244,6 +245,19 @@ end
 workspace:GetAttributeChangedSignal("ActiveSite"):Connect(paintSites)
 paintSites()
 
+section("INSTANT")
+local INSTANT = {
+	{ "strike8", "Strike 8 mi W" }, { "strike6", "Strike 6 mi W" }, { "strike15", "Strike 15 mi W" },
+	{ "heat", "Heat 115°F" }, { "flood", "Downpour + flood" }, { "wind", "High wind 45" },
+	{ "gator", "Gator report" }, { "calm", "Reset to calm" },
+}
+local instantGrid = grid(2, 28)
+for i, b in ipairs(INSTANT) do
+	local key = b[1]
+	local btn = chip(instantGrid, b[2], i, function() control:FireServer("instant", key) end)
+	if key:sub(1, 6) == "strike" then btn.TextColor3 = THEME.red end
+end
+
 section("SCENARIOS")
 local scenarioGrid = grid(3, 30)
 local scenarioChips = {}
@@ -324,6 +338,18 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed or not freePlay then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		if mouse.Target then strikeHere:FireServer(mouse.Hit.Position) end
+	end
+end)
+
+-- chat bottom right (the input bar moves with the window): clear of this panel (bottom left), the radar (top left),
+-- and the zone card (top right). Also saved into the place by make_place.luau.
+task.spawn(function()
+	local window = TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+	if window then
+		pcall(function()
+			window.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			window.VerticalAlignment = Enum.VerticalAlignment.Bottom
+		end)
 	end
 end)
 
