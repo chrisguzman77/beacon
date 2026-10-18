@@ -1,5 +1,5 @@
 """OmniRisk beacon gateway: one asyncio process (hardware guide Appendix C). Run with `uv run main.py`."""
-import asyncio, json, logging, signal
+import asyncio, atexit, json, logging, signal, sys
 
 import config, mic, remote, rules
 from cloud import Cloud
@@ -64,6 +64,10 @@ async def main():
 
     uno.port.start()
     Port('pod', loop, on_pod_line).start()
+    # systemctl stop, Ctrl-C, or a crash leaves GPIO 18 low: the motor never runs without the gateway
+    atexit.register(interlock.apply, True)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, sys.exit)
     if type(interlock.button.pin_factory).__name__ == 'MockFactory':
         loop.add_signal_handler(signal.SIGUSR1, interlock.press_estop_for_testing)
     log.info('site %s, backend %s, demo scale %s', config.SITE_ID, config.BACKEND_URL or 'none', config.DEMO_COUNTDOWN_SCALE)

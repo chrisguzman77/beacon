@@ -61,6 +61,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now beacon-gateway
 journalctl -u beacon-gateway -f                          # the live log
 ```
 
+`sudo bash pi-root-setup.sh` does the root steps in one go (espeak-ng, the unit installed but not started, and a
+sudoers rule that lets `beacon` start, stop, and restart only this service, so it can be stopped for flashing through
+the tunnel). Stopping the gateway, or a crash, leaves GPIO 18 low: the motor never runs without it.
+
 ## TEST on the device (hardware guide Step 6)
 
 Watch `journalctl -u beacon-gateway -f` while doing each one. Every motor change is logged as `GPIO 18 low: motor
