@@ -1,8 +1,8 @@
-# PlanIT Beacon
+# OmniRisk
 
 ## AI and ML Build Guide
 
-*PlanIT Beacon, SwampHacks XII*
+*OmniRisk, SwampHacks XII*
 
 Version 2, October 2026. Markdown edition for the repo. The training pipeline lives in ml/, the serving code in backend/app/intel/, and the boundary with Viet's core is contracts/intel-interface.md.
 

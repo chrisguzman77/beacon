@@ -1,4 +1,4 @@
-# PlanIT Beacon
+# OmniRisk
 
 A jobsite safety platform for utility field crews, built at SwampHacks XII for the PlanIT Control challenge.
 

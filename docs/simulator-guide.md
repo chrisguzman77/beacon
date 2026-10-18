@@ -1,4 +1,4 @@
-# PlanIT Beacon, Simulator Build Guide (Roblox)
+# OmniRisk, Simulator Build Guide (Roblox)
 
 Version 2, October 2026. Replaces the Three.js and MapLibre simulator entirely. The simulator is now a Roblox experience built in Roblox Studio with its core logic in Luau.
 
@@ -48,7 +48,7 @@ The demo runs the published experience in the Roblox client (not Studio Play mod
 
 ### 2.1 Place, Team Create, HTTP
 
-1. Open Roblox Studio on Slavik's account, create a new Baseplate, and save it to Roblox as `PlanIT Beacon Site` (File, Publish to Roblox As). This creates the experience the judges will join.
+1. Open Roblox Studio on Slavik's account, create a new Baseplate, and save it to Roblox as `OmniRisk Beacon Site` (File, Publish to Roblox As). This creates the experience the judges will join.
 2. Turn on Team Create (View tab, Team Create, Turn On). In the Team Create panel add Viet by username with Edit permission. Both of you now edit the same place live, scripts included, with no file merging.
 3. Game Settings, Security, turn on "Allow HTTP Requests". Save.
 4. Game Settings, Permissions, set the experience to Public so phones can join without an invite. Do this now, not on Sunday, because the first publish of a public place can take a few minutes to appear in search.

@@ -1,12 +1,12 @@
-# PlanIT Beacon
+# OmniRisk
 
 ## Platform Build Guide
 
-*PlanIT Beacon, SwampHacks XII*
+*OmniRisk, SwampHacks XII*
 
 Version 2, October 2026. Markdown edition for the repo. Web app moved to docs/web-guide.md, simulator ingest updated for the Roblox bridge.
 
-This guide covers the backend core of PlanIT Beacon, the database, the fetchers, the rules engine, the scheduler, the 6 PM briefing hook, the connection to the physical beacon and to the Roblox simulator, hosting, and the MLH integrations (Tiger Data, Auth0, Vultr). It is written for Viet, who owns backend/app/core, step by step, with a test at the end of each step and every URL, parameter, and message format spelled out. The hazard index, briefing text, and photo tagging are Chris's, in backend/app/intel, and this guide only shows where core calls them. Where this guide and a file in contracts/ disagree, the contract wins.
+This guide covers the backend core of OmniRisk, the database, the fetchers, the rules engine, the scheduler, the 6 PM briefing hook, the connection to the physical beacon and to the Roblox simulator, hosting, and the MLH integrations (Tiger Data, Auth0, Vultr). It is written for Viet, who owns backend/app/core, step by step, with a test at the end of each step and every URL, parameter, and message format spelled out. The hazard index, briefing text, and photo tagging are Chris's, in backend/app/intel, and this guide only shows where core calls them. Where this guide and a file in contracts/ disagree, the contract wins.
 
 **Build order for this weekend.** The Pi and the Roblox bridge both need a public backend before anything else does, so do the sections in this order, not the numbered order. Section 2 schema. Section 3.2 sites. Section 3.5 rules. Section 3.10 sim ingest. Section 3.9 gateway endpoint and GET /sites/{id}/device. The site websocket in 3.7. Then section 5, deploy with Chris the moment it boots, even with no fetchers. Then switch to the Luau Bridge in sim/src/Bridge (docs/simulator-guide.md section 4) for a couple of hours. Then come back for 3.3 fetchers, 3.6 scheduler, 3.8 Auth0, and section 6.
 

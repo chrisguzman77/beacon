@@ -1,4 +1,4 @@
-# PlanIT Beacon
+# OmniRisk
 
 You are working inside a four person hackathon repository. This file is the framework every session shares. It fixes what must be true (the requirements, the contracts between pieces, the demo) and leaves how to build each piece to the person who owns that folder, working with you. Read it, then read the CLAUDE.md in the folder you are working in, then the matching guide in docs/ if one exists.
 

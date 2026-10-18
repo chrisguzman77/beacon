@@ -1,4 +1,4 @@
-# PlanIT Beacon
+# OmniRisk
 
 ## Hardware Build Guide
 

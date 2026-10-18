@@ -1,8 +1,8 @@
-# PlanIT Beacon
+# OmniRisk
 
 ## Web Build Guide
 
-*PlanIT Beacon, SwampHacks XII*
+*OmniRisk, SwampHacks XII*
 
 Version 1, October 2026. Split out of the Platform guide for the repo. Covers the supervisor dashboard and the crew phone page.
 
