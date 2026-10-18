@@ -1,6 +1,14 @@
 -- Scenarios (ModuleScript)
 local Scenarios = {}
 
+-- the clock the Instant buttons run on when no scenario is playing: no events, real time scaled 60x
+Scenarios.instant = {
+	name = "Instant hazards", clockStart = "13:00", speed = 60,
+	events = {
+		{ t = 0, type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 },
+	},
+}
+
 Scenarios.order = { "everglades_day", "lightning_cell", "storm_west", "hurricane", "flash_flood", "mississippi_flood", "heat_day", "gator", "tipped" }
 
 -- The lightning rule, start to finish. A cell builds west of the site, crosses the 10 mile ring, passes overhead

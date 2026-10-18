@@ -106,4 +106,20 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
+-- instant hazards: fire one event now, through the same path as a scenario's timeline
+function Engine.fire(e)
+	local now = table.clone(e)
+	now.t = math.floor(state.simTime) -- stamped with the current sim time, as if it were on the timeline
+	dispatch(now)
+	emit()
+end
+
+function Engine.loadedKey()
+	return state.key
+end
+
+function Engine.isPlaying()
+	return state.playing
+end
+
 return Engine

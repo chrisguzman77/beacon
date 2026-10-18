@@ -72,6 +72,19 @@ local function startDemo()
 	Engine.play()
 end
 
+-- Instant buttons: each fires its events once, now, through the engine, so the Bridge posts them like any scenario
+local CALM = { type = "weather", clouds = 0.3, rain = 0, temp_c = 29, humidity = 70, gust = 8 }
+local INSTANT = {
+	strike8 = { { type = "strike", bearing = 270, miles = 8 } },
+	strike6 = { { type = "strike", bearing = 255, miles = 6 } },
+	strike15 = { { type = "strike", bearing = 270, miles = 15 } },
+	heat = { { type = "weather", clouds = 0.2, rain = 0, temp_c = 36, humidity = 62, gust = 10 } },
+	flood = { { type = "weather", clouds = 0.95, rain = 55, temp_c = 27, humidity = 95, gust = 30 }, { type = "water", depth_mm = 60 } },
+	wind = { { type = "weather", clouds = 0.8, rain = 10, temp_c = 30, humidity = 80, gust = 45 } },
+	gator = { { type = "wildlife", species = "American alligator" } },
+	calm = { CALM, { type = "water", depth_mm = 0 } },
+}
+
 local control = ReplicatedStorage:WaitForChild("ScenarioControl")
 local stateEvent = ReplicatedStorage:WaitForChild("ScenarioState")
 local strikeHere = ReplicatedStorage:WaitForChild("StrikeHere")
@@ -97,6 +110,21 @@ control.OnServerEvent:Connect(function(p, action, arg)
 	if not isOperator(p) then return end
 	if action == "demo" then startDemo() return end
 	if action == "site" then setSite(arg, { p }) return end
+	if action == "instant" then
+		local events = INSTANT[arg]
+		if not events then return end
+		-- make sure a clock is running so a stop work can count down to its all clear
+		if not Engine.loadedKey() then
+			workspace:SetAttribute("DemoMode", false)
+			Engine.load("instant")
+		end
+		if not Engine.isPlaying() then Engine.play() end
+		for _, e in ipairs(events) do
+			Engine.fire(e)
+		end
+		print(("[Instant] %s by %s"):format(arg, p.Name))
+		return
+	end
 	if action == "load" then workspace:SetAttribute("DemoMode", false) end
 	if action == "load" and Scenarios[arg] then setSite(Scenarios[arg].site or "everglades") end
 	if action == "load" then Engine.load(arg)

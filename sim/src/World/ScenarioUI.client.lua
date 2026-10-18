@@ -244,6 +244,19 @@ end
 workspace:GetAttributeChangedSignal("ActiveSite"):Connect(paintSites)
 paintSites()
 
+section("INSTANT")
+local INSTANT = {
+	{ "strike8", "Strike 8 mi W" }, { "strike6", "Strike 6 mi W" }, { "strike15", "Strike 15 mi W" },
+	{ "heat", "Heat 115°F" }, { "flood", "Downpour + flood" }, { "wind", "High wind 45" },
+	{ "gator", "Gator report" }, { "calm", "Reset to calm" },
+}
+local instantGrid = grid(2, 28)
+for i, b in ipairs(INSTANT) do
+	local key = b[1]
+	local btn = chip(instantGrid, b[2], i, function() control:FireServer("instant", key) end)
+	if key:sub(1, 6) == "strike" then btn.TextColor3 = THEME.red end
+end
+
 section("SCENARIOS")
 local scenarioGrid = grid(3, 30)
 local scenarioChips = {}

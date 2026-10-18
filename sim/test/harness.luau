@@ -340,7 +340,7 @@ check(rs:FindFirstChild("SimEvents") and #rs.SimEvents:GetChildren() == 4 and rs
 local panel = LOCAL_PLAYER.PlayerGui:FindFirstChild("ScenarioUI")
 local buttons = 0
 for _, d in ipairs(panel and panel:GetDescendants() or {}) do if d:IsA("TextButton") then buttons += 1 end end
-check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 19, "client panel with 19 buttons (collapse, demo, 2 sites, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
+check(panel and LOCAL_PLAYER.PlayerGui:FindFirstChild("FlashGui") and buttons == 27, "client panel with 27 buttons (collapse, demo, 2 sites, 8 instant, 9 scenarios, play, 4 speeds, free play) and flash overlay (" .. buttons .. ")")
 
 print("== Studio auto play starts the guided demo after 5 s")
 task.wait(5.2)
@@ -587,6 +587,30 @@ check(workspace.ConditionsBoardRiver.SurfaceGui.Row5.Text:find("LEVEE") ~= nil, 
 check(workspace.RiverBeacon.Light.LevelTag.Level.Text == beacon.Light.LevelTag.Level.Text, "river beacon mirrors the main beacon (" .. workspace.RiverBeacon.Light.LevelTag.Level.Text .. ")")
 control:FireServer("site", "everglades")
 check(workspace:GetAttribute("ActiveSite") == "everglades", "site switch back to the Everglades")
+
+print("== instant hazard buttons")
+control:FireServer("load", "tipped")
+step(0.5)
+local strikesNow = #fired.strike
+control:FireServer("instant", "strike8")
+step(0.5)
+check(#fired.strike == strikesNow + 1 and fired.strike[#fired.strike][2] == 8 and workspace:GetAttribute("SimStopWork") == true,
+	"Strike 8 mi W fires one strike and opens stop work")
+control:FireServer("instant", "heat")
+step(0.5)
+check((workspace:GetAttribute("HeatIndexF") or 0) >= 115, ("Heat button: heat index %d F"):format(workspace:GetAttribute("HeatIndexF") or 0))
+control:FireServer("instant", "flood")
+step(0.5)
+check(fired.water[#fired.water][1] == 60 and workspace:GetAttribute("SimFloodMm") == 60, "Downpour + flood posts 60 mm of water")
+control:FireServer("instant", "wind")
+step(0.5)
+check((workspace:GetAttribute("SimGustMph") or 0) >= 45, "High wind button: gusts 45 mph")
+control:FireServer("instant", "gator")
+step(0.5)
+check(workspace:FindFirstChild("Gator") ~= nil and workspace:GetAttribute("SimWildlife") == true, "Gator report button spawns and reports the gator")
+control:FireServer("instant", "calm")
+step(0.5)
+check(workspace:GetAttribute("SimFloodMm") == 0 and (workspace:GetAttribute("SimGustMph") or 0) < 28, "Reset to calm drains the water and drops the wind")
 
 print("== free play bearing")
 local o = workspace.Beacon:GetPivot().Position
