@@ -8,7 +8,7 @@ Immediate lines:
 FLASH:<microsecond timestamp>      a light spike on the photoresistor
 IR:<key>                           remote key, 0..9, OK, UP, DOWN, LEFT, RIGHT
 
-Pi to UNO, USB, 115200 baud, newline terminated:
+Pi to UNO, USB, 9600 baud (a byte takes longer than the LED strip update's ~1 ms pause, so none is lost), newline terminated:
 STOPWORK:<seconds>                  start or restart countdown, strobe red, 4 digit display counts down
 CLEAR                               end stop work, green, display blank (the gateway then sends the status LCD line)
 INDEX:<0..10>                       servo needle and color band
