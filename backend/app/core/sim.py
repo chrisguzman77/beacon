@@ -124,3 +124,24 @@ async def sim_presence(body: PresenceIn):
     muster.set_presence(body.site_id, "sim", body.count)
     await muster.roblox_presence(body.site_id, body.users)
     return await muster.roster(body.site_id)
+
+
+class ResetIn(BaseModel):
+    site_id: int
+
+
+@router.post("/reset")
+async def sim_reset(body: ResetIn):
+    """A new Roblox scenario starts from calm: clear the site's open alerts, release the beacon, and drop the
+    last day of sim weather and water so the heat and flood rules do not reopen them from the old scenario."""
+    _site(body.site_id)
+    await db.execute("DELETE FROM conditions WHERE site_id=$1 AND source='sim' AND ts > now() - interval '24 hours'",
+                     body.site_id)
+    types = [r["type"] for r in await db.fetch("SELECT DISTINCT type FROM alerts WHERE site_id=$1 AND cleared IS NULL",
+                                               body.site_id)]
+    cleared = await rules.clear_alerts(body.site_id, "Roblox scenario reset", types=tuple(types)) if types else []
+    if "stopwork" in types and SITES[body.site_id]["beacon"]:
+        await gateway.send(body.site_id, {"cmd": "CLEAR", "by": "Roblox scenario reset"})
+    await db.execute("INSERT INTO events VALUES (now(),$1,'sim','reset',$2)", body.site_id,
+                     {"cleared": [a["type"] for a in cleared]})
+    return {"cleared": [a["type"] for a in cleared], "alerts": []}
