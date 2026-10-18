@@ -136,7 +136,7 @@ add(header, true)
 local brand = Instance.new("TextLabel")
 brand.BackgroundTransparency, brand.Size = 1, UDim2.new(1, -30, 1, 0)
 brand.Font, brand.TextSize, brand.TextColor3 = Enum.Font.GothamBold, 12, THEME.accent
-brand.TextXAlignment, brand.Text = Enum.TextXAlignment.Left, "PLANIT  ·  SIM CONTROL"
+brand.TextXAlignment, brand.Text = Enum.TextXAlignment.Left, "OMNIRISK  ·  SIM CONTROL"
 brand.Parent = header
 local collapsed = false
 local collapseBtn

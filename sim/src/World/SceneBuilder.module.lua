@@ -586,7 +586,7 @@ local function billboard(parent, cf)
 	local b = part(workspace, "SiteBillboard", Vector3.new(14, 7, 0.5), cf * CFrame.new(0, 8.5, 0), C.panel)
 	b:SetAttribute("SiteName", SITE_NAME)
 	local g = surface(b, 40)
-	label(g, "Header", "PLANIT BEACON  ·  SITE STATUS", UDim2.fromScale(0.92, 0.16), UDim2.fromScale(0.04, 0.06), C.safety)
+	label(g, "Header", "OMNIRISK BEACON  ·  SITE STATUS", UDim2.fromScale(0.92, 0.16), UDim2.fromScale(0.04, 0.06), C.safety)
 	local status = label(g, "Status", SITE_NAME .. "\nBEACON OFFLINE", UDim2.fromScale(0.92, 0.66), UDim2.fromScale(0.04, 0.28), C.white)
 	status.TextXAlignment, status.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
 end
@@ -908,7 +908,7 @@ local function jobsiteDressing(site)
 	f.Parent = site
 	local facingWest = CFrame.Angles(0, math.rad(-90), 0) -- read by people walking east from the spawn
 	safetySign(f, CFrame.new(-82, 0, 6) * facingWest, "CAUTION", "ACTIVE UTILITY CONSTRUCTION. AUTHORIZED PERSONNEL ONLY. HARD HAT, HI-VIS VEST, AND SAFETY BOOTS REQUIRED.", 5.4, 3.6, -1)
-	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN PLANIT.", 5, 3.4, -1)
+	safetySign(f, CFrame.new(-64, 0, -6) * facingWest, "DANGER", "ALLIGATORS. DO NOT APPROACH OR FEED. KEEP 30 FT. REPORT SIGHTINGS IN OMNIRISK.", 5, 3.4, -1)
 	safetySign(f, CFrame.new(-48, 0, 6) * facingWest, "WARNING", "LIGHTNING. WHEN THE BEACON SOUNDS, GO TO THE TRUCKS. WORK RESUMES 30 MIN AFTER THE LAST STRIKE INSIDE 10 MI.", 5.4, 3.6, -1)
 	safetySign(f, CFrame.new(-33, 0, 6) * facingWest, "NOTICE", "BEACON WORK ZONE. CHECK IN ON THE CREW PAGE OR AT THE BEACON BEFORE ENTERING.", 5, 3.2, -1)
 	safetySign(f, CFrame.new(-92, 0, -46.5), "SAFETY", "HEAT ILLNESS PREVENTION. WATER, REST, SHADE. DRINK A CUP EVERY 15 MINUTES.", 5, 3.2, -1)
