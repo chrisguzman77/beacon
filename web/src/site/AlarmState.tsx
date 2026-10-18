@@ -1,6 +1,7 @@
+import { Logo, Wordmark } from '@/components/Logo'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, Footprints, KeyRound, Radar, Scan, ShieldAlert, TriangleAlert, Users, Wrench } from 'lucide-react'
+import { Check, Footprints, KeyRound, Radar, ShieldAlert, TriangleAlert, Users, Wrench } from 'lucide-react'
 import { color } from '@/tokens'
 import { formatCountdown } from './store'
 import ReleaseDialog from './ReleaseDialog'
@@ -23,8 +24,8 @@ export default function AlarmState({ s }: { s: Snapshot }) {
     <div className="flex min-h-dvh flex-col lg:h-full lg:min-h-0" style={{ background: color.chrome, color: color.text }}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 lg:px-7" style={{ color: color.chromeText }}>
         <div className="flex items-center gap-3">
-          <Scan className="size-6" style={{ color: color.accent }} strokeWidth={2.25} />
-          <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
+          <Logo className="size-8" />
+          <Wordmark className="text-[17px]" />
           <span className="font-mono text-[12px] opacity-70">/ SITE UNIT {String(s.site.id).padStart(2, '0')}</span>
         </div>
         <span className="text-[13px] font-semibold tracking-wide" style={{ color: color.accent }}>{s.online ? 'STOP WORK IN EFFECT' : 'BEACON OFFLINE · LOCAL RULES ACTIVE'}</span>

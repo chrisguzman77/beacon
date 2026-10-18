@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Accessibility, Check, Gauge, LayoutGrid, Scan } from 'lucide-react'
+import { Accessibility, Check, Gauge, LayoutGrid } from 'lucide-react'
+import { Logo, Wordmark } from '@/components/Logo'
 import { color } from '@/tokens'
 import { useReducedMotion } from '@/sweet-treats/useReducedMotion'
 
@@ -30,8 +31,8 @@ export default function Frame({ unit, status, active, footer, hubTo = '/hub', ch
     <div className="flex min-h-dvh flex-col lg:h-full lg:min-h-0" style={{ background: color.chrome, color: color.text }}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 lg:px-7" style={{ color: color.chromeText }}>
         <div className="flex items-center gap-3">
-          <Scan className="size-6" style={{ color: color.accent }} strokeWidth={2.25} />
-          <span className="text-[19px] font-bold tracking-tight">OmniRisk</span>
+          <Logo className="size-8" />
+          <Wordmark className="text-[17px]" />
           <span className="hidden font-mono text-[12px] opacity-70 sm:inline">/ {unit}</span>
         </div>
         <div className="flex items-center gap-4 text-[13px] lg:gap-7">

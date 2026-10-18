@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import type { ReactNode } from 'react'
-import { RotateCcw, Scan } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 import { color } from '@/tokens'
 
 // Safety net for the live demo: if any screen throws, show a calm OmniRisk card with Reload
@@ -20,7 +21,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
     if (!this.state.error) return this.props.children
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center" style={{ background: color.bg, color: color.text }}>
-        <Scan className="size-10" style={{ color: color.accent }} strokeWidth={2} />
+        <Logo className="size-14" />
         <h1 className="text-[26px] font-semibold">Something went wrong on this screen</h1>
         <p className="max-w-md text-[15px]" style={{ color: color.muted }}>
           Reload to try again. The beacon keeps enforcing stop work on its own, so nothing on site depends on this page.
